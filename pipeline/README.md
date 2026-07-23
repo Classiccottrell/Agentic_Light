@@ -35,6 +35,16 @@ Every gate runs and must pass (or be skipped, see below) **before** the diff
 is rendered at the Human Gate. The patch is never presented for human review
 if a gate actually failed.
 
+## Concurrency lock
+
+`run.sh` takes an `acquire_lock` (see `System_Config/config.sh`) keyed by a
+checksum of `target-repo-path` before doing anything else. A second run
+against the *same* target repo while one is already in flight is refused
+outright (exit 1) — without this, two concurrent runs could interleave the
+coder agent's git operations (branch creation, commits) in the same working
+tree and corrupt it. Runs against different target repos are unaffected. A
+lock older than 2h is treated as abandoned (crashed run) and reclaimed.
+
 ## Halt-on-failure guarantee
 
 A failing gate (ESLint or Playwright) makes `run.sh` print `FAILED: ...`,

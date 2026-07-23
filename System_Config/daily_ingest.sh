@@ -31,12 +31,14 @@ WEEK=$(date +%V)
 TODAY=$(date +%Y-%m-%d)
 WEEKLY_NOTE="weekly_logs/${YEAR}/${YEAR}-W${WEEK}.md"
 
-# ── CONCURRENCY LOCK (atomic mkdir; released by the EXIT trap) ─────────────
+# ── CONCURRENCY LOCK (atomic mkdir; stale-lock threshold sized to the
+# worst-case run length so a legitimately-long ingest is never reclaimed
+# out from under itself) ────────────────────────────────────────────────────
 LOCK_DIR="$LOG_DIR/daily_ingest.lock"
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+LOCK_MAX_AGE=$(( (MAX_SECONDS + 30) * MAX_CLIPS_PER_RUN + 300 ))
+if ! acquire_lock "$LOCK_DIR" "$LOCK_MAX_AGE"; then
   log "another daily_ingest holds $LOCK_DIR — skipping"; exit 0
 fi
-trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 if [[ ! -d "$RAW" ]]; then
   log "no raw dir at $RAW — nothing to ingest; exiting"

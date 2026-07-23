@@ -17,9 +17,15 @@ MAX_BUDGET="${MAX_BUDGET:-2.00}"    # USD ceiling — claude only (gemini/agy ha
                                     # no cost flag; MAX_SECONDS is their ceiling)
 
 run_agent() {
-  local prompt="$1" pid wd rc
+  local prompt="$1" pid wd rc donefile
   cd "$BRAIN" || return 1
   if [[ "${AGENT_TYPE:-}" == "gemini" ]]; then
+    # Unlike the claude branch below, this CLI has no --allowedTools/
+    # --disallowedTools equivalent here — tool restriction is delegated
+    # entirely to its own --sandbox, which this wrapper cannot verify.
+    # Treat this path as lower-trust, especially against untrusted prompt
+    # content (e.g. brain/raw/ clips ingested by daily_ingest.sh).
+    echo "[run_agent] WARNING: AGENT_TYPE=gemini has no tool allow/deny list here; relies solely on the CLI's own --sandbox." >&2
     "$CLAUDE" -p "$prompt" \
           --sandbox \
           --dangerously-skip-permissions >> "${LOG:-/dev/null}" 2>&1 &
@@ -31,13 +37,24 @@ run_agent() {
           --max-budget-usd "$MAX_BUDGET" >> "${LOG:-/dev/null}" 2>&1 &
   fi
   pid=$!
-  # TERM first; a CLI wedged in a network read can ignore TERM, so escalate to
-  # KILL 20s later — otherwise `wait` blocks forever and the job never exits.
-  ( sleep "$MAX_SECONDS"; kill -TERM "$pid" 2>/dev/null
-    sleep 20;             kill -KILL "$pid" 2>/dev/null ) &
+  # Sentinel-file handshake, not a bare `kill -TERM "$pid"` after sleeping:
+  # by the time the watchdog wakes, $pid may already have exited and been
+  # reaped, and the OS is free to hand that same PID to an unrelated
+  # process — a blind kill-by-PID could then signal the wrong process.
+  # The watchdog only signals while $donefile is absent; the main path
+  # creates it immediately once `wait` returns, so the unguarded window
+  # shrinks from the full watchdog sleep to the instant between wait()
+  # returning and the touch below.
+  donefile="$(mktemp -u "${TMPDIR:-/tmp}/run_agent.XXXXXX")"   # unique name only; must NOT exist yet
+  ( sleep "$MAX_SECONDS"
+    [[ -e "$donefile" ]] || kill -TERM "$pid" 2>/dev/null
+    sleep 20
+    [[ -e "$donefile" ]] || kill -KILL "$pid" 2>/dev/null ) &
   wd=$!
   disown "$wd" 2>/dev/null || true   # silence the "Terminated" job-control notice when we cancel the watchdog
   if wait "$pid"; then rc=0; else rc=$?; fi
+  touch "$donefile" 2>/dev/null || true
   kill "$wd" 2>/dev/null || true
+  rm -f "$donefile" 2>/dev/null || true
   return "$rc"
 }
