@@ -17,7 +17,24 @@ TASK_DESC="${1:?usage: run.sh \"<task description>\" [target-repo-path]}"
 TARGET_REPO="$(cd "${2:-$PWD}" && pwd)"
 
 mkdir -p "$PIPELINE_DIR/logs"
-RUN_ID="$(date +%Y%m%d-%H%M%S)"
+
+# ---------------------------------------------------------------------------
+# Concurrency lock — one pipeline run per TARGET_REPO at a time. Without this,
+# two concurrent runs against the same target repo can interleave the coder
+# agent's git operations (branch creation, commits) in the same working tree
+# and corrupt its state. Keyed by a checksum of the target path so distinct
+# target repos still run in parallel. 2h stale-reclaim ceiling covers a
+# realistic worst-case coder+lint+e2e run; a genuinely crashed run's lock is
+# reclaimed rather than blocking every future run forever.
+# ---------------------------------------------------------------------------
+LOCK_KEY="$(printf '%s' "$TARGET_REPO" | cksum | awk '{print $1}')"
+LOCK_DIR="$PIPELINE_DIR/logs/.run.${LOCK_KEY}.lock"
+if ! acquire_lock "$LOCK_DIR" 7200; then
+  echo "[run.sh] another pipeline run holds the lock for $TARGET_REPO ($LOCK_DIR) — refusing to run concurrently." >&2
+  exit 1
+fi
+
+RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
 RUN_LOG="$PIPELINE_DIR/logs/${RUN_ID}.log"
 
 exec > >(tee -a "$RUN_LOG") 2>&1

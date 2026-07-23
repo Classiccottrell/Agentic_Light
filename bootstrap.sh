@@ -108,9 +108,14 @@ mkdir -p \
 # ---------------------------------------------------------------------------
 echo "→ Making scripts executable…"
 chmod +x "$ROOT/bootstrap.sh"
+# Scoped to the dirs that actually own Agentic Light's own scripts —
+# deliberately excludes Projects/ (holds externally cloned target repos per
+# pipeline/run.sh) and brain/ so re-running bootstrap never flips the
+# executable bit on scripts that aren't ours.
 while IFS= read -r f; do
   chmod +x "$f"
-done < <(find "$ROOT" -type f \( -name "*.sh" -o -name "*.py" \))
+done < <(find "$ROOT/System_Config" "$ROOT/pipeline" "$ROOT/skills" \
+             -type f \( -name "*.sh" -o -name "*.py" \) 2>/dev/null)
 
 # ---------------------------------------------------------------------------
 # 3. Seed .mcp.json from the example if absent (never overwrite an existing one).

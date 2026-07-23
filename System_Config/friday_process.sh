@@ -60,11 +60,10 @@ if [[ "${DRY_RUN:-0}" == "1" ]]; then
   log "dry run"; exit 0
 fi
 
-# ── CONCURRENCY LOCK (atomic mkdir; released by the EXIT trap) ─────────────
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+# ── CONCURRENCY LOCK (atomic mkdir; stale locks reclaimed after 10 min) ────
+if ! acquire_lock "$LOCK_DIR" 600; then
   log "another friday_process holds $LOCK_DIR — skipping"; exit 0
 fi
-trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 # ── STAMP CLOSE-OUT into the note's Claude Sessions (deterministic) ────────
 CLOSEOUT="- ${TODAY}: Friday close-out — week closed out"

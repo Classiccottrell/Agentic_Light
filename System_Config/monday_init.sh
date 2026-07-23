@@ -119,13 +119,12 @@ if [[ "${DRY_RUN:-0}" == "1" ]]; then
   exit 0
 fi
 
-# ── CONCURRENCY LOCK (atomic mkdir; released by the EXIT trap) ─────────────
+# ── CONCURRENCY LOCK (atomic mkdir; stale locks reclaimed after 10 min) ────
 mkdir -p "$LOG_DIR"
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+if ! acquire_lock "$LOCK_DIR" 600; then
   echo "[monday_init] another run holds $LOCK_DIR — skipping" >&2
   exit 0
 fi
-trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 # ── CREATE brain/raw WEEK FOLDER (always, idempotent) ───────────────────────
 mkdir -p "$RAW_DIR"
