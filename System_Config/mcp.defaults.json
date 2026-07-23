@@ -1,0 +1,15 @@
+{
+  "_comment": "MCP config template for Agentic Light. Copy this file to ../.mcp.json (workspace root) and add your own servers under mcpServers. Example entry: \"example-server\": { \"command\": \"npx\", \"args\": [\"-y\", \"@your-org/your-mcp-server\"], \"env\": { \"SERVER_URL\": \"https://your-server.example.com\" } }. For an HTTP/SSE server use: \"example-server\": { \"type\": \"sse\", \"url\": \"https://your-server.example.com/sse\" }. Do NOT commit a real .mcp.json containing internal URLs or credentials.",
+  "_disabled_examples_comment": "Common presets — not active. Move an entry into mcpServers to enable it.",
+  "_disabled_examples": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "<path>"]
+    },
+    "git": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-git", "--repository", "<path>"]
+    }
+  },
+  "mcpServers": {}
+}

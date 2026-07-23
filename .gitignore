@@ -1,0 +1,13 @@
+# Local MCP config — copy from System_Config/mcp.defaults.json, never commit
+.mcp.json
+
+# Obsidian per-machine session state (vault config itself is shipped, see CLAUDE.md)
+.obsidian/workspace*.json
+.obsidian/workspace-mobile.json
+
+# Runtime logs
+System_Config/logs/*.log
+pipeline/logs/*.log
+
+# OS cruft
+.DS_Store

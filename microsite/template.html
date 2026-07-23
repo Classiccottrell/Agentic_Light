@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f9f5f1" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#1c1e1c" media="(prefers-color-scheme: dark)">
+    <title>Page Title — Agentic Light</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:ital,wght@0,400..700;1,400..700&amp;family=Rosarivo:ital@0;1&amp;display=swap" rel="stylesheet">
+<style>
+/* ClassicCottrell design system — 2026-07-10 */
+/* DO NOT EDIT THIS BLOCK — copy it verbatim when creating new HTML pages. */
+:root{
+  --bg:#f9f5f1;--surface:#fffdfb;
+  --ink:#2c2c2c;--ink-2:#4a463f;--muted:#77726a;--rule:#e4ddd2;
+  --accent:#437057;--accent-hover:#2f4f3e;--accent-ink:#f9f5f1;
+  --accent-soft:#e2ebe4;--accent-soft-ink:#2f4f3e;
+  --ok:#437057;--warn:#a07d33;--fail:#b4462f;
+  --radius:0.625rem;--shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
+  --sans:"Red Hat Display",ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --serif:"Rosarivo",Georgia,"Times New Roman",serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#1c1e1c;--surface:#262825;
+    --ink:#f2ede5;--ink-2:#cfcac0;--muted:#a7a297;--rule:rgba(255,255,255,.12);
+    --accent:#7fa88c;--accent-hover:#a9c4b3;--accent-ink:#16211a;
+    --accent-soft:#33413a;--accent-soft-ink:#cfe0d5;
+    --ok:#7fa88c;--warn:#c2a878;--fail:#d9694f;--shadow:none;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink-2);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.wrap{max-width:60rem;margin:0 auto;padding:0 clamp(1.25rem,5vw,3rem)}
+a{color:var(--accent)}
+header.site{position:sticky;top:0;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:saturate(120%) blur(12px);border-bottom:1px solid var(--rule)}
+header.site .wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:56px}
+.wordmark{font-family:var(--mono);font-size:.875rem;font-weight:600;color:var(--ink);text-decoration:none}
+.wordmark .pr{color:var(--accent)}
+.back{font-family:var(--mono);font-size:.78rem;color:var(--ink-2);text-decoration:none;border:1px solid var(--rule);padding:.4rem .75rem;border-radius:var(--radius)}
+.back:hover{border-color:var(--accent);color:var(--accent)}
+main{padding:clamp(2.5rem,6vw,4rem) 0}
+.eyebrow{font-family:var(--mono);text-transform:uppercase;font-size:.72rem;letter-spacing:.1em;color:var(--muted);margin:0 0 .5rem}
+h1{color:var(--ink);font-weight:700;font-size:clamp(1.9rem,1.4rem + 2vw,2.6rem);letter-spacing:-.02em;line-height:1.1;margin:.3rem 0 1rem}
+h2{color:var(--ink);font-weight:600;font-size:1.375rem;line-height:1.25;margin:2rem 0 .75rem}
+h3{color:var(--ink);font-weight:600;font-size:1.125rem;margin:1.5rem 0 .5rem}
+h4{color:var(--ink);font-weight:600;font-size:1rem;margin:1rem 0 .5rem}
+p{max-width:68ch;margin:0 0 1rem}
+.lede{font-size:1.15rem;color:var(--ink-2);max-width:60ch;line-height:1.6}
+ul,ol{max-width:68ch;padding-left:1.5rem;margin:.5em 0}
+li{margin:.35rem 0}
+code{font-family:var(--mono);font-size:.85rem;background:var(--accent-soft);color:var(--accent-soft-ink);padding:2px 6px;border-radius:calc(var(--radius)/2)}
+pre{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin:1rem 0}
+pre code{background:none;color:var(--ink-2);padding:0;font-family:var(--mono)}
+table{border-collapse:collapse;width:100%;max-width:68ch;margin:1rem 0}
+th{font-family:var(--mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);text-align:left;font-weight:600;padding:.6rem .8rem;border-bottom:2px solid var(--rule)}
+td{font-size:.92rem;padding:.6rem .8rem;border-bottom:1px solid var(--rule);vertical-align:top}
+tbody tr:hover{background:var(--accent-soft)}
+hr{border:none;border-top:1px solid var(--rule);margin:2rem 0}
+.card{border:1px solid var(--rule);border-left:3px solid var(--accent);border-radius:var(--radius);background:var(--surface);padding:1.1rem 1.375rem;margin:1.5rem 0;box-shadow:var(--shadow);max-width:68ch}
+.btn{display:inline-flex;align-items:center;gap:.4rem;font-size:.875rem;font-weight:600;padding:0 1.1rem;min-height:2.5rem;border-radius:var(--radius);text-decoration:none;background:var(--accent);color:var(--accent-ink);border:1px solid transparent;transition:background .15s}
+.btn.alt{background:transparent;color:var(--accent);border-color:var(--rule)}
+.btn:hover{background:var(--accent-hover)}
+.btn.alt:hover{background:var(--accent-soft);border-color:var(--accent)}
+footer.site{border-top:1px solid var(--rule);margin-top:3rem}
+footer.site .wrap{padding:2rem 0;color:var(--muted);font-size:.85rem}
+footer.site a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:var(--radius)}
+  .subnav{border-bottom:1px solid var(--rule)}
+  .subnav .wrap{padding:.55rem clamp(1.25rem,5vw,3rem)}
+
+/* editorial display type — ClassicCottrell */
+h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
+</style>
+</head>
+<body>
+<!-- HEADER: wordmark always points at microsite/index.html — every page in this microsite is a sibling. -->
+<header class="site">
+    <div class="wrap">
+        <a class="wordmark" href="index.html">agentic-light <span class="pr">~ %</span></a>
+    </div>
+</header>
+<div class="subnav">
+    <div class="wrap"><a class="back" href="index.html">← back</a></div>
+</div>
+
+<main>
+    <div class="wrap">
+        <!-- CONTENT SECTION: copy this file, then replace everything below with page content.
+             Keep the eyebrow/h1/lede pattern; use .card for callouts, .btn for CTAs. -->
+        <p class="eyebrow">// category name</p>
+        <h1>Page Title</h1>
+        <p class="lede">A 1-2 sentence introduction that explains what this page covers.</p>
+
+        <h2>First section</h2>
+        <p>Paragraph text goes here. Use <code>code</code> for inline code, <strong>strong</strong> for emphasis.</p>
+    </div>
+</main>
+
+<!-- FOOTER: update "Page Name" to match this page; home/health links stay relative siblings. -->
+<footer class="site">
+    <div class="wrap">
+        agentic-light · Page Name · <a href="index.html">home</a> · <a href="health.html">health</a>
+    </div>
+</footer>
+
+</body>
+</html>

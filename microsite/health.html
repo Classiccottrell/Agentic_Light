@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Auto-refresh: pick up a fresh status.js snapshot every 5 minutes -->
+<meta http-equiv="refresh" content="300">
+<title>System Health — Agentic Light</title>
+<meta name="description" content="Live health dashboard for Agentic Light: directory layout, roster completeness, brain scaffolding, pipeline logs, and doc currency.">
+<meta name="theme-color" content="#f9f5f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1e1c" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:ital,wght@0,400..700;1,400..700&amp;family=Rosarivo:ital@0;1&amp;display=swap" rel="stylesheet">
+<style>
+/* ClassicCottrell design system — 2026-07-10 */
+:root{
+  --bg:#f9f5f1;--surface:#fffdfb;
+  --ink:#2c2c2c;--ink-2:#4a463f;--muted:#77726a;--rule:#e4ddd2;
+  --accent:#437057;--accent-hover:#2f4f3e;--accent-ink:#f9f5f1;
+  --accent-soft:#e2ebe4;--accent-soft-ink:#2f4f3e;
+  --ok:#437057;--warn:#a07d33;--fail:#b4462f;
+  --ok-soft:#e2ebe4;--warn-soft:#f3ecdd;--fail-soft:#f6e3dd;
+  --radius:0.625rem;--shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
+  --sans:"Red Hat Display",ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --serif:"Rosarivo",Georgia,"Times New Roman",serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#1c1e1c;--surface:#262825;
+    --ink:#f2ede5;--ink-2:#cfcac0;--muted:#a7a297;--rule:rgba(255,255,255,.12);
+    --accent:#7fa88c;--accent-hover:#a9c4b3;--accent-ink:#16211a;
+    --accent-soft:#33413a;--accent-soft-ink:#cfe0d5;
+    --ok:#7fa88c;--warn:#c2a878;--fail:#d9694f;
+    --ok-soft:#33413a;--warn-soft:#3a3426;--fail-soft:#3d2a24;--shadow:none;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink-2);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.wrap{max-width:60rem;margin:0 auto;padding:0 clamp(1.25rem,5vw,3rem)}
+a{color:var(--accent)}
+
+.skip{position:absolute;left:-9999px;top:0;background:var(--surface);color:var(--accent);padding:.6rem 1rem;border:1px solid var(--rule);border-radius:6px;z-index:100}
+.skip:focus{left:1rem;top:1rem}
+
+header.site{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:saturate(120%) blur(12px);border-bottom:1px solid var(--rule)}
+header.site .wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:56px}
+.wordmark{font-family:var(--mono);font-size:.875rem;font-weight:600;color:var(--ink);text-decoration:none;white-space:nowrap}
+.wordmark .pr{color:var(--accent)}
+.back{font-family:var(--mono);font-size:.78rem;color:var(--ink-2);text-decoration:none;border:1px solid var(--rule);padding:.4rem .75rem;border-radius:var(--radius)}
+.back:hover{border-color:var(--accent);color:var(--accent)}
+
+main{padding:clamp(2.5rem,6vw,4rem) 0}
+.eyebrow{font-family:var(--mono);text-transform:uppercase;font-size:.72rem;letter-spacing:.12em;color:var(--muted);margin:0 0 .5rem}
+h1{color:var(--ink);font-weight:700;font-size:clamp(1.9rem,1.4rem + 2vw,2.6rem);letter-spacing:-.02em;line-height:1.1;margin:.3rem 0 .75rem;text-wrap:balance}
+.lede{font-size:1.1rem;color:var(--ink-2);max-width:60ch;line-height:1.55;margin:0 0 1.75rem;text-wrap:pretty}
+h2{color:var(--ink);font-weight:600;font-size:1.15rem;line-height:1.25;margin:0}
+code{font-family:var(--mono);font-size:.85rem;background:var(--accent-soft);color:var(--accent-soft-ink);padding:2px 6px;border-radius:calc(var(--radius)/2)}
+pre{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin:1rem 0;font-family:var(--mono);font-size:.85rem;color:var(--ink-2)}
+
+.banner{display:flex;align-items:center;flex-wrap:wrap;gap:.65rem 1rem;border:1px solid var(--rule);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow);padding:1.1rem 1.3rem;margin:0 0 1.5rem}
+.banner.ok{border-color:color-mix(in srgb,var(--ok) 35%,var(--rule));background:var(--ok-soft)}
+.banner.warn{border-color:color-mix(in srgb,var(--warn) 35%,var(--rule));background:var(--warn-soft)}
+.banner.fail{border-color:color-mix(in srgb,var(--fail) 40%,var(--rule));background:var(--fail-soft)}
+.banner .state{font-weight:700;font-size:1.05rem;color:var(--ink);display:flex;align-items:center;gap:.6rem}
+.bigdot{width:.7rem;height:.7rem;border-radius:50%;flex:0 0 auto}
+.bigdot.ok{background:var(--ok)}.bigdot.warn{background:var(--warn)}.bigdot.fail{background:var(--fail)}
+@media (prefers-reduced-motion:no-preference){.bigdot{animation:pulse 2.4s ease-in-out infinite}@keyframes pulse{50%{opacity:.45}}}
+.counts{display:flex;gap:1.1rem;margin-left:auto;font-family:var(--mono);font-size:.82rem;color:var(--muted)}
+.counts b{color:var(--ink);font-variant-numeric:tabular-nums}
+.counts .c-ok b{color:var(--ok)}.counts .c-warn b{color:var(--warn)}.counts .c-fail b{color:var(--fail)}
+
+.meta{font-family:var(--mono);font-size:.78rem;color:var(--muted);margin:0 0 2rem}
+.meta .tabnum{font-variant-numeric:tabular-nums}
+
+section.layer{border:1px solid var(--rule);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow);overflow:hidden;margin:0 0 1.1rem}
+section.layer>header{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.85rem 1.1rem;border-bottom:1px solid var(--rule)}
+section.layer .mini{display:flex;gap:.35rem;margin-left:auto}
+.tick{font-family:var(--mono);font-size:.7rem;padding:.1rem .45rem;border-radius:999px;color:var(--muted);border:1px solid var(--rule);font-variant-numeric:tabular-nums}
+.tick.ok{color:var(--ok)}.tick.warn{color:var(--warn)}.tick.fail{color:var(--fail);border-color:color-mix(in srgb,var(--fail) 40%,var(--rule))}
+table{border-collapse:collapse;width:100%}
+td{font-size:.92rem;padding:.6rem 1.1rem;border-top:1px solid var(--rule);vertical-align:top}
+tr:first-child td{border-top:0}
+td.s{white-space:nowrap;width:1%;font-family:var(--mono);font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+td.n{font-weight:500;color:var(--ink);width:30%;min-width:160px}
+td.d{color:var(--muted)}
+tr.warn td.d{color:color-mix(in srgb,var(--warn) 70%,var(--ink-2))}
+tr.fail td.d{color:color-mix(in srgb,var(--fail) 70%,var(--ink-2))}
+.dot{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;margin-right:.5rem;vertical-align:middle}
+.dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}.dot.fail{background:var(--fail)}
+
+.empty{border:1px dashed var(--rule);border-radius:var(--radius);padding:1.5rem;background:var(--surface);max-width:60ch}
+.empty h2{margin-bottom:.5rem}
+.empty p{margin:.5rem 0;color:var(--ink-2)}
+
+footer.site{border-top:1px solid var(--rule);margin-top:3rem}
+footer.site .wrap{padding:2rem 0;color:var(--muted);font-size:.85rem}
+footer.site a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:var(--radius)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important}}
+.subnav{border-bottom:1px solid var(--rule)}
+.subnav .wrap{padding:.55rem clamp(1.25rem,5vw,3rem)}
+
+/* editorial display type — ClassicCottrell */
+h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <div class="wrap">
+    <a class="wordmark" href="index.html">agentic-light <span class="pr">~ %</span></a>
+  </div>
+</header>
+<div class="subnav">
+  <div class="wrap"><a class="back" href="index.html">← back to overview</a></div>
+</div>
+
+<main id="main">
+  <div class="wrap">
+    <p class="eyebrow">// system health</p>
+    <h1>Agentic Light health</h1>
+    <p class="lede">Every layer (directory layout, roster completeness, brain scaffolding, pipeline log recency, doc currency) probed by <code>System_Config/healthcheck.sh</code> and reported here. This page reflects the last snapshot and refreshes every five minutes.</p>
+
+    <div id="report" aria-live="polite">
+      <!-- rendered from window.__STATUS__ -->
+    </div>
+
+    <noscript>
+      <div class="empty">
+        <h2>JavaScript required</h2>
+        <p>This dashboard renders the latest <code>status.js</code> snapshot client-side. Run <code>bash System_Config/healthcheck.sh</code> and reload.</p>
+      </div>
+    </noscript>
+  </div>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    agentic-light · System health · <a href="index.html">home</a> · regenerate with <code>bash System_Config/healthcheck.sh</code>
+  </div>
+</footer>
+
+<!-- Snapshot data. Written by healthcheck.sh as `window.__STATUS__ = {...};`.
+     Loaded via <script> (not fetch) so the page also works from file://. -->
+<script src="status.js" onerror="window.__STATUS_LOAD_ERROR__=true"></script>
+<script>
+(function () {
+  var mount = document.getElementById('report');
+  var data = window.__STATUS__;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  if (!data || !data.checks || !data.checks.length) {
+    mount.innerHTML =
+      '<div class="empty">' +
+        '<h2>No snapshot yet</h2>' +
+        '<p>The health dashboard renders the latest <code>status.js</code> snapshot, which is written by the health check.</p>' +
+        '<p>Generate one:</p>' +
+        '<pre>$ bash System_Config/healthcheck.sh</pre>' +
+        '<p>Then reload this page.</p>' +
+      '</div>';
+    return;
+  }
+
+  var cls = (data.overall || '').toUpperCase() === 'PASS' ? 'ok'
+          : (data.overall || '').toUpperCase() === 'WARN' ? 'warn' : 'fail';
+  var label = cls === 'ok' ? 'All systems operational'
+            : cls === 'warn' ? 'Operational — warnings' : 'Attention required';
+
+  var html = '';
+  html += '<div class="banner ' + cls + '" role="status">' +
+            '<span class="state"><span class="bigdot ' + cls + '"></span>' + esc(label) + '</span>' +
+            '<span class="counts">' +
+              '<span class="c-ok"><b>' + (data.pass || 0) + '</b> pass</span>' +
+              '<span class="c-warn"><b>' + (data.warn || 0) + '</b> warn</span>' +
+              '<span class="c-fail"><b>' + (data.fail || 0) + '</b> fail</span>' +
+            '</span>' +
+          '</div>';
+  html += '<p class="meta">Generated <span class="tabnum">' + esc(data.generated || 'unknown') + '</span> · auto-refreshes every 5 min</p>';
+
+  var order = [], groups = {};
+  data.checks.forEach(function (c) {
+    var k = c.layer || 'Checks';
+    if (!groups[k]) { groups[k] = []; order.push(k); }
+    groups[k].push(c);
+  });
+
+  order.forEach(function (layer) {
+    var rows = groups[layer];
+    var n = { PASS: 0, WARN: 0, FAIL: 0 };
+    rows.forEach(function (r) { var s = (r.status || 'WARN').toUpperCase(); n[s] = (n[s] || 0) + 1; });
+
+    var mini = '';
+    if (n.PASS) mini += '<span class="tick ok">' + n.PASS + ' pass</span>';
+    if (n.WARN) mini += '<span class="tick warn">' + n.WARN + ' warn</span>';
+    if (n.FAIL) mini += '<span class="tick fail">' + n.FAIL + ' fail</span>';
+
+    var body = rows.map(function (r) {
+      var s = (r.status || 'WARN').toUpperCase();
+      var dc = s === 'PASS' ? 'ok' : s === 'WARN' ? 'warn' : 'fail';
+      return '<tr class="' + dc + '">' +
+               '<td class="s"><span class="dot ' + dc + '"></span>' + esc(s) + '</td>' +
+               '<td class="n">' + esc(r.name) + '</td>' +
+               '<td class="d">' + esc(r.detail) + '</td>' +
+             '</tr>';
+    }).join('');
+
+    html += '<section class="layer">' +
+              '<header><h2>' + esc(layer) + '</h2><div class="mini">' + mini + '</div></header>' +
+              '<table>' + body + '</table>' +
+            '</section>';
+  });
+
+  mount.innerHTML = html;
+})();
+</script>
+</body>
+</html>
