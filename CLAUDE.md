@@ -27,7 +27,10 @@ Agentic_Light/
 ├── agents/
 │   └── architect.md · coder.md · creative-director.md · curator.md · eng-manager.md · qa.md · README.md
 ├── skills/
-│   └── skills.sh
+│   ├── skills.sh
+│   └── figma-* (12 dirs, from figma/mcp-server-guide) — code-connect, create-new-file,
+│       design-to-code, generate-design, generate-diagram, generate-library,
+│       implement-motion, swiftui, use, use-figjam, use-motion, use-slides
 ├── microsite/{template.html, index.html, health.html, status.json, README.md}
 ├── brain/
 │   ├── CLAUDE.md · README.md
