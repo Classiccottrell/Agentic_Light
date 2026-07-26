@@ -13,11 +13,12 @@ lives.
    color).
 
 ## Obsidian Web Clipper
-Clips land in `brain/raw/YYYY/Wnn <label>/` — the current week's folder is
-created automatically by `System_Config/monday_init.sh` every Monday. Point
-the Web Clipper's save location at that week's folder (or configure a
-template that writes there). See `brain/raw/README.md` for the exact
-naming convention and frontmatter format.
+Clips land in `brain/raw/YYYY/Wnn <label>/` — `System_Config/monday_init.sh`
+creates the current week's folder when you run it. `daily_ingest.sh` also
+self-heals the same folder if missing, so a note has somewhere to land
+whichever script you run first. Point the Web Clipper's save location at
+that week's folder (or configure a template that writes there). See
+`brain/raw/README.md` for the exact naming convention and frontmatter format.
 
 ## Ingestion
 `System_Config/daily_ingest.sh` scans `brain/raw/**/*.md` (two levels deep)

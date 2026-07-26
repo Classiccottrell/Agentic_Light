@@ -127,7 +127,7 @@ if ! acquire_lock "$LOCK_DIR" 600; then
 fi
 
 # ── CREATE brain/raw WEEK FOLDER (always, idempotent) ───────────────────────
-mkdir -p "$RAW_DIR"
+ensure_current_week_raw_folder
 echo "[monday_init] raw folder ready: raw/${YEAR}/W${WEEK_NUM} ${WEEK_LABEL}"
 
 # ── UPDATE MASTER NOTE WEEKLY INDEX (backup → edit → validate → rollback) ──

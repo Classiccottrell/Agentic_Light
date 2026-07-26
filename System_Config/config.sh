@@ -55,6 +55,27 @@ validate_config() {
 }
 validate_config || echo "config.sh: configuration warnings above — some scripts may misbehave" >&2
 
+# ensure_current_week_raw_folder — mkdir -p the current ISO week's
+# brain/raw/YYYY/Wnn label/ folder so a note always has somewhere to land,
+# regardless of whether monday_init.sh has run yet this week. Idempotent
+# (mkdir -p). Mirrors the folder-path calc in monday_init.sh. bash 3.2 safe.
+ensure_current_week_raw_folder() {
+  local dow monday year week_num mon_abbr d_start end_mon d_end week_label raw_dir
+  dow=$(date +%u)                                   # 1=Mon .. 7=Sun
+  monday=$(date -d "-$((dow-1)) days" +%Y-%m-%d)
+  year=$(date -d "$monday" +%G)                      # ISO week-year (pairs with %V)
+  week_num=$(date -d "$monday" +%V)                  # zero-padded ISO week
+  mon_abbr=$(date -d "$monday" +%b); d_start=$((10#$(date -d "$monday" +%d)))
+  end_mon=$(date -d "$monday +4 days" +%b); d_end=$((10#$(date -d "$monday +4 days" +%d)))
+  if [[ "$end_mon" == "$mon_abbr" ]]; then
+    week_label="${mon_abbr} ${d_start}-${d_end}"
+  else
+    week_label="${mon_abbr} ${d_start} - ${end_mon} ${d_end}"
+  fi
+  raw_dir="$RAW/${year}/W${week_num} ${week_label}"
+  mkdir -p "$raw_dir"
+}
+
 # acquire_lock <lock_dir> [max_age_seconds] — atomic mkdir lock. If the lock
 # is already held, checks its mtime: a lock older than max_age_seconds (default
 # 3600) is assumed abandoned by a killed/crashed run and is reclaimed once

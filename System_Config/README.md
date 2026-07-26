@@ -15,7 +15,10 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   itself, warning on failure). Provides `acquire_lock <dir> [max_age_s]`, an
   atomic-`mkdir` lock shared by the scripts below — a lock older than
   `max_age_s` (default 3600) is treated as abandoned by a killed/crashed run
-  and reclaimed once.
+  and reclaimed once. Provides `ensure_current_week_raw_folder()`, an
+  idempotent `mkdir -p` of the current ISO week's `brain/raw/YYYY/Wnn label/`
+  folder; called by both `monday_init.sh` and `daily_ingest.sh` so a note
+  always has somewhere to land regardless of which script runs first.
 - **`mcp.defaults.json`** — provider-agnostic MCP server template. Copy to
   `../.mcp.json` and populate `mcpServers`; `bootstrap.sh` does this
   automatically on first run if `.mcp.json` is absent.
@@ -50,7 +53,10 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   (backup → awk rewrite → validate → rollback). `acquire_lock` (10 min
   stale-reclaim); `DRY_RUN=1` preview. No microsite regen and no GitHub
   Pages publish here.
-- **`daily_ingest.sh`** — scans `brain/raw/YYYY/Wnn label/*.md` (exactly two
+- **`daily_ingest.sh`** — self-heals the current week's `brain/raw/` folder
+  via `ensure_current_week_raw_folder()` before scanning (so a manual run
+  works even if `monday_init.sh` hasn't run yet this week), then scans
+  `brain/raw/YYYY/Wnn label/*.md` (exactly two
   levels deep; deeper nesting WARNs and is skipped) for new clips and
   ingests each with one `run_agent` call, wikifying it into `brain/wiki/`.
   Content-hash manifest (`brain/raw/.ingested.log`, sha256-keyed) for

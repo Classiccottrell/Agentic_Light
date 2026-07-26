@@ -31,6 +31,10 @@ WEEK=$(date +%V)
 TODAY=$(date +%Y-%m-%d)
 WEEKLY_NOTE="weekly_logs/${YEAR}/${YEAR}-W${WEEK}.md"
 
+# Self-heal: ensure this week's raw/ folder exists even if monday_init.sh
+# hasn't run yet this week, so a note always has somewhere to land.
+ensure_current_week_raw_folder
+
 # ── CONCURRENCY LOCK (atomic mkdir; stale-lock threshold sized to the
 # worst-case run length so a legitimately-long ingest is never reclaimed
 # out from under itself) ────────────────────────────────────────────────────
