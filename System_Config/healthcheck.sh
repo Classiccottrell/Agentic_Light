@@ -168,6 +168,26 @@ fi
 end_section
 
 # ════════════════════════════════════════════════════════════════════════
+# LAYER D — Provider configuration (read-only)
+# ════════════════════════════════════════════════════════════════════════
+begin_section "Provider Configuration"
+HC_ENABLED="${AGENTIC_LIGHT_PROVIDERS:-$(config_value PROVIDERS)}"
+HC_PRIORITY="${AGENTIC_LIGHT_PRIORITY:-$(config_value PRIORITY)}"
+[ -n "$HC_ENABLED" ] || HC_ENABLED="claude,gemini,codex,ollama"
+[ -n "$HC_PRIORITY" ] || HC_PRIORITY="$HC_ENABLED"
+if validate_provider_lists "$HC_ENABLED" "$HC_PRIORITY"; then
+  check PASS "Provider lists" "priority is an exact ordering of enabled providers"
+  if resolve_agent_provider >/dev/null 2>&1; then
+    check PASS "Provider executable" "$AGENT_PROVIDER: $AGENT_COMMAND"
+  else
+    check FAIL "Provider executable" "no enabled provider executable found"
+  fi
+else
+  check FAIL "Provider lists" "unknown, duplicate, or mismatched enabled/priority entries"
+fi
+end_section
+
+# ════════════════════════════════════════════════════════════════════════
 # LAYER E — Pipeline log recency (informational — fresh scaffold has none yet)
 # ════════════════════════════════════════════════════════════════════════
 begin_section "Pipeline Logs"

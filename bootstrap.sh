@@ -174,15 +174,33 @@ else
 fi
 
 valid_list() {
-  case ",$1," in
-    *[!a-z,]*|*,claude,claude,*|*,gemini,gemini,*|*,codex,codex,*|*,ollama,ollama,*) return 1 ;;
+  case "$1" in
+    ""|,*|*,|*,,*|*[!a-z,]*) return 1 ;;
   esac
-  for item in $(printf '%s' "$1" | tr ',' ' '); do
+  old_ifs="$IFS"; IFS=,
+  for item in $1; do
+    IFS="$old_ifs"
     case "$item" in claude|gemini|codex|ollama) ;; *) return 1 ;; esac
+    case ",$1," in *",$item,"*",$item,"*) return 1 ;; esac
+    IFS=,
   done
-  [ -n "$1" ]
+  IFS="$old_ifs"
 }
-valid_list "$PROVIDERS" && valid_list "$PRIORITY" || { echo "Invalid provider list." >&2; exit 1; }
+same_providers() {
+  local item old_ifs="$IFS"
+  IFS=,
+  for item in $1; do
+    IFS="$old_ifs"; case ",$2," in *",$item,"*) ;; *) return 1 ;; esac; IFS=,
+  done
+  for item in $2; do
+    IFS="$old_ifs"; case ",$1," in *",$item,"*) ;; *) return 1 ;; esac; IFS=,
+  done
+  IFS="$old_ifs"
+}
+valid_list "$PROVIDERS" && valid_list "$PRIORITY" && same_providers "$PROVIDERS" "$PRIORITY" || {
+  echo "Invalid provider lists: priority must be an exact ordering of enabled providers." >&2
+  exit 1
+}
 
 CONFIG_TMP="$(mktemp "${TMPDIR:-/tmp}/agentic-light.XXXXXX")"
 {

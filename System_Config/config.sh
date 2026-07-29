@@ -24,6 +24,30 @@ provider_command() {
   esac
 }
 
+validate_provider_lists() {
+  local enabled="$1" priority="$2" item old_ifs
+  case "$enabled,$priority" in
+    *[!a-z,]*|,*|*,|*,,*) return 1 ;;
+  esac
+  old_ifs="$IFS"; IFS=,
+  for item in $enabled; do
+    IFS="$old_ifs"
+    case "$item" in claude|gemini|codex|ollama) ;; *) return 1 ;; esac
+    case ",$enabled," in *",$item,"*",$item,"*) return 1 ;; esac
+    case ",$priority," in *",$item,"*) ;; *) return 1 ;; esac
+    IFS=,
+  done
+  for item in $priority; do
+    IFS="$old_ifs"
+    case "$item" in claude|gemini|codex|ollama) ;; *) return 1 ;; esac
+    case ",$priority," in *",$item,"*",$item,"*) return 1 ;; esac
+    case ",$enabled," in *",$item,"*) ;; *) return 1 ;; esac
+    IFS=,
+  done
+  IFS="$old_ifs"
+  return 0
+}
+
 resolve_agent_provider() {
   local configured enabled provider old_ifs model_key
   enabled="${AGENTIC_LIGHT_PROVIDERS:-$(config_value PROVIDERS)}"
@@ -32,17 +56,22 @@ resolve_agent_provider() {
   [[ -n "$configured" ]] || configured="$enabled"
   [[ -n "$enabled" ]] || enabled="claude,gemini,codex,ollama"
   [[ -n "$configured" ]] || configured="claude,gemini,codex,ollama"
+  validate_provider_lists "$enabled" "$configured" || {
+    echo "config.sh: invalid provider configuration (priority must be an exact ordering of enabled providers)" >&2
+    return 1
+  }
   if [[ -n "$LEGACY_AGENT_TYPE_OVERRIDE" ]]; then
-    enabled="$LEGACY_AGENT_TYPE_OVERRIDE,$enabled"
-    configured="$LEGACY_AGENT_TYPE_OVERRIDE,$configured"
+    case ",$enabled," in
+      *",$LEGACY_AGENT_TYPE_OVERRIDE,"*) configured="$LEGACY_AGENT_TYPE_OVERRIDE,$configured" ;;
+      *) echo "config.sh: AGENT_TYPE is not enabled: $LEGACY_AGENT_TYPE_OVERRIDE" >&2; return 1 ;;
+    esac
   fi
 
   old_ifs="$IFS"; IFS=,
   for provider in $configured; do
     IFS="$old_ifs"
-    case "$provider" in claude|gemini|codex|ollama) ;; *) continue ;; esac
-    case ",$enabled," in *",$provider,"*) ;; *) IFS=,; continue ;; esac
-    AGENT_COMMAND="$(provider_command "$provider")"
+    case "$provider" in claude|gemini|codex|ollama) ;; *) IFS=; continue ;; esac
+    AGENT_COMMAND="$(provider_command "$provider" || true)"
     if [[ -n "$AGENT_COMMAND" ]]; then
       AGENT_PROVIDER="$provider"
       model_key="$(printf '%s' "$provider" | tr '[:lower:]' '[:upper:]')"
