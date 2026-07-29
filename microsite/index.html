@@ -92,7 +92,7 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
 
         <p class="card">
             <strong>Roster:</strong> <!-- gen:agent-count -->6<!-- /gen:agent-count --> agents ·
-            <strong>Skills:</strong> <!-- gen:skills-count -->0<!-- /gen:skills-count --> ·
+            <strong>Skills:</strong> <!-- gen:skills-count -->12<!-- /gen:skills-count --> ·
             <a href="health.html">view system health →</a>
         </p>
 
@@ -116,7 +116,23 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
         <h2>Skills</h2>
         <p>Skills add reusable procedures beyond the core roster. Generated from <code>skills/*/SKILL.md</code> frontmatter.</p>
 <!-- gen:skills-start -->
-        <p><em>No skills registered yet.</em></p>
+        <table>
+          <thead><tr><th>Skill</th><th>Purpose</th><th>File</th></tr></thead>
+          <tbody>
+              <tr><td><code>figma-code-connect</code></td><td>Creates and maintains Figma Code Connect template files that map Figma compon...</td><td><code>skills/figma-code-connect/SKILL.md</code></td></tr>
+              <tr><td><code>figma-create-new-file</code></td><td>"**MANDATORY prerequisite** — you MUST invoke this skill BEFORE every `create...</td><td><code>skills/figma-create-new-file/SKILL.md</code></td></tr>
+              <tr><td><code>figma-design-to-code</code></td><td>"**MANDATORY prerequisite** — you MUST invoke this skill BEFORE calling the `...</td><td><code>skills/figma-design-to-code/SKILL.md</code></td></tr>
+              <tr><td><code>figma-generate-design</code></td><td>"Use this skill alongside figma-use when the task involves translating an app...</td><td><code>skills/figma-generate-design/SKILL.md</code></td></tr>
+              <tr><td><code>figma-generate-diagram</code></td><td>"MANDATORY prerequisite — load this skill BEFORE every `generate_diagram` too...</td><td><code>skills/figma-generate-diagram/SKILL.md</code></td></tr>
+              <tr><td><code>figma-generate-library</code></td><td>"Build or update a professional-grade design system in Figma from a codebase</td><td><code>skills/figma-generate-library/SKILL.md</code></td></tr>
+              <tr><td><code>figma-implement-motion</code></td><td>Translates Figma motion and animations into production-ready application code</td><td><code>skills/figma-implement-motion/SKILL.md</code></td></tr>
+              <tr><td><code>figma-swiftui</code></td><td>"SwiftUI ↔ Figma translation</td><td><code>skills/figma-swiftui/SKILL.md</code></td></tr>
+              <tr><td><code>figma-use-figjam</code></td><td>"This skill helps agents use Figma's use_figma MCP tool in the FigJam context</td><td><code>skills/figma-use-figjam/SKILL.md</code></td></tr>
+              <tr><td><code>figma-use-motion</code></td><td>"Motion / animation context for the `use_figma` MCP tool — animating Figma no...</td><td><code>skills/figma-use-motion/SKILL.md</code></td></tr>
+              <tr><td><code>figma-use-slides</code></td><td>"This skill helps agents use Figma's use_figma MCP tool in the Slides context</td><td><code>skills/figma-use-slides/SKILL.md</code></td></tr>
+              <tr><td><code>figma-use</code></td><td>"**MANDATORY prerequisite** — you MUST invoke this skill BEFORE every `use_fi...</td><td><code>skills/figma-use/SKILL.md</code></td></tr>
+          </tbody>
+        </table>
 <!-- gen:skills-end -->
 
         <h2>Regeneration</h2>

@@ -1,5 +1,6 @@
 # Local MCP config — copy from System_Config/mcp.defaults.json, never commit
 .mcp.json
+.agentic-light.conf
 
 # Obsidian per-machine session state (vault config itself is shipped, see CLAUDE.md)
 .obsidian/workspace*.json

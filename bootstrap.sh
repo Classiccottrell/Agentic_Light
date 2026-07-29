@@ -32,7 +32,7 @@ case "${1:-}" in
     echo "=================================================="
     echo
     echo "→ Tools:"
-    for t in agy gemini claude gh node npx python3; do
+    for t in claude agy gemini codex ollama gh node npx python3; do
       if p="$(command -v "$t" 2>/dev/null)"; then
         echo "  [ok] $t $p"
         if [ "$t" = "gh" ]; then
@@ -46,6 +46,14 @@ case "${1:-}" in
         echo "  [--] $t missing"
       fi
     done
+    if [ -r "$ROOT/.agentic-light.conf" ]; then
+      echo
+      echo "→ Provider config:"
+      sed -n 's/^PROVIDERS=/  enabled: /p; s/^PRIORITY=/  priority: /p' "$ROOT/.agentic-light.conf"
+    else
+      echo
+      echo "→ Provider config: not created (run ./bootstrap.sh)"
+    fi
     echo
     echo "→ Automation:"
     echo "  No background automation (Agentic Light is manual-trigger only)."
@@ -129,20 +137,72 @@ fi
 echo
 
 # ---------------------------------------------------------------------------
-# 4. Provider auto-detection (agy → gemini → claude, env override).
+# 4. Provider configuration.
 # ---------------------------------------------------------------------------
-echo "→ Detecting agent provider…"
-if [ -n "${AGENT_TYPE:-}" ]; then
-  echo "    [ok] AGENT_TYPE overridden via env: $AGENT_TYPE"
-elif command -v agy >/dev/null 2>&1; then
-  echo "    [ok] Provider detected: agy ($(command -v agy))"
-elif command -v gemini >/dev/null 2>&1; then
-  echo "    [ok] Provider detected: gemini ($(command -v gemini))"
-elif command -v claude >/dev/null 2>&1; then
-  echo "    [ok] Provider detected: claude ($(command -v claude))"
+echo "→ Configuring agent providers…"
+CONFIG_FILE="$ROOT/.agentic-light.conf"
+PROVIDERS="${AGENTIC_LIGHT_PROVIDERS:-}"
+PRIORITY="${AGENTIC_LIGHT_PRIORITY:-}"
+if [ -z "$PROVIDERS" ] && [ -t 0 ]; then
+  for provider in claude gemini codex ollama; do
+    binary="$provider"; [ "$provider" = gemini ] && command -v agy >/dev/null 2>&1 && binary=agy
+    if command -v "$binary" >/dev/null 2>&1; then
+      mark=x; default=Y
+    else
+      mark=" "; default=N
+    fi
+    printf "  [%s] Enable %s? [%s]: " "$mark" "$provider" "$default"
+    read -r reply || reply=""
+    case "${reply:-$default}" in
+      y|Y|yes|YES) PROVIDERS="${PROVIDERS:+$PROVIDERS,}$provider" ;;
+    esac
+  done
+  printf "  Priority, comma-separated [%s]: " "$PROVIDERS"
+  read -r PRIORITY || PRIORITY=""
+  PRIORITY="${PRIORITY:-$PROVIDERS}"
+  for provider in $(printf '%s' "$PROVIDERS" | tr ',' ' '); do
+    printf "  Optional %s model [default]: " "$provider"
+    read -r model || model=""
+    case "$provider" in
+      claude) MODEL_CLAUDE="$model" ;; gemini) MODEL_GEMINI="$model" ;;
+      codex) MODEL_CODEX="$model" ;; ollama) MODEL_OLLAMA="$model" ;;
+    esac
+  done
 else
-  echo "    [warn] No agent CLI found on PATH (need 'agy', 'gemini', or 'claude')."
+  PROVIDERS="${PROVIDERS:-${AGENT_TYPE:-claude,gemini,codex,ollama}}"
+  PRIORITY="${PRIORITY:-$PROVIDERS}"
 fi
+
+valid_list() {
+  case ",$1," in
+    *[!a-z,]*|*,claude,claude,*|*,gemini,gemini,*|*,codex,codex,*|*,ollama,ollama,*) return 1 ;;
+  esac
+  for item in $(printf '%s' "$1" | tr ',' ' '); do
+    case "$item" in claude|gemini|codex|ollama) ;; *) return 1 ;; esac
+  done
+  [ -n "$1" ]
+}
+valid_list "$PROVIDERS" && valid_list "$PRIORITY" || { echo "Invalid provider list." >&2; exit 1; }
+
+CONFIG_TMP="$(mktemp "${TMPDIR:-/tmp}/agentic-light.XXXXXX")"
+{
+  printf 'PROVIDERS=%s\nPRIORITY=%s\n' "$PROVIDERS" "$PRIORITY"
+  for provider in claude gemini codex ollama; do
+    model_key="MODEL_$(printf '%s' "$provider" | tr '[:lower:]' '[:upper:]')"
+    case "$provider" in
+      claude) model="${AGENTIC_LIGHT_MODEL_CLAUDE:-${MODEL_CLAUDE:-}}" ;;
+      gemini) model="${AGENTIC_LIGHT_MODEL_GEMINI:-${MODEL_GEMINI:-}}" ;;
+      codex) model="${AGENTIC_LIGHT_MODEL_CODEX:-${MODEL_CODEX:-}}" ;;
+      ollama) model="${AGENTIC_LIGHT_MODEL_OLLAMA:-${MODEL_OLLAMA:-}}" ;;
+    esac
+    case "$model" in *$'\n'*|*=*) echo "Invalid model name." >&2; rm -f "$CONFIG_TMP"; exit 1 ;; esac
+    printf '%s=%s\n' "$model_key" "$model"
+  done
+} > "$CONFIG_TMP"
+chmod 600 "$CONFIG_TMP"
+mv "$CONFIG_TMP" "$CONFIG_FILE"
+echo "    [ok] Enabled: $PROVIDERS"
+echo "    [ok] Priority: $PRIORITY"
 
 if command -v gh >/dev/null 2>&1; then
   echo "    [ok] gh found: $(command -v gh)"
@@ -155,6 +215,6 @@ echo
 echo "=================================================="
 echo " Done. Next steps:"
 echo "=================================================="
-echo " 1. Open Agentic_Light/brain/ in Obsidian."
+echo " 1. Open Agentic_Light/ in Obsidian (the folder containing .obsidian/)."
 echo " 2. Run bash Agentic_Light/System_Config/healthcheck.sh"
 echo

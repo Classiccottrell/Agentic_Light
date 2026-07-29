@@ -24,8 +24,8 @@ LOCK_DIR="$LOG_DIR/monday_init.lock"
 
 # ── DATE CALCULATION (anchored to Monday of the current ISO week) ──────────
 DOW=$(date +%u)                                              # 1=Mon .. 7=Sun
-MONDAY=$(date -d "-$((DOW-1)) days" +%Y-%m-%d)
-fmt() { date -d "$MONDAY +$1 days" +"$2"; }
+MONDAY=$(date_offset "" "-$((DOW-1))" %Y-%m-%d)
+fmt() { date_offset "$MONDAY" "$1" "$2"; }
 
 YEAR=$(fmt 0 %G)                  # ISO week-year (pairs with %V)
 WEEK_NUM=$(fmt 0 %V)              # zero-padded ISO week
@@ -65,14 +65,14 @@ INDEX_ROW="| ${WIKILINK} | ${SPRINT} | Q${QUARTER} | ${WEEK_LABEL} | _pending Fr
 RAW_DIR="$RAW/${YEAR}/W${WEEK_NUM} ${WEEK_LABEL}"
 
 # ── VACATION RECOVERY — compute gap vs. the most recent logged week ────────
-# GNU date has no direct "YYYY-Www-D" input parser, so derive the Monday of
+# Derive the Monday of
 # an arbitrary ISO year+week from Jan 4 (always in week 1) + offset.
 iso_monday() {
   local y="$1" w="$2" jan4 jan4dow week1mon
-  jan4=$(date -d "${y}-01-04" +%Y-%m-%d) || return 1
-  jan4dow=$(date -d "$jan4" +%u)
-  week1mon=$(date -d "$jan4 -$((jan4dow-1)) days" +%Y-%m-%d)
-  date -d "$week1mon +$(( (10#$w-1)*7 )) days" +%Y-%m-%d
+  jan4="${y}-01-04"
+  jan4dow=$(date_offset "$jan4" 0 %u) || return 1
+  week1mon=$(date_offset "$jan4" "-$((jan4dow-1))" %Y-%m-%d)
+  date_offset "$week1mon" "$(( (10#$w-1)*7 ))" %Y-%m-%d
 }
 
 # Find the most recently logged week note (excluding Master Notes/template),
@@ -92,8 +92,8 @@ if [[ -n "$LAST_NOTE" ]]; then
       # Monday of the last-logged ISO week.
       LAST_MONDAY=$(iso_monday "$LAST_YEAR" "$LAST_WEEK" 2>/dev/null || true)
       if [[ -n "$LAST_MONDAY" ]]; then
-        LAST_EPOCH=$(date -d "$LAST_MONDAY" +%s)
-        CUR_EPOCH=$(date -d "$MONDAY" +%s)
+        LAST_EPOCH=$(date_offset "$LAST_MONDAY" 0 %s)
+        CUR_EPOCH=$(date_offset "$MONDAY" 0 %s)
         GAP_DAYS=$(( (CUR_EPOCH - LAST_EPOCH) / 86400 ))
         if [[ "$GAP_DAYS" -gt 7 ]]; then
           GAP_WEEKS=$(( GAP_DAYS / 7 ))

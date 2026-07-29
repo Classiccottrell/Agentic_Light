@@ -5,12 +5,33 @@ Lighter sibling of the parent workspace: Obsidian second brain + dev pipeline
 
 ## Build / Run
 
-- `bash bootstrap.sh` — interactive, idempotent scaffold (mkdir tree, chmod scripts, provider detect).
+- `bash bootstrap.sh` — interactive, idempotent scaffold and provider configuration.
 - `bash bootstrap.sh --check` — read-only doctor (tools + provider + no-automation note).
+- `bash System_Config/test_providers.sh` — fake-provider check for ordered pre-launch fallback, one invocation, and no retry after failure.
 - `bash pipeline/run.sh` — Task Input → coder → ESLint gate → Playwright gate → Human Gate → `gh pr create`.
 - `bash skills/skills.sh list` — list available skills.
 - `bash System_Config/healthcheck.sh` — layered PASS/WARN/FAIL report, self-heals docs via `gen_site.py`.
 - `bash System_Config/new_agent.sh <name> "<scope>" [--write]` — scaffold a new `agents/<name>.md`.
+
+## Provider Contract
+
+Interactive bootstrap uses terminal checkbox-style prompts for Claude,
+Gemini, Codex, and Ollama, followed by comma-separated priority and optional
+per-provider model text fields. It stores the result in the ignored,
+mode-`600` `.agentic-light.conf`; the file is parsed as data, never sourced.
+`AGENTIC_LIGHT_PROVIDERS`, `AGENTIC_LIGHT_PRIORITY`, and
+`AGENTIC_LIGHT_MODEL_<PROVIDER>` override local values.
+
+Resolution selects the first enabled executable in priority order before
+launch. A provider that starts owns that task's result: no failure retry,
+queue, or scheduler exists. One pipeline task runs in the foreground per
+target repository. Legacy `AGENT_TYPE` priority and exported
+`AGENT_TYPE`/`CLAUDE` adapter variables remain for older scripts.
+
+Claude has wrapper-enforced file-tool, permission, time, and budget controls.
+Gemini relies on its CLI sandbox and logs a lower-trust warning. Codex runs
+through `codex exec`; Ollama runs through `ollama run`. Every adapter has a
+wall-clock watchdog; only Claude has the wrapper's dollar budget flag.
 
 ## Directory Map
 
@@ -21,7 +42,7 @@ Agentic_Light/
 ├── .obsidian/{app,appearance,core-plugins,community-plugins,graph}.json
 ├── Projects/_TEMPLATE/{BRIEF.md,README.md,active/.gitkeep,archive/.gitkeep}
 ├── System_Config/
-│   ├── config.sh · mcp.defaults.json · new_agent.sh · README.md · logs/.gitkeep
+│   ├── config.sh · test_providers.sh · mcp.defaults.json · new_agent.sh · README.md · logs/.gitkeep
 │   ├── monday_init.sh · friday_process.sh · daily_ingest.sh · run_agent.sh
 │   ├── gen_site.py · healthcheck.sh
 ├── agents/
