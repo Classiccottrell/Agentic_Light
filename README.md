@@ -16,6 +16,8 @@ Interactive setup shows each provider as a text checkbox, `[x]` when its
 command is installed and `[ ]` when it is not. Answer each `Enable ...?`
 prompt, enter a comma-separated priority, then optionally set one model per
 enabled provider. This is terminal text selection, not a graphical picker.
+Priority must contain every enabled provider exactly once; unknown,
+duplicate, missing, and extra entries are rejected.
 Non-interactive setup uses all providers unless environment overrides narrow
 the list.
 
@@ -52,7 +54,7 @@ another provider and does not schedule a later run.
 
 Provider safety differs by CLI. Claude receives an explicit file-tool allow
 list, denied shell/web tools, `acceptEdits`, a time limit, and a budget limit.
-Gemini runs with its native sandbox but no wrapper-enforced tool allow list.
-Codex uses `codex exec`; Ollama uses `ollama run`, defaulting to `llama3.2`.
-All providers receive a wall-clock limit. See `System_Config/README.md` for
-the exact adapter flags and current limitations.
+Gemini uses `--sandbox --approval-mode auto_edit`. Codex uses
+`codex exec --sandbox workspace-write`. Ollama is inference-only, so this
+write workflow refuses it with exit 64. Executed providers receive a
+wall-clock limit. See `System_Config/README.md` for exact adapter flags.

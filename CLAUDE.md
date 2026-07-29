@@ -19,6 +19,8 @@ Interactive bootstrap uses terminal checkbox-style prompts for Claude,
 Gemini, Codex, and Ollama, followed by comma-separated priority and optional
 per-provider model text fields. It stores the result in the ignored,
 mode-`600` `.agentic-light.conf`; the file is parsed as data, never sourced.
+Priority must be an exact ordering of enabled providers; malformed,
+duplicate, unknown, missing, or extra entries fail validation.
 `AGENTIC_LIGHT_PROVIDERS`, `AGENTIC_LIGHT_PRIORITY`, and
 `AGENTIC_LIGHT_MODEL_<PROVIDER>` override local values.
 
@@ -29,9 +31,10 @@ target repository. Legacy `AGENT_TYPE` priority and exported
 `AGENT_TYPE`/`CLAUDE` adapter variables remain for older scripts.
 
 Claude has wrapper-enforced file-tool, permission, time, and budget controls.
-Gemini relies on its CLI sandbox and logs a lower-trust warning. Codex runs
-through `codex exec`; Ollama runs through `ollama run`. Every adapter has a
-wall-clock watchdog; only Claude has the wrapper's dollar budget flag.
+Gemini runs with `--sandbox --approval-mode auto_edit`; Codex runs through
+`codex exec --sandbox workspace-write`. Ollama is inference-only and this
+write workflow fails fast with exit 64. Executed adapters have a wall-clock
+watchdog; only Claude has the wrapper's dollar budget flag.
 
 ## Directory Map
 

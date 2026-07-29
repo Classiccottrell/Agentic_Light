@@ -19,6 +19,8 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   parsed as text, not evaluated as shell. Legacy `AGENT_TYPE`, `$CLAUDE`, and
   `$AGENT_TYPE` consumers remain supported; after resolution, `$CLAUDE`
   aliases the selected executable even when the provider is not Claude.
+  Enabled and priority lists are validated strictly: priority must contain
+  every enabled provider exactly once, in the requested order.
   Provides `validate_config()`
   (never exits — returns 0/1; invoked once at the bottom of `config.sh`
   itself, warning on failure). Provides `acquire_lock <dir> [max_age_s]`, an
@@ -43,23 +45,23 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   (`$AGENT_COMMAND`/`$AGENT_PROVIDER` from `config.sh`) with a wall-clock watchdog
   (`MAX_SECONDS`, default 300s) and a Claude-only budget cap (`MAX_BUDGET`).
   cwd is `$BRAIN`. The Claude adapter allows file tools, denies Bash/web and
-  other escape tools, and uses `acceptEdits`; Codex and Ollama use their
-  native non-interactive commands without an equivalent wrapper allow list. The
+  other escape tools, and uses `acceptEdits`; Gemini uses
+  `--sandbox --approval-mode auto_edit`; Codex uses
+  `exec --sandbox workspace-write`. Ollama is inference-only, so write
+  workflows reject it with exit 64 without invoking it. The
   watchdog uses a sentinel-file handshake rather than a bare
   `kill -TERM $pid` after sleeping, so it can't end up signaling an
   unrelated process that reused `$pid` after the agent exited and was
-  reaped. The `gemini`/`agy` path has no allow/deny tool list of its own —
-  it relies entirely on that CLI's `--sandbox`, logged as a warning on every
-  invocation since that path is comparatively lower-trust (notably against
-  untrusted prompt content such as ingested `brain/raw/` clips).
-  Codex uses `codex exec`; Ollama uses `ollama run` (default model
-  `llama3.2`); configured models are passed with each CLI's native model flag.
+  reaped. Configured models are passed with each executable CLI's native
+  model flag.
   Provider fallback happens only before launch when an executable
   is missing; a launched command's non-zero exit is returned without retry.
   Each call runs one foreground task and waits for it. No provider adapter
   schedules work or creates a background retry.
-- **`test_providers.sh`** — fake-binary shell check for pre-launch fallback,
-  single-invocation behavior, and no retry after provider failure.
+- **`test_providers.sh`** — fake-binary shell check for exact Gemini/Codex
+  argv and model mapping, strict list validation, pre-launch fallback,
+  single-invocation/no retry behavior, no-executable exit 127, and Ollama
+  write-workflow refusal.
 - **`monday_init.sh`** — weekly initializer. Creates
   `brain/weekly_logs/${YEAR}/${YEAR}-Www.md` from the template, creates
   `brain/raw/${YEAR}/Wnn label/`, and adds a row to
@@ -94,8 +96,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   the diff without writing. Stdlib-only Python 3.
 - **`healthcheck.sh`** — layered PASS/WARN/FAIL check: directory layout,
   agent/skill roster frontmatter completeness, brain scaffolding
-  (`wiki/index.md`, current weekly note, Master Note sentinel), pipeline log
-  recency, and doc currency.
+  (`wiki/index.md`, current weekly note, Master Note sentinel), read-only
+  provider configuration/executable resolution, pipeline log recency, and
+  doc currency.
   Self-heals a stale `microsite/index.html` by invoking `gen_site.py` for
   real. Writes `microsite/status.json` + `microsite/status.js` (the payload
   `microsite/health.html` renders). Never `set -e`, always exits 0. No

@@ -9,9 +9,8 @@
 # overridable before sourcing): $AGENT_COMMAND $AGENT_PROVIDER $BRAIN $LOG (caller-defined
 # log file path). $MAX_SECONDS / $MAX_BUDGET default below if unset.
 #
-# File tools only; Bash and other escape hatches denied; cwd = brain so the
-# sandbox confines writes to the brain/ tree; budget + wall-clock watchdog
-# bound the run.
+# Runs with each provider's edit-capable sandbox; cwd = brain and the
+# wall-clock watchdog bounds the run. Ollama is inference-only and rejected.
 MAX_SECONDS="${MAX_SECONDS:-300}"   # wall-clock watchdog — both providers
 MAX_BUDGET="${MAX_BUDGET:-2.00}"    # USD ceiling — claude only (gemini/agy have
                                     # no cost flag; MAX_SECONDS is their ceiling)
@@ -21,29 +20,22 @@ run_agent() {
   cd "$BRAIN" || return 1
   resolve_agent_provider || return 127
   if [[ "$AGENT_PROVIDER" == "gemini" ]]; then
-    # Unlike the claude branch below, this CLI has no --allowedTools/
-    # --disallowedTools equivalent here — tool restriction is delegated
-    # entirely to its own --sandbox, which this wrapper cannot verify.
-    # Treat this path as lower-trust, especially against untrusted prompt
-    # content (e.g. brain/raw/ clips ingested by daily_ingest.sh).
-    echo "[run_agent] WARNING: AGENT_TYPE=gemini has no tool allow/deny list here; relies solely on the CLI's own --sandbox." >&2
     if [[ -n "$AGENT_MODEL" ]]; then
       "$AGENT_COMMAND" -p "$prompt" --model "$AGENT_MODEL" \
-            --sandbox \
-            --dangerously-skip-permissions >> "${LOG:-/dev/null}" 2>&1 &
+            --sandbox --approval-mode auto_edit >> "${LOG:-/dev/null}" 2>&1 &
     else
       "$AGENT_COMMAND" -p "$prompt" \
-            --sandbox \
-            --dangerously-skip-permissions >> "${LOG:-/dev/null}" 2>&1 &
+            --sandbox --approval-mode auto_edit >> "${LOG:-/dev/null}" 2>&1 &
     fi
   elif [[ "$AGENT_PROVIDER" == "codex" ]]; then
     if [[ -n "$AGENT_MODEL" ]]; then
-      "$AGENT_COMMAND" exec --model "$AGENT_MODEL" "$prompt" >> "${LOG:-/dev/null}" 2>&1 &
+      "$AGENT_COMMAND" exec --sandbox workspace-write --model "$AGENT_MODEL" "$prompt" >> "${LOG:-/dev/null}" 2>&1 &
     else
-      "$AGENT_COMMAND" exec "$prompt" >> "${LOG:-/dev/null}" 2>&1 &
+      "$AGENT_COMMAND" exec --sandbox workspace-write "$prompt" >> "${LOG:-/dev/null}" 2>&1 &
     fi
   elif [[ "$AGENT_PROVIDER" == "ollama" ]]; then
-    "$AGENT_COMMAND" run "${AGENT_MODEL:-llama3.2}" "$prompt" >> "${LOG:-/dev/null}" 2>&1 &
+    echo "[run_agent] Ollama is inference-only and cannot run write workflows." >&2
+    return 64
   else
     if [[ -n "$AGENT_MODEL" ]]; then
       "$AGENT_COMMAND" -p "$prompt" --model "$AGENT_MODEL" \
