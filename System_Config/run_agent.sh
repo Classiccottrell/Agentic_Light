@@ -6,7 +6,7 @@
 #   run_agent "<prompt>"
 #
 # Expects from the caller's environment (all provided by config.sh, or
-# overridable before sourcing): $CLAUDE $AGENT_TYPE $BRAIN $LOG (caller-defined
+# overridable before sourcing): $AGENT_COMMAND $AGENT_PROVIDER $BRAIN $LOG (caller-defined
 # log file path). $MAX_SECONDS / $MAX_BUDGET default below if unset.
 #
 # File tools only; Bash and other escape hatches denied; cwd = brain so the
@@ -19,22 +19,45 @@ MAX_BUDGET="${MAX_BUDGET:-2.00}"    # USD ceiling — claude only (gemini/agy ha
 run_agent() {
   local prompt="$1" pid wd rc donefile
   cd "$BRAIN" || return 1
-  if [[ "${AGENT_TYPE:-}" == "gemini" ]]; then
+  resolve_agent_provider || return 127
+  if [[ "$AGENT_PROVIDER" == "gemini" ]]; then
     # Unlike the claude branch below, this CLI has no --allowedTools/
     # --disallowedTools equivalent here — tool restriction is delegated
     # entirely to its own --sandbox, which this wrapper cannot verify.
     # Treat this path as lower-trust, especially against untrusted prompt
     # content (e.g. brain/raw/ clips ingested by daily_ingest.sh).
     echo "[run_agent] WARNING: AGENT_TYPE=gemini has no tool allow/deny list here; relies solely on the CLI's own --sandbox." >&2
-    "$CLAUDE" -p "$prompt" \
-          --sandbox \
-          --dangerously-skip-permissions >> "${LOG:-/dev/null}" 2>&1 &
+    if [[ -n "$AGENT_MODEL" ]]; then
+      "$AGENT_COMMAND" -p "$prompt" --model "$AGENT_MODEL" \
+            --sandbox \
+            --dangerously-skip-permissions >> "${LOG:-/dev/null}" 2>&1 &
+    else
+      "$AGENT_COMMAND" -p "$prompt" \
+            --sandbox \
+            --dangerously-skip-permissions >> "${LOG:-/dev/null}" 2>&1 &
+    fi
+  elif [[ "$AGENT_PROVIDER" == "codex" ]]; then
+    if [[ -n "$AGENT_MODEL" ]]; then
+      "$AGENT_COMMAND" exec --model "$AGENT_MODEL" "$prompt" >> "${LOG:-/dev/null}" 2>&1 &
+    else
+      "$AGENT_COMMAND" exec "$prompt" >> "${LOG:-/dev/null}" 2>&1 &
+    fi
+  elif [[ "$AGENT_PROVIDER" == "ollama" ]]; then
+    "$AGENT_COMMAND" run "${AGENT_MODEL:-llama3.2}" "$prompt" >> "${LOG:-/dev/null}" 2>&1 &
   else
-    "$CLAUDE" -p "$prompt" \
-          --allowedTools "Read,Write,Edit,Glob,Grep" \
-          --disallowedTools "Bash,KillShell,Task,WebFetch,WebSearch,NotebookEdit" \
-          --permission-mode acceptEdits \
-          --max-budget-usd "$MAX_BUDGET" >> "${LOG:-/dev/null}" 2>&1 &
+    if [[ -n "$AGENT_MODEL" ]]; then
+      "$AGENT_COMMAND" -p "$prompt" --model "$AGENT_MODEL" \
+            --allowedTools "Read,Write,Edit,Glob,Grep" \
+            --disallowedTools "Bash,KillShell,Task,WebFetch,WebSearch,NotebookEdit" \
+            --permission-mode acceptEdits \
+            --max-budget-usd "$MAX_BUDGET" >> "${LOG:-/dev/null}" 2>&1 &
+    else
+      "$AGENT_COMMAND" -p "$prompt" \
+            --allowedTools "Read,Write,Edit,Glob,Grep" \
+            --disallowedTools "Bash,KillShell,Task,WebFetch,WebSearch,NotebookEdit" \
+            --permission-mode acceptEdits \
+            --max-budget-usd "$MAX_BUDGET" >> "${LOG:-/dev/null}" 2>&1 &
+    fi
   fi
   pid=$!
   # Sentinel-file handshake, not a bare `kill -TERM "$pid"` after sleeping:

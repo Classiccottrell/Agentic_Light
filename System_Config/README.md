@@ -7,10 +7,19 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
 
 - **`config.sh`** — shared, relocatable configuration. Source from every
   script (`source "$SCRIPT_DIR/config.sh"`). Derives `WORKSPACE`, `BRAIN`,
-  `RAW`, `LOG_DIR` from its own location. Resolves the agent provider
-  (`agy` → `gemini` → `claude`, env-overridable via `AGENT_TYPE`; an
-  unrecognized `AGENT_TYPE` override is ignored with a warning and
-  auto-detection runs instead) and exports it. Provides `validate_config()`
+  `RAW`, `LOG_DIR` from its own location. Reads the bootstrap-generated,
+  non-secret `.agentic-light.conf` without evaluating it, then selects the
+  first enabled, installed provider in explicit priority order: Claude,
+  Gemini (`agy` command alias supported), Codex, or Ollama. Environment
+  overrides are `AGENTIC_LIGHT_PROVIDERS`, `AGENTIC_LIGHT_PRIORITY`, and
+  `AGENTIC_LIGHT_MODEL_<PROVIDER>`. Bootstrap collects the same values with
+  terminal checkbox-style yes/no prompts, a comma-separated priority text
+  field, and one optional model text field per enabled provider, then writes
+  them to ignored `../.agentic-light.conf` with mode `600`. The config is
+  parsed as text, not evaluated as shell. Legacy `AGENT_TYPE`, `$CLAUDE`, and
+  `$AGENT_TYPE` consumers remain supported; after resolution, `$CLAUDE`
+  aliases the selected executable even when the provider is not Claude.
+  Provides `validate_config()`
   (never exits — returns 0/1; invoked once at the bottom of `config.sh`
   itself, warning on failure). Provides `acquire_lock <dir> [max_age_s]`, an
   atomic-`mkdir` lock shared by the scripts below — a lock older than
@@ -19,6 +28,8 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   idempotent `mkdir -p` of the current ISO week's `brain/raw/YYYY/Wnn label/`
   folder; called by both `monday_init.sh` and `daily_ingest.sh` so a note
   always has somewhere to land regardless of which script runs first.
+  `date_offset()` keeps its week calculations compatible with BSD `date` on
+  macOS and GNU `date` on Linux.
 - **`mcp.defaults.json`** — provider-agnostic MCP server template. Copy to
   `../.mcp.json` and populate `mcpServers`; `bootstrap.sh` does this
   automatically on first run if `.mcp.json` is absent.
@@ -29,9 +40,11 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
 
 - **`run_agent.sh`** — sourced library (not standalone). Provides
   `run_agent "<prompt>"`: a thin wrapper around the resolved agent CLI
-  (`$CLAUDE`/`$AGENT_TYPE` from `config.sh`) with a wall-clock watchdog
+  (`$AGENT_COMMAND`/`$AGENT_PROVIDER` from `config.sh`) with a wall-clock watchdog
   (`MAX_SECONDS`, default 300s) and a Claude-only budget cap (`MAX_BUDGET`).
-  cwd is `$BRAIN`; file tools only, Bash denied on the `claude` path. The
+  cwd is `$BRAIN`. The Claude adapter allows file tools, denies Bash/web and
+  other escape tools, and uses `acceptEdits`; Codex and Ollama use their
+  native non-interactive commands without an equivalent wrapper allow list. The
   watchdog uses a sentinel-file handshake rather than a bare
   `kill -TERM $pid` after sleeping, so it can't end up signaling an
   unrelated process that reused `$pid` after the agent exited and was
@@ -39,6 +52,14 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   it relies entirely on that CLI's `--sandbox`, logged as a warning on every
   invocation since that path is comparatively lower-trust (notably against
   untrusted prompt content such as ingested `brain/raw/` clips).
+  Codex uses `codex exec`; Ollama uses `ollama run` (default model
+  `llama3.2`); configured models are passed with each CLI's native model flag.
+  Provider fallback happens only before launch when an executable
+  is missing; a launched command's non-zero exit is returned without retry.
+  Each call runs one foreground task and waits for it. No provider adapter
+  schedules work or creates a background retry.
+- **`test_providers.sh`** — fake-binary shell check for pre-launch fallback,
+  single-invocation behavior, and no retry after provider failure.
 - **`monday_init.sh`** — weekly initializer. Creates
   `brain/weekly_logs/${YEAR}/${YEAR}-Www.md` from the template, creates
   `brain/raw/${YEAR}/Wnn label/`, and adds a row to
