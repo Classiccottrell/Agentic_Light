@@ -48,6 +48,7 @@ Agentic_Light/
 │   ├── config.sh · test_providers.sh · mcp.defaults.json · new_agent.sh · README.md · logs/.gitkeep
 │   ├── monday_init.sh · friday_process.sh · daily_ingest.sh · run_agent.sh
 │   ├── gen_site.py · healthcheck.sh
+│   ├── notify.sh · .notify.env.example
 ├── agents/
 │   └── architect.md · coder.md · creative-director.md · curator.md · eng-manager.md · qa.md · README.md
 ├── skills/

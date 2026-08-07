@@ -2,6 +2,9 @@
 .mcp.json
 .agentic-light.conf
 
+# Local notification webhook config — copy from System_Config/.notify.env.example, never commit
+System_Config/.notify.env
+
 # Obsidian per-machine session state (vault config itself is shipped, see CLAUDE.md)
 .obsidian/workspace*.json
 .obsidian/workspace-mobile.json

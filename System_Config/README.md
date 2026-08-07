@@ -103,3 +103,19 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   real. Writes `microsite/status.json` + `microsite/status.js` (the payload
   `microsite/health.html` renders). Never `set -e`, always exits 0. No
   launchd/cron trigger and no GitHub Pages publish step — run it by hand.
+  On a non-`PASS` result, calls `notify.sh` with the overall status and
+  pass/warn/fail counts (best-effort — never affects healthcheck's own exit).
+- **`notify.sh`** — `notify.sh "<title>" "<body>"`. Sends to
+  `SLACK_WEBHOOK_URL` and/or `GCHAT_WEBHOOK_URL` (both may be set; each tried
+  independently), plus an opt-in local macOS banner
+  (`GCHAT_FALLBACK_LOCAL=1`, via `osascript`, no-op elsewhere). Config comes
+  from ignored, mode-`600` `.notify.env` (seed from `.notify.env.example`);
+  the webhook URL is piped to `curl --config -` on stdin, never passed as a
+  bare argument, to keep it out of `ps` output. Every attempt is logged to
+  `logs/notify.log`. Never fails its caller for delivery reasons: exit 0 on
+  any successful delivery or a deliberate no-config no-op, exit 1 only if
+  every configured channel failed. No flags, no severity levels, no dedup —
+  deliberately smaller than a scheduled-job notifier, since Agentic Light has
+  no recurring background jobs to suppress repeat alerts for. Currently
+  called only by `healthcheck.sh`; `bootstrap.sh` offers an opt-in prompt to
+  populate `.notify.env`'s webhook URLs.
