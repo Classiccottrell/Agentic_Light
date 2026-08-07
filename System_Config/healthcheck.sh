@@ -253,4 +253,11 @@ echo "Status: ${OVERALL} — ${PASS_N} pass / ${WARN_N} warn / ${FAIL_N} fail (o
 echo "Wrote ${OUT_JSON}"
 echo "Wrote ${OUT_JS}"
 echo "View: open ${MICROSITE}/health.html"
+
+# Notify only on a non-clean result — a banner on every all-clear manual run
+# would just be noise. notify.sh no-ops quietly if no channel is configured.
+if [ "$OVERALL" != "PASS" ] && [ -r "$SYSCFG/notify.sh" ]; then
+  bash "$SYSCFG/notify.sh" "Healthcheck: $OVERALL" \
+    "${PASS_N} pass / ${WARN_N} warn / ${FAIL_N} fail (of ${TOTAL})" || true
+fi
 exit 0

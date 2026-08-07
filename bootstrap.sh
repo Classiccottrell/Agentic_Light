@@ -228,6 +228,65 @@ if command -v gh >/dev/null 2>&1; then
 else
   echo "    [opt] gh not found — needed by pipeline/run.sh for PR creation."
 fi
+echo
+
+# ---------------------------------------------------------------------------
+# 5. Notifications (optional) — opt-in only, no background automation.
+# ---------------------------------------------------------------------------
+echo "→ Notifications (optional) — desktop banner on healthcheck problems, plus optional webhook."
+NOTIFY_ENV="$SYSCFG/.notify.env"
+if [ -t 0 ]; then
+  set_notify_key() {
+    # set_notify_key <KEY> <value> — idempotent replace-else-append, mode 600.
+    local key="$1" val="$2"
+    if [ ! -f "$NOTIFY_ENV" ]; then
+      [ -f "$SYSCFG/.notify.env.example" ] && cp "$SYSCFG/.notify.env.example" "$NOTIFY_ENV"
+      touch "$NOTIFY_ENV"
+      chmod 600 "$NOTIFY_ENV"
+    fi
+    if grep -q "^${key}=" "$NOTIFY_ENV" 2>/dev/null; then
+      # Escape backslash, &, and the | delimiter — sed's replacement side
+      # treats & as "matched text" and would otherwise mangle any webhook
+      # URL with a query string (e.g. Google Chat's ?key=...&token=...).
+      local val_esc
+      val_esc="$(printf '%s' "$val" | sed -e 's/\\/\\\\/g' -e 's/&/\\&/g' -e 's/|/\\|/g')"
+      NOTIFY_TMP="$(mktemp "${TMPDIR:-/tmp}/notify-env.XXXXXX")"
+      sed "s|^${key}=.*|${key}=\"${val_esc}\"|" "$NOTIFY_ENV" > "$NOTIFY_TMP"
+      mv "$NOTIFY_TMP" "$NOTIFY_ENV"
+    else
+      printf '%s="%s"\n' "$key" "$val" >> "$NOTIFY_ENV"
+    fi
+    chmod 600 "$NOTIFY_ENV"
+  }
+  printf "  Enable Slack webhook?        [y/N]: "
+  read -r reply || reply=""
+  case "$reply" in
+    y|Y|yes|YES)
+      printf "    Slack webhook URL (blank = skip): "
+      read -r url || url=""
+      case "$url" in
+        https://*) set_notify_key SLACK_WEBHOOK_URL "$url"; echo "    [ok] Slack webhook saved." ;;
+        "") echo "    [--] blank — skipped." ;;
+        *) echo "    [!!] must start with https:// — skipped." ;;
+      esac
+      ;;
+  esac
+  printf "  Enable Google Chat webhook?  [y/N]: "
+  read -r reply || reply=""
+  case "$reply" in
+    y|Y|yes|YES)
+      printf "    Google Chat webhook URL (blank = skip): "
+      read -r url || url=""
+      case "$url" in
+        https://*) set_notify_key GCHAT_WEBHOOK_URL "$url"; echo "    [ok] Google Chat webhook saved." ;;
+        "") echo "    [--] blank — skipped." ;;
+        *) echo "    [!!] must start with https:// — skipped." ;;
+      esac
+      ;;
+  esac
+else
+  echo "  Non-interactive session — skipped. Configure later by editing System_Config/.notify.env."
+fi
 
 echo
 echo "=================================================="
@@ -235,4 +294,5 @@ echo " Done. Next steps:"
 echo "=================================================="
 echo " 1. Open Agentic_Light/ in Obsidian (the folder containing .obsidian/)."
 echo " 2. Run bash Agentic_Light/System_Config/healthcheck.sh"
+echo " 3. Run bash Agentic_Light/System_Config/notify.sh \"title\" \"body\" to test notifications."
 echo
