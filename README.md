@@ -54,7 +54,7 @@ another provider and does not schedule a later run.
 
 Provider safety differs by CLI. Claude receives an explicit file-tool allow
 list, denied shell/web tools, `acceptEdits`, a time limit, and a budget limit.
-Gemini uses `--sandbox --approval-mode auto_edit`. Codex uses
+Gemini uses `--add-dir "$BRAIN" --sandbox --approval-mode auto_edit`. Codex uses
 `codex exec --sandbox workspace-write`. Ollama is inference-only, so this
 write workflow refuses it with exit 64. Executed providers receive a
 wall-clock limit. See `System_Config/README.md` for exact adapter flags.
