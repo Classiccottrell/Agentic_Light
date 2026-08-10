@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # pr_create.sh — thin `gh pr create` wrapper. Only ever invoked by run.sh
-# after human-gate approval; the --confirmed guard flag stops anyone from
-# calling this standalone and skipping the gate.
+# after human-gate approval; the --confirmed guard flag is an accident guard
+# against a stray standalone call skipping the gate, not a security
+# boundary — anyone who can run this script can also pass --confirmed.
 # Usage: pr_create.sh <target-repo-path> --confirmed [title] [body]
 set -euo pipefail
 
