@@ -22,9 +22,11 @@ run_agent() {
   if [[ "$AGENT_PROVIDER" == "gemini" ]]; then
     if [[ -n "$AGENT_MODEL" ]]; then
       "$AGENT_COMMAND" -p "$prompt" --model "$AGENT_MODEL" \
+            --add-dir "$BRAIN" \
             --sandbox --approval-mode auto_edit >> "${LOG:-/dev/null}" 2>&1 &
     else
       "$AGENT_COMMAND" -p "$prompt" \
+            --add-dir "$BRAIN" \
             --sandbox --approval-mode auto_edit >> "${LOG:-/dev/null}" 2>&1 &
     fi
   elif [[ "$AGENT_PROVIDER" == "codex" ]]; then

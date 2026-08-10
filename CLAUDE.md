@@ -31,7 +31,9 @@ target repository. Legacy `AGENT_TYPE` priority and exported
 `AGENT_TYPE`/`CLAUDE` adapter variables remain for older scripts.
 
 Claude has wrapper-enforced file-tool, permission, time, and budget controls.
-Gemini runs with `--sandbox --approval-mode auto_edit`; Codex runs through
+Gemini runs with `--sandbox --approval-mode auto_edit --add-dir "$BRAIN"` (the
+`--add-dir` flag is required — `agy` silently ignores `cwd` for writes without it);
+Codex runs through
 `codex exec --sandbox workspace-write`. Ollama is inference-only and this
 write workflow fails fast with exit 64. Executed adapters have a wall-clock
 watchdog; only Claude has the wrapper's dollar budget flag.
