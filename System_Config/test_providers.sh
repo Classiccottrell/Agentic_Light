@@ -24,7 +24,18 @@ BRAIN="$TMP_ROOT/brain"
 source "$ROOT/System_Config/run_agent.sh"
 
 run_agent "gemini prompt"
-grep -q '^agy:-p gemini prompt --model gemini-test --sandbox --approval-mode auto_edit$' "$CALLS"
+grep -q "^agy:-p gemini prompt --model gemini-test --add-dir $BRAIN --sandbox --approval-mode auto_edit\$" "$CALLS"
+
+# No-model gemini sub-branch: force the fallthrough past AGENTIC_LIGHT_MODEL_GEMINI
+# and away from any real, gitignored .agentic-light.conf on this machine, so the
+# --add-dir assertion covers both sub-branches, not just the --model one above.
+unset AGENTIC_LIGHT_MODEL_GEMINI
+AGENT_CONFIG="$TMP_ROOT/none.conf"
+: > "$CALLS"
+resolve_agent_provider
+run_agent "gemini prompt"
+grep -q "^agy:-p gemini prompt --add-dir $BRAIN --sandbox --approval-mode auto_edit\$" "$CALLS"
+AGENTIC_LIGHT_MODEL_GEMINI="gemini-test"
 
 rm "$TMP_ROOT/bin/agy"; : > "$CALLS"
 AGENTIC_LIGHT_MODEL_CODEX="codex-test"
@@ -62,3 +73,9 @@ resolve_agent_provider
 if run_agent "write"; then exit 1; else rc=$?; fi
 [[ "$rc" = 64 && ! -s "$CALLS" ]]
 echo "provider test: PASS"
+
+# config.sh exports AGENT_TYPE/AGENT_PROVIDER/AGENT_COMMAND/AGENT_MODEL/CLAUDE on
+# every resolve_agent_provider() call above; unset before the chained test so it
+# starts from a clean environment instead of inheriting the last provider tried.
+unset AGENT_TYPE AGENT_PROVIDER AGENT_COMMAND AGENT_MODEL CLAUDE
+bash "$ROOT/System_Config/test_run_agent.sh"

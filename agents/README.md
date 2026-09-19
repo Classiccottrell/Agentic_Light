@@ -22,3 +22,13 @@ Light has no archival pipeline and no rally/broadcast agent — do not add
 them back in; if a future task seems to need one, treat that as a signal to
 route the work through the existing roster or reconsider the task, not to
 silently reintroduce a role the spec deliberately dropped.
+
+## `qa` / `eng-manager` are not part of `pipeline/run.sh`
+
+`qa` and `eng-manager` are orchestrator-dispatched roles: something (a human
+or the root orchestrator session) invokes them explicitly via the Agent tool.
+`pipeline/run.sh`'s automated shell chain — coder → ESLint → Playwright →
+Human Gate → `gh pr create` (see `pipeline/README.md`) — never calls either
+`.md` file; it has no Agent-tool dispatch at all. Treat them as optional
+gap-review you route to by hand after a pipeline run, not steps the pipeline
+itself executes.

@@ -46,7 +46,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   (`MAX_SECONDS`, default 300s) and a Claude-only budget cap (`MAX_BUDGET`).
   cwd is `$BRAIN`. The Claude adapter allows file tools, denies Bash/web and
   other escape tools, and uses `acceptEdits`; Gemini uses
-  `--sandbox --approval-mode auto_edit`; Codex uses
+  `--add-dir "$BRAIN" --sandbox --approval-mode auto_edit` (`--add-dir` is
+  required — `agy` silently ignores process cwd for writes without it,
+  landing them in `~/.gemini/antigravity-cli/scratch/` instead); Codex uses
   `exec --sandbox workspace-write`. Ollama is inference-only, so write
   workflows reject it with exit 64 without invoking it. The
   watchdog uses a sentinel-file handshake rather than a bare
@@ -59,9 +61,18 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   Each call runs one foreground task and waits for it. No provider adapter
   schedules work or creates a background retry.
 - **`test_providers.sh`** — fake-binary shell check for exact Gemini/Codex
-  argv and model mapping, strict list validation, pre-launch fallback,
-  single-invocation/no retry behavior, no-executable exit 127, and Ollama
-  write-workflow refusal.
+  argv and model mapping (both the `--model`-set and default sub-branches),
+  strict list validation, pre-launch fallback, single-invocation/no retry
+  behavior, no-executable exit 127, and Ollama write-workflow refusal. Chains
+  `test_run_agent.sh` at the end, so `bash System_Config/test_providers.sh`
+  remains the single entrypoint.
+- **`test_run_agent.sh`** — regression test for the gemini/agy `--add-dir`
+  write-confinement fix: stubs `agy` to emulate the real binary's
+  cwd-ignoring write behavior, asserts a write lands in `$BRAIN` with the fix
+  present, then strips `--add-dir` from a copy via `sed` and asserts the
+  write escapes into a scratch stand-in instead (negative control proving the
+  test would have caught the original bug). Not run standalone; invoked by
+  `test_providers.sh`.
 - **`monday_init.sh`** — weekly initializer. Creates
   `brain/weekly_logs/${YEAR}/${YEAR}-Www.md` from the template, creates
   `brain/raw/${YEAR}/Wnn label/`, and adds a row to

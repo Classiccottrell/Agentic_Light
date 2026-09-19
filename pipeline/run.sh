@@ -36,6 +36,7 @@ fi
 
 RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
 RUN_LOG="$PIPELINE_DIR/logs/${RUN_ID}.log"
+BRANCH_NAME="agentic-light/${RUN_ID}"
 
 exec > >(tee -a "$RUN_LOG") 2>&1
 
@@ -43,6 +44,7 @@ echo "=================================================="
 echo " Agentic Light Pipeline — run $RUN_ID"
 echo " Task:        $TASK_DESC"
 echo " Target repo: $TARGET_REPO"
+echo " Branch:      $BRANCH_NAME"
 echo " Log:         $RUN_LOG"
 echo "=================================================="
 echo
@@ -113,6 +115,20 @@ PYEOF
 fi
 
 # ---------------------------------------------------------------------------
+# Step 1: Code Patch (coder)
+# The pipeline — not the coder prompt — owns git: it creates the feature
+# branch here and commits the coder's edits below. That keeps the ask
+# consistent with System_Config/run_agent.sh's claude invocation, which runs
+# with --disallowedTools "Bash,..." and so cannot branch or commit itself.
+# ---------------------------------------------------------------------------
+echo "-> [1] Code patch step"
+echo "  creating feature branch: $BRANCH_NAME"
+if ! git -C "$TARGET_REPO" checkout -b "$BRANCH_NAME"; then
+  echo "FAILED: could not create feature branch $BRANCH_NAME in $TARGET_REPO"
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # Skill routing — best-effort. If pipeline/../System_Config/route_skill.sh
 # matches any skill against TASK_DESC, prepend those skills' SKILL.md
 # contents to the coder prompt below. No match (or router unavailable) is a
@@ -153,11 +169,6 @@ EOF
   fi
 fi
 
-# ---------------------------------------------------------------------------
-# Step 1: Code Patch (coder)
-# ---------------------------------------------------------------------------
-echo "-> [1] Code patch step"
-
 # reason_for_status <exit-code> <provider> — maps a completed coder
 # process's exit status to log_session.sh's --reason vocabulary
 # (exit|timeout|signal|refused). 64 is run_agent.sh's documented Ollama
@@ -189,7 +200,7 @@ else
   echo "  invoking coder via System_Config/run_agent.sh"
   # shellcheck source=../System_Config/run_agent.sh
   source "$ROOT/System_Config/run_agent.sh"
-  PROMPT="Target repo: $TARGET_REPO. Task: $TASK_DESC. Create a feature branch, implement the change, and commit it."
+  PROMPT="Target repo: $TARGET_REPO. Task: $TASK_DESC. Implement the change on the current branch. Do not run shell commands, create branches, or commit — the pipeline handles all git operations."
   if [ -n "$SKILL_CONTEXT" ]; then
     PROMPT="Relevant skill guidance:
 ${SKILL_CONTEXT}
@@ -202,7 +213,7 @@ ${PROMPT}"
   CODER_PROVIDER="${AGENT_PROVIDER:-unknown}"
 fi
 
-# Step 5: session logging — exactly once, after the coder process exits,
+# Session logging — exactly once, after the coder process exits,
 # covering the success, timeout, and refusal paths alike. Deliberately not
 # inside run_agent() itself: that function is also called once per clip by
 # daily_ingest.sh, and logging there would emit N entries per ingest run
@@ -215,6 +226,28 @@ fi
 
 if [ "$CODER_RC" -ne 0 ]; then
   echo "FAILED: code patch step (coder exited $CODER_RC)"
+  exit 1
+fi
+
+# Capture what the coder changed before committing it — tracked-file diff
+# plus any new (non-ignored) files, which is exactly what `git add -A` below
+# will stage. Reused verbatim in the Human Gate summary at step 4 so what's
+# shown to the human matches what's actually in the commit (see step 3).
+DIFF="$(cd "$TARGET_REPO" && git diff HEAD 2>/dev/null || true)"
+UNTRACKED="$(cd "$TARGET_REPO" && git ls-files --others --exclude-standard 2>/dev/null || true)"
+if [ -z "$DIFF" ] && [ -z "$UNTRACKED" ]; then
+  echo "FAILED: code patch step produced no changes — nothing to commit, no PR will be created"
+  exit 1
+fi
+if [ -n "$UNTRACKED" ]; then
+  DIFF="$DIFF
+
+--- new files ---
+$UNTRACKED"
+fi
+echo "  committing coder's changes"
+if ! ( cd "$TARGET_REPO" && git add -A && git commit -q -m "Agentic Light: $TASK_DESC" ); then
+  echo "FAILED: could not commit coder's changes in $TARGET_REPO"
   exit 1
 fi
 echo "  code patch step complete"
@@ -315,16 +348,19 @@ fi
 # Step 3: Human Gate — blocks on TTY y/N; never auto-approves.
 # ---------------------------------------------------------------------------
 echo "-> [3] Human gate"
-DIFF="$(cd "$TARGET_REPO" && git diff HEAD 2>/dev/null || true)"
 SUMMARY="Task: $TASK_DESC
 Target repo: $TARGET_REPO
+Branch:      $BRANCH_NAME
 Gates: passed/skipped (see log above)
 
---- diff ---
+--- diff (already committed to $BRANCH_NAME in step 1) ---
 ${DIFF:-<no diff available>}"
 
+# PIPELINE_HUMAN_GATE_CMD mirrors PIPELINE_CODER_CMD above — lets tests drive
+# the approved path without faking a TTY.
+HUMAN_GATE_CMD="${PIPELINE_HUMAN_GATE_CMD:-$LIB/human_gate.sh}"
 set +e
-"$LIB/human_gate.sh" "$SUMMARY"
+"$HUMAN_GATE_CMD" "$SUMMARY"
 GATE_RC=$?
 set -e
 
