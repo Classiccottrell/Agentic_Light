@@ -110,16 +110,18 @@ session that touches `brain/`.
 1. Web Clipper saves to `raw/YYYY/Wnn label/`.
 2. `daily_ingest.sh` extracts entities → finds or creates wiki pages.
 3. `wiki/index.md` is updated.
-4. A line is appended to the current week's legacy-named
-   `## Claude Sessions` section. The heading is retained for existing note and
-   script compatibility; entries may come from any configured provider.
+4. A line is appended to the current week's `## Agent Sessions` section
+   (matching the legacy `## Claude Sessions` heading, retained for older
+   notes, during the transition). Entries may come from any configured
+   provider.
 
 ### Weekly cycle
 - **Monday** — `monday_init.sh` creates `weekly_logs/YYYY/YYYY-Www.md` from
   the template and a row in `[YYYY] Master Note.md`'s Weekly Index.
 - **Friday** — `friday_process.sh` closes out the week: appends to the
-  legacy-compatible `## Claude Sessions` section, then fills the Master Note
-  row's Summary cell.
+  `## Agent Sessions` section (or the legacy `## Claude Sessions` heading if
+  that's what the note still has), then fills the Master Note row's Summary
+  cell.
 
 ### Query
 1. Search `wiki/` for entity pages: `rg -l "<keyword>" brain/wiki/`

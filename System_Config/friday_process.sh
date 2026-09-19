@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # friday_process.sh — Weekly close-out
 # Locates brain/weekly_logs/${YEAR}/${WEEK_TAG}.md, appends a close-out
-# entry to its '## Claude Sessions' section, and fills the Master Note
+# entry to its '## Agent Sessions' section (or the legacy '## Claude
+# Sessions' heading, matched for compatibility with pre-rename notes), and
+# fills the Master Note
 # row's Summary cell for this week (backup → awk rewrite → validate →
 # rollback). Manual-trigger only — no launchd/cron in Agentic Light.
 #
@@ -55,7 +57,7 @@ fi
 # ── DRY RUN ──────────────────────────────────────────────────────────────
 if [[ "${DRY_RUN:-0}" == "1" ]]; then
   echo "── DRY RUN — would process weekly_logs/${YEAR}/${WEEK_TAG}.md ──"
-  echo "  -> append close-out line to '## Claude Sessions'"
+  echo "  -> append close-out line to '## Agent Sessions' (or legacy '## Claude Sessions')"
   echo "  -> fill the Master Note row's Summary cell for [[${WEEK_TAG}]] (backup + validate + rollback)"
   log "dry run"; exit 0
 fi
@@ -65,10 +67,13 @@ if ! acquire_lock "$LOCK_DIR" 600; then
   log "another friday_process holds $LOCK_DIR — skipping"; exit 0
 fi
 
-# ── STAMP CLOSE-OUT into the note's Claude Sessions (deterministic) ────────
+# ── STAMP CLOSE-OUT into the note's Agent Sessions (deterministic) ─────────
+# Matches both the current '## Agent Sessions' heading and the legacy
+# '## Claude Sessions' heading still present in notes created before the
+# rename — no note is left un-stamped by this transition.
 CLOSEOUT="- ${TODAY}: Friday close-out — week closed out"
 if awk -v line="$CLOSEOUT" '
-  $0=="## Claude Sessions" { incs=1 }
+  $0=="## Agent Sessions" || $0=="## Claude Sessions" { incs=1 }
   incs && /^---[[:space:]]*$/ && !done { print line; done=1; incs=0 }
   { print }
   END { if (!done) print line }

@@ -72,10 +72,29 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   resuming normal weekly notes. `acquire_lock` (10 min stale-reclaim);
   `DRY_RUN=1` preview.
 - **`friday_process.sh`** — weekly close-out. Appends a close-out line to
-  the week's `## Claude Sessions`, fills the Master Note row's Summary cell
-  (backup → awk rewrite → validate → rollback). `acquire_lock` (10 min
-  stale-reclaim); `DRY_RUN=1` preview. No microsite regen and no GitHub
-  Pages publish here.
+  the week's `## Agent Sessions` section (or the legacy `## Claude Sessions`
+  heading, matched for compatibility with pre-rename notes), fills the
+  Master Note row's Summary cell (backup → awk rewrite → validate →
+  rollback). `acquire_lock` (10 min stale-reclaim); `DRY_RUN=1` preview. No
+  microsite regen and no GitHub Pages publish here.
+- **`log_session.sh`** — launcher-level session logger (deterministic, no
+  AI call). `log_session.sh --provider <name> --role <role> --status
+  <exit-code> --reason <exit|timeout|signal|refused> [--note <path>]`
+  appends one line under the current week's `## Agent Sessions` heading
+  (also matches the legacy `## Claude Sessions` heading). `--self-test`
+  runs its own checks against temp fixtures. Called once by
+  `pipeline/run.sh` after the coder step completes.
+- **`route_skill.sh`** — deterministic keyword/substring skill router (no
+  LLM call). `route_skill.sh "<task description>"` (or pipe the task on
+  stdin) scans `skills/*/SKILL.md` frontmatter (`name`/`description` only —
+  ignores Claude-specific fields like `disable-model-invocation`, per
+  `AGENT_AGNOSTIC_REVIEW.md`) and prints matching skill directory paths, one
+  per line. `--verbose` also notes on stderr when a matched skill's
+  description mentions a tool/MCP dependency (e.g. Figma) this script can't
+  verify is available. If `System_Config/skills-selected.json` exists (see
+  `specialize.sh` below), the scan is restricted to only its `"selected"`
+  dirs; a missing file scans all of `skills/`. `--self-test` / `--skills-dir
+  <path>` for testing against a fixture dir instead of the real `skills/`.
 - **`daily_ingest.sh`** — self-heals the current week's `brain/raw/` folder
   via `ensure_current_week_raw_folder()` before scanning (so a manual run
   works even if `monday_init.sh` hasn't run yet this week), then scans
@@ -119,3 +138,31 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   no recurring background jobs to suppress repeat alerts for. Currently
   called only by `healthcheck.sh`; `bootstrap.sh` offers an opt-in prompt to
   populate `.notify.env`'s webhook URLs.
+- **`specialize.sh`** — one-time fork specialization, run after
+  `bootstrap.sh`. Prompts (same checkbox UX as `bootstrap.sh`) for which of
+  the 6 roles (read from `agent-roster.schema.json`, never hardcoded), which
+  gates (`eslint`/`playwright`/one `custom`, read from
+  `gate-config.schema.json`), and which `skills/*` dirs (scanned live) to
+  keep. Writes canonical `System_Config/agent-roster.json` and
+  `pipeline/gate-config.json` — validated by real structural checks against
+  their schemas (fields read from the schema files themselves, not a second
+  hand-maintained copy), reusing `pipeline/run.sh`'s own gate-config
+  validation logic plus a repo-relocatability check (rejects absolute
+  `script`/`cwd` paths) — and `System_Config/skills-selected.json`, which
+  `route_skill.sh` reads to restrict its scan to the selected dirs (files
+  under `skills/` are never deleted, per the project's leave-files-alone
+  philosophy; missing selection file = scan everything). `--preset
+  web-app|cli-tool|data-pipeline` expands a named entry from
+  `System_Config/presets.json` non-interactively; so do the
+  `AGENTIC_LIGHT_ROLES`/`AGENTIC_LIGHT_GATES`/`AGENTIC_LIGHT_SKILLS`
+  comma-separated env overrides (mirrors `bootstrap.sh`'s
+  `AGENTIC_LIGHT_*` convention). `data-pipeline`'s custom gate ships with an
+  intentionally empty `"script"` placeholder — `specialize.sh` refuses to
+  write a config with a known-empty required custom-gate `"script"` (preset
+  or interactive path alike) and exits non-zero with a clear fix message,
+  rather than writing a config that `pipeline/run.sh` would only fail at
+  execution time. Interactive custom-gate field values (script/cwd) are
+  passed to the python3 subprocess via argv, never string-interpolated into
+  source, so a value containing quotes/triple-quotes can't break the
+  generated Python. Idempotent: re-running overwrites all three output
+  files cleanly, never appends.

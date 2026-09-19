@@ -162,7 +162,7 @@ Steps:
    - Cross-link aggressively to existing wiki pages with [[wikilinks]].
 3. Update wiki/index.md to list any new wiki page and the new source (skip if already listed).
 4. Ensure ${WEEKLY_NOTE} exists. If not, create it from weekly_logs/Weekly_Note_Template.md (WEEK_NUM=${WEEK}, YEAR=${YEAR}).
-5. Append exactly one line to its '## Claude Sessions' section: '- ${TODAY}: ingested ${rel} -> [[wiki/<page-slug>]]'.
+5. Append exactly one line to its '## Agent Sessions' section (use '## Claude Sessions' instead if that's the heading already present in this note): '- ${TODAY}: ingested ${rel} -> [[wiki/<page-slug>]]'.
 
 Constraints: create-or-append only; never overwrite a page wholesale; never delete anything; stay within brain/."
 

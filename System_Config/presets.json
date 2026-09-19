@@ -1,0 +1,17 @@
+{
+  "web-app": {
+    "roles": ["architect", "coder", "creative-director", "curator", "eng-manager", "qa"],
+    "gates": ["eslint", "playwright"],
+    "skills": "*"
+  },
+  "cli-tool": {
+    "roles": ["coder", "qa"],
+    "gates": [],
+    "skills": "*"
+  },
+  "data-pipeline": {
+    "roles": ["architect", "coder", "qa"],
+    "gates": [{"name": "custom", "script": "", "cwd": ".", "args": []}],
+    "skills": "*"
+  }
+}

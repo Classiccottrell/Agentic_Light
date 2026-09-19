@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "agent-roster.schema.json",
+  "title": "Agentic Light agent-roster.json",
+  "description": "Declares which of the 6 fixed roles are active in this fork and each active role's required capabilities. Role set is fixed by this project's own agent roster convention (architect, coder, creative-director, curator, eng-manager, qa) — archivist/rally are excluded by design and not representable here.",
+  "type": "object",
+  "properties": {
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "architect": { "$ref": "#/definitions/role" },
+        "coder": { "$ref": "#/definitions/role" },
+        "creative-director": { "$ref": "#/definitions/role" },
+        "curator": { "$ref": "#/definitions/role" },
+        "eng-manager": { "$ref": "#/definitions/role" },
+        "qa": { "$ref": "#/definitions/role" }
+      }
+    }
+  },
+  "required": ["roles"],
+  "additionalProperties": false,
+  "definitions": {
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "active": { "type": "boolean" },
+        "capabilities": {
+          "type": "array",
+          "items": { "enum": ["read", "write", "shell", "delegate"] },
+          "uniqueItems": true
+        }
+      },
+      "required": ["active"]
+    }
+  }
+}

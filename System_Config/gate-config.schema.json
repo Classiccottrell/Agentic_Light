@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "gate-config.schema.json",
+  "title": "Agentic Light gate-config.json",
+  "description": "Ordered list of pipeline gates to run after the coder stage. v1 limit (not structurally enforced — see note below): at most one custom gate per fork. script/cwd are repo-root-relative, never absolute (repository relocatability rule).",
+  "type": "object",
+  "properties": {
+    "gates": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/gate" }
+    }
+  },
+  "required": ["gates"],
+  "additionalProperties": false,
+  "definitions": {
+    "gate": {
+      "oneOf": [
+        { "enum": ["eslint", "playwright"] },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "const": "custom" },
+            "script": {
+              "type": "string",
+              "description": "Repo-root-relative path to the gate script."
+            },
+            "args": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "cwd": {
+              "type": "string",
+              "description": "Repo-root-relative working directory."
+            }
+          },
+          "required": ["name", "script"]
+        }
+      ]
+    }
+  }
+}

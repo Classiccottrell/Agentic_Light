@@ -20,8 +20,8 @@ Sprint: {{SPRINT}} | Q{{QUARTER}}
 
 ---
 
-## Claude Sessions
-> Auto-appended after each AI work session.
+## Agent Sessions
+> Auto-appended after each agent work session.
 -
 
 ---

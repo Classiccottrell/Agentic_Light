@@ -1,7 +1,8 @@
 # pipeline
 
-Task runner: **Task Input → Code Patch (coder) → ESLint → Playwright E2E →
-[Human Gate] → GitHub PR Creation (`gh pr create`)**.
+Task runner: **Task Input → Code Patch (coder) → Gates (ESLint + Playwright,
+or `gate-config.json` if present) → [Human Gate] → GitHub PR Creation
+(`gh pr create`)**.
 
 This pipeline operates against an **external target repo** you point it at —
 not against Agentic_Light itself.
@@ -16,18 +17,67 @@ bash pipeline/run.sh "<task description>" /path/to/target/repo
 
 ## Flow
 
+0. **Gate-config validation** — before anything else runs (before the coder
+   step), if `pipeline/gate-config.json` exists it's validated up front:
+   valid JSON, and every entry either a known gate name (`eslint`,
+   `playwright`) or a well-formed `custom` object (`script` required,
+   `cwd`/`args` optional, no unknown fields). A malformed config prints a
+   `FAILED: ...` message and exits 1 immediately — no coder run, no gates,
+   no opaque mid-run failure under `set -u`. See "Gate configuration" below.
+0. **Skill routing** — `System_Config/route_skill.sh "<task description>"`
+   runs before the coder step. Each matched skill's `SKILL.md` is prepended
+   to the coder prompt (capped at the first 3 matches — the router's basic
+   substring/keyword match can hit many skills on an ordinary task
+   sentence; the cap keeps the prompt from ballooning). No match, or the
+   router being unavailable, is a silent no-op.
 1. **Code Patch** — invokes the `coder` step via `System_Config/run_agent.sh`,
-   scoped to the target repo (cwd), with the task description as the prompt.
+   scoped to the target repo (cwd), with the task description (plus any
+   routed skill guidance from step 0) as the prompt.
    Swappable for testing: set `PIPELINE_CODER_CMD` to any command; if set,
    `run.sh` execs `$PIPELINE_CODER_CMD "<task>" "<target-repo>"` instead of
    the live agent call — no agent CLI round-trip needed to test the rest of
-   the pipeline.
-2. **ESLint gate** (`lib/eslint_gate.sh <target-repo>`).
-3. **Playwright gate** (`lib/playwright_gate.sh <target-repo>`).
-4. **Human Gate** (`lib/human_gate.sh "<summary>"`) — renders the diff + gate
+   the pipeline. Exactly one call to `System_Config/log_session.sh` follows,
+   logging provider/role/exit-status/reason (success, timeout, or refusal
+   alike) — see "Session logging" below. A `64` exit only maps to `refused`
+   when the resolved provider for that run was `ollama`; any other
+   provider exiting 64 is logged as a generic `exit`.
+2. **Gates** — `lib/eslint_gate.sh <target-repo>` and
+   `lib/playwright_gate.sh <target-repo>`, run in order, unless
+   `pipeline/gate-config.json` exists (see "Gate configuration" below).
+3. **Human Gate** (`lib/human_gate.sh "<summary>"`) — renders the diff + gate
    summary, blocks on interactive `[y/N]`.
-5. **PR creation** (`lib/pr_create.sh <target-repo> --confirmed`) — only
+4. **PR creation** (`lib/pr_create.sh <target-repo> --confirmed`) — only
    called by `run.sh`, only after explicit approval.
+
+## Gate configuration
+
+If `pipeline/gate-config.json` exists (see `System_Config/gate-config.schema.json`
+/ `.example.json`), its ordered `gates` array replaces the default
+eslint+playwright pair — entries are `"eslint"`, `"playwright"`, or a
+`custom` object (`{"name": "custom", "script": "...", "cwd": "...",
+"args": [...]}`). `script`/`cwd` are resolved relative to the **target
+repo**, matching how `eslint_gate.sh`/`playwright_gate.sh` already `cd`
+into it. Parsed with `python3` (stdlib `json`); if the config file exists
+but `python3` is not found, `run.sh` hard-fails rather than silently
+falling back — running the wrong gate set would defeat the "100% pass
+before a human sees the diff" contract. No config file (an un-specialized
+fork) keeps the original hardcoded eslint+playwright behavior.
+
+Before any of this runs, the file is validated in full (see "Flow" step 0
+above) — an unknown gate name or a malformed `custom` object fails the run
+immediately with a clear `FAILED: ...` message, rather than surfacing
+partway through gate execution. An empty `"gates": []` array is valid (no
+gates configured, not malformed) and simply runs zero gates.
+
+## Session logging
+
+After the coder step completes (success, watchdog timeout, or an Ollama
+write-workflow refusal), `run.sh` calls `System_Config/log_session.sh`
+exactly once with the resolved provider, `--role coder`, the exit status,
+and a reason (`exit`/`timeout`/`signal`/`refused`). This is the sole
+launcher-level call site — `run_agent()` itself is not instrumented, since
+it's also called once per clip by `daily_ingest.sh`, which already logs its
+own line per clip.
 
 ## Contract: 100% pass before the patch is even shown to a human
 
@@ -85,7 +135,8 @@ accidentally skip the human gate. It also checks `gh` is installed and
 
 | File | Purpose |
 |---|---|
-| `run.sh` | Main orchestrator, 5-step flow above |
+| `run.sh` | Main orchestrator, 4-step flow above |
+| `gate-config.json` | Optional; see "Gate configuration" above |
 | `lib/eslint_gate.sh` | ESLint gate — WARN+skip or hard-stop |
 | `lib/playwright_gate.sh` | Playwright E2E gate — WARN+skip or hard-stop |
 | `lib/human_gate.sh` | Renders summary/diff, blocks on `[y/N]` |
