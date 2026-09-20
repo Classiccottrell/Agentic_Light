@@ -10,7 +10,7 @@
 # Idempotent: re-running overwrites those files cleanly.
 #
 #   ./System_Config/specialize.sh
-#   ./System_Config/specialize.sh --preset web-app|cli-tool|data-pipeline
+#   ./System_Config/specialize.sh --preset web-app|cli-tool|data-pipeline|design-harness|server-harness|wcag-harness
 #
 set -euo pipefail
 
@@ -25,9 +25,15 @@ SKILLS_OUT="$SYSCFG/skills-selected.json"
 
 case "${1:-}" in
   --help)
-    echo "Usage: ./System_Config/specialize.sh [--preset web-app|cli-tool|data-pipeline]"
+    echo "Usage: ./System_Config/specialize.sh [--preset web-app|cli-tool|data-pipeline|design-harness|server-harness|wcag-harness]"
     echo "  (no args)        interactive checkbox prompts"
     echo "  --preset <name>  non-interactive, expand a named preset from System_Config/presets.json"
+    echo "                   web-app: full team + eslint/playwright gates + all skills"
+    echo "                   cli-tool: coder+qa, no gates, all skills"
+    echo "                   data-pipeline: architect+coder+qa, placeholder custom gate (needs a script), all skills"
+    echo "                   design-harness: architect+coder+creative-director+qa, playwright gate, all skills"
+    echo "                   server-harness: architect+coder+qa, no default gates, no shipped skills yet"
+    echo "                   wcag-harness: architect+coder+creative-director+qa, playwright gate, no shipped skills yet"
     echo "  --help           this message"
     echo
     echo "Env overrides (non-interactive): AGENTIC_LIGHT_ROLES, AGENTIC_LIGHT_GATES,"
@@ -40,7 +46,7 @@ case "${1:-}" in
     ;;
   --*)
     echo "Unknown flag: $1" >&2
-    echo "Usage: ./System_Config/specialize.sh [--preset web-app|cli-tool|data-pipeline]" >&2
+    echo "Usage: ./System_Config/specialize.sh [--preset web-app|cli-tool|data-pipeline|design-harness|server-harness|wcag-harness]" >&2
     exit 1
     ;;
   "") PRESET="" ;;
@@ -99,16 +105,21 @@ skills = p.get('skills', [])
 print(','.join(p.get('roles', [])))
 print(json.dumps(p.get('gates', [])))
 print('*' if skills == '*' else ','.join(skills))
+print(p.get('skills_gap_note', ''))
 ")" || exit 1
   SEL_ROLES="$(printf '%s\n' "$PRESET_DATA" | sed -n '1p' | tr ',' ' ')"
   SEL_GATES_JSON="$(printf '%s\n' "$PRESET_DATA" | sed -n '2p')"
   SEL_SKILLS_RAW="$(printf '%s\n' "$PRESET_DATA" | sed -n '3p')"
+  SKILLS_GAP_NOTE="$(printf '%s\n' "$PRESET_DATA" | sed -n '4p')"
   if [ "$SEL_SKILLS_RAW" = "*" ]; then
     SEL_SKILLS="$SKILL_DIRS"
   else
     SEL_SKILLS="$(printf '%s' "$SEL_SKILLS_RAW" | tr ',' ' ')"
   fi
   echo "→ Using preset: $PRESET"
+  if [ -n "$SKILLS_GAP_NOTE" ]; then
+    echo "Note: this preset ships no skill content yet ($SKILLS_GAP_NOTE) — agents will work from base instructions only."
+  fi
 elif [ -n "${AGENTIC_LIGHT_ROLES:-}${AGENTIC_LIGHT_GATES:-}${AGENTIC_LIGHT_SKILLS:-}" ]; then
   SEL_ROLES="$(printf '%s' "${AGENTIC_LIGHT_ROLES:-}" | tr ',' ' ')"
   SEL_SKILLS="$(printf '%s' "${AGENTIC_LIGHT_SKILLS:-}" | tr ',' ' ')"

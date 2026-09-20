@@ -199,8 +199,15 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `route_skill.sh` reads to restrict its scan to the selected dirs (files
   under `skills/` are never deleted, per the project's leave-files-alone
   philosophy; missing selection file = scan everything). `--preset
-  web-app|cli-tool|data-pipeline` expands a named entry from
-  `System_Config/presets.json` non-interactively; so do the
+  web-app|cli-tool|data-pipeline|design-harness|server-harness|wcag-harness`
+  expands a named entry from `System_Config/presets.json` non-interactively
+  (`web-app`: full team + eslint/playwright + all skills; `cli-tool`:
+  coder+qa, no gates, all skills; `data-pipeline`: architect+coder+qa,
+  placeholder custom gate, all skills; `design-harness`:
+  architect+coder+creative-director+qa, playwright gate only, all skills;
+  `server-harness`: architect+coder+qa, no default gates, no shipped skills
+  yet; `wcag-harness`: architect+coder+creative-director+qa, playwright gate
+  only, no shipped skills yet); so do the
   `AGENTIC_LIGHT_ROLES`/`AGENTIC_LIGHT_GATES`/`AGENTIC_LIGHT_SKILLS`
   comma-separated env overrides (mirrors `bootstrap.sh`'s
   `AGENTIC_LIGHT_*` convention). `data-pipeline`'s custom gate ships with an
@@ -208,7 +215,24 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   write a config with a known-empty required custom-gate `"script"` (preset
   or interactive path alike) and exits non-zero with a clear fix message,
   rather than writing a config that `pipeline/run.sh` would only fail at
-  execution time. Interactive custom-gate field values (script/cwd) are
+  execution time. `server-harness` sidesteps this entirely by shipping an
+  empty gate list (`[]`, same shape as `cli-tool`) rather than a placeholder
+  custom gate — a server project's test command varies too much to guess,
+  and an always-failing placeholder preset would be less honest than an
+  explicit "no default gates" preset a human fills in later. `server-harness`
+  and `wcag-harness` both ship `"skills": []` with a `skills_gap_note` field
+  (the only two presets to set one — `wcag-harness` because no shipped
+  `skills/*` dir covers accessibility review); when present, `specialize.sh`
+  prints an informational "no skill content yet" note after resolving the
+  preset, distinguishing a known content gap from a role-appropriate empty
+  selection. `wcag-harness` shares `design-harness`'s exact roster and its
+  single `playwright` gate — the differentiator is scope, not shape: the
+  architect reviews semantic HTML structure, creative-director reviews
+  contrast/visual hierarchy, and the actual axe-core assertions live in the
+  target repo's own Playwright spec files, not in the gate mechanism itself
+  (this project's gate schema has no dedicated accessibility gate type).
+  Interactive
+  custom-gate field values (script/cwd) are
   passed to the python3 subprocess via argv, never string-interpolated into
   source, so a value containing quotes/triple-quotes can't break the
   generated Python. Idempotent: re-running overwrites all three output

@@ -13,5 +13,22 @@
     "roles": ["architect", "coder", "qa"],
     "gates": [{"name": "custom", "script": "", "cwd": ".", "args": []}],
     "skills": "*"
+  },
+  "design-harness": {
+    "roles": ["architect", "coder", "creative-director", "qa"],
+    "gates": ["playwright"],
+    "skills": "*"
+  },
+  "server-harness": {
+    "roles": ["architect", "coder", "qa"],
+    "gates": [],
+    "skills": [],
+    "skills_gap_note": "no shipped skill dirs apply to server work yet"
+  },
+  "wcag-harness": {
+    "roles": ["architect", "coder", "creative-director", "qa"],
+    "gates": ["playwright"],
+    "skills": [],
+    "skills_gap_note": "no shipped skill dirs cover accessibility review yet"
   }
 }
