@@ -233,6 +233,18 @@ if [ "$WARN_N" -gt "$PRE_WARN" ] || [ "$FAIL_N" -gt "$PRE_FAIL" ]; then
     check WARN "Self-heal: gen_site.py" "skipped — python3 not found"
   fi
 fi
+
+# CLAUDE.md Directory Map vs actual System_Config/ contents (structural diff,
+# not a markdown-tree parser — tokenize the fenced tree, compare filenames).
+MAP_SC=$(awk '/^├── System_Config\//{f=1; next} f && /^├── [a-zA-Z]/{exit} f' "$WORKSPACE/CLAUDE.md" \
+  | tr -cs 'A-Za-z0-9._-' '\n' | grep -E '\.(sh|py|json)$' | sort -u)
+DISK_SC=$(ls "$SYSCFG" 2>/dev/null | grep -E '\.(sh|py|json)$' | grep -vx 'agent-roster.json' | sort -u)
+SC_DRIFT=$(comm -3 <(printf '%s\n' "$DISK_SC") <(printf '%s\n' "$MAP_SC") | tr -d '\t' | tr '\n' ' ' | sed 's/ *$//')
+if [ -n "$SC_DRIFT" ]; then
+  check WARN "CLAUDE.md Directory Map" "System_Config/ drift vs disk: $SC_DRIFT"
+else
+  check PASS "CLAUDE.md Directory Map" "matches System_Config/ contents"
+fi
 end_section
 
 # ════════════════════════════════════════════════════════════════════════

@@ -164,7 +164,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   agent/skill roster frontmatter completeness, brain scaffolding
   (`wiki/index.md`, current weekly note, Master Note sentinel), read-only
   provider configuration/executable resolution, pipeline log recency, and
-  doc currency.
+  doc currency (including a WARN if `CLAUDE.md`'s Directory Map's
+  `System_Config/*` listing drifts from actual `.sh`/`.py`/`.json` files on
+  disk).
   Self-heals a stale `microsite/index.html` by invoking `gen_site.py` for
   real. Writes `microsite/status.json` + `microsite/status.js` (the payload
   `microsite/health.html` renders). Never `set -e`, always exits 0. No
