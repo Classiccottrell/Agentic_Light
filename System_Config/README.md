@@ -118,6 +118,42 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `MAX_CLIPS_PER_RUN × (MAX_SECONDS + 30s)` so a legitimately long ingest is
   never reclaimed from under itself; `DRY_RUN=1` preview.
 
+- **`memory_index.py`** — `memory_index.py [--force]`. Embeds
+  `brain/wiki/*.md` pages via a local Ollama call
+  (`POST /api/embeddings`, model `nomic-embed-text`, stdlib `urllib`) into
+  `brain/wiki/.memoryfield.sqlite3` (gitignored cache, not source of
+  truth — `brain/wiki/*.md` stays canonical). Incremental: re-embeds only
+  pages whose sha256 content hash changed since last index; prunes rows for
+  pages deleted on disk; `--force` re-embeds everything. Each cached row also
+  records the embedding model name (`model` column, alongside `dim`); a
+  content-unchanged page is still re-embedded if its cached row's model
+  doesn't match the configured `MODEL` (including legacy rows from before
+  this column existed, which read as `NULL` and are always treated as
+  stale). This is per-row, incremental invalidation rather than a full wipe
+  on model change — simplest correct option given the incremental design
+  already in place. Distinct, specific stderr messages for "can't reach
+  Ollama at all" vs. "model not pulled" vs. a malformed/unexpected response
+  body, each non-zero exit — never hangs, never an uncaught traceback. A file
+  deleted between `glob()` and read (concurrent edit) is skipped with a note,
+  not a crash; the DB connection sets a 30s busy_timeout for transient
+  SQLite locks. `--self-test` exercises the SQLite read/write/incremental/
+  prune/model-invalidation logic with a deterministic hash-based fake
+  embedder, no live Ollama needed.
+
+- **`memory_search.py`** — `memory_search.py "<query>" [--top N]` (or pipe
+  the query via stdin; `N` must be >= 1, rejected otherwise). Embeds the
+  query with the same Ollama call, cosine-searches `memory_index.py`'s
+  SQLite cache (pure-Python linear scan, no vector-index library) — a
+  row's stored `dim` is checked against the query vector's length before
+  scoring, and a mismatched row (e.g. left over from a different embedding
+  model) is skipped with a stderr note rather than silently truncate-compared
+  — prints up to N (default 5) ranked `brain/wiki/` page paths to stdout —
+  pipeable into `xargs cat`. Exits non-zero with no output if the index
+  doesn't exist yet or Ollama is unreachable; never silently falls back —
+  `curator`'s documented Query method (`brain/CLAUDE.md`) is the one that
+  decides to fall back to `rg -l`. `--self-test` mirrors `memory_index.py`'s
+  fake-embedder pattern and covers the dimension-mismatch case.
+
 - **`gen_site.py`** — regenerates `microsite/index.html`'s
   `<!-- gen:agents-start/end -->` / `<!-- gen:skills-start/end -->` blocks and
   `<!-- gen:agent-count -->` / `<!-- gen:skills-count -->` counters from

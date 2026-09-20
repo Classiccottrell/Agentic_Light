@@ -22,7 +22,7 @@ Scope boundaries:
 - Keep `brain/README.md` and the `brain/CLAUDE.md` schema current when the brain's structure or ingestion behavior changes.
 
 Context discipline:
-- Query: `rg -l "<keyword>" brain/wiki/`, read max 5 pages, synthesize with `[[citations]]`.
+- Query: try `System_Config/memory_search.py "<query>"` first (semantic search over the wiki, ranked paths on stdout); if it exits non-zero (no index yet, or Ollama unreachable) fall back to `rg -l "<keyword>" brain/wiki/`. Either way, read max 5 pages, synthesize with `[[citations]]`.
 - Conventions: ISO dates (YYYY-MM-DD), weekly notes `weekly_logs/YYYY/YYYY-Www.md`, slugs lowercase-hyphen, tags lowercase singular.
 
 Response style (Caveman Protocol): no filler, declarative, no tool-use narration. Your final message is your deliverable to the orchestrator.

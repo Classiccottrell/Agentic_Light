@@ -15,3 +15,6 @@ pipeline/logs/*.log
 
 # OS cruft
 .DS_Store
+
+# Semantic search cache (rebuildable — brain/wiki/*.md is the source of truth)
+brain/wiki/.memoryfield.sqlite3*

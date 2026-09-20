@@ -124,10 +124,24 @@ session that touches `brain/`.
   cell.
 
 ### Query
-1. Search `wiki/` for entity pages: `rg -l "<keyword>" brain/wiki/`
-2. Read matching pages (max 5 at once).
-3. Synthesize an answer with `[[citations]]`.
-4. If the answer is novel → file it back into the wiki as a new page or update.
+1. Try semantic search first: `System_Config/memory_search.py "<query>"`.
+   Prints up to 5 (`--top N`) ranked `brain/wiki/` page paths, one per line.
+2. If it exits non-zero (no index yet, or Ollama unreachable/model not
+   pulled), fall back to keyword search: `rg -l "<keyword>" brain/wiki/`.
+3. Read matching pages (max 5 at once).
+4. Synthesize an answer with `[[citations]]`.
+5. If the answer is novel → file it back into the wiki as a new page or update.
+
+### Semantic search index (cache, not source of truth)
+`System_Config/memory_index.py` embeds each `brain/wiki/*.md` page via a
+local Ollama call (`nomic-embed-text`) and stores the vectors in
+`brain/wiki/.memoryfield.sqlite3`. Re-run it (no args) after editing wiki
+pages to keep the index current — it's incremental (re-embeds only changed
+pages, by content hash) and gitignored. **There is a vector index, but it's
+a deletable cache, not the system** — `brain/wiki/*.md` remains the durable,
+git-tracked source of truth; delete the `.sqlite3` file any time and
+`memory_index.py` rebuilds it from the markdown. `memory_search.py` reads
+that cache to answer queries; see Query above.
 
 ---
 
