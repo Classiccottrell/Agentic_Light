@@ -3,8 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#f9f5f1" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#1c1e1c" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#020817" media="(prefers-color-scheme: dark)">
     <!-- Auto-refresh: pick up a fresh status.js snapshot every 5 minutes, same as health.html -->
     <meta http-equiv="refresh" content="300">
     <title>Dashboard — Agentic Light</title>
@@ -78,9 +78,9 @@ footer.site a{color:var(--accent);text-decoration:underline;text-underline-offse
 /* editorial display type — ClassicCottrell */
 h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
 
-/* dashboard-specific: generative grain-field backdrop + preset/roster panels.
-   Ported inline from Projects/linefield's grain-field piece (the "quietest,
-   good behind text" preset) so this page has no external file dependency. */
+/* dashboard-specific: generative mesh-network backdrop + preset/roster panels.
+   Ported inline from Projects/linefield's synapse piece (drifting nodes wired
+   to their neighbours, pulsing) so this page has no external file dependency. */
 #lf-backdrop{position:fixed;inset:0;z-index:-1;width:100vw;height:100vh;opacity:.16;pointer-events:none}
 @media (prefers-reduced-motion:reduce){#lf-backdrop{display:none}}
 
@@ -116,6 +116,35 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
 .roster-table th:first-child,.roster-table td:first-child{text-align:left}
 .roster-table td.on{color:var(--ok);font-weight:700}
 .roster-table td.off{color:var(--rule)}
+</style>
+<style>
+/* shadcn/ui "Blue" theme override — scoped to this page only.
+   Remaps the ClassicCottrell tokens above (frozen block, do not edit)
+   onto shadcn Blue's palette. Values are wrapped in hsl(...) because this
+   page's CSS uses tokens as full color values (var(--bg), color-mix(...)),
+   not shadcn's own hsl(var(--x)) component-triplet convention. */
+:root{
+  --bg:hsl(0 0% 100%);--surface:hsl(0 0% 100%);
+  --ink:hsl(222.2 84% 4.9%);--ink-2:hsl(222.2 84% 4.9%);
+  --muted:hsl(215.4 16.3% 46.9%);--rule:hsl(214.3 31.8% 91.4%);
+  --accent:hsl(221.2 83.2% 53.3%);--accent-hover:hsl(221.2 83.2% 43.3%);
+  --accent-ink:hsl(210 40% 98%);
+  --accent-soft:hsl(210 40% 96.1%);--accent-soft-ink:hsl(222.2 47.4% 11.2%);
+  --ok:hsl(221.2 83.2% 53.3%);--warn:hsl(38 92% 50%);--fail:hsl(0 84.2% 60.2%);
+  --radius:0.5rem;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:hsl(222.2 84% 4.9%);--surface:hsl(222.2 84% 4.9%);
+    --ink:hsl(210 40% 98%);--ink-2:hsl(210 40% 98%);
+    --muted:hsl(215 20.2% 65.1%);--rule:hsl(217.2 32.6% 17.5%);
+    --accent:hsl(217.2 91.2% 59.8%);--accent-hover:hsl(217.2 91.2% 69.8%);
+    --accent-ink:hsl(222.2 47.4% 11.2%);
+    --accent-soft:hsl(217.2 32.6% 17.5%);--accent-soft-ink:hsl(210 40% 98%);
+    --ok:hsl(217.2 91.2% 59.8%);--warn:hsl(38 92% 50%);--fail:hsl(0 62.8% 30.6%);
+    --shadow:none;
+  }
+}
 </style>
 </head>
 <body>
@@ -266,11 +295,11 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
 })();
 </script>
 
-<!-- Generative backdrop — ported inline from Projects/linefield's grain-field
-     piece ("the quietest piece, good behind text"): drifting simplex-noise
-     grain, single-hue to stay on this page's own ClassicCottrell accent
-     rather than the piece's authored orange/blue palette. No external file,
-     no build step, self-contained. -->
+<!-- Generative backdrop — ported inline from Projects/linefield's synapse
+     piece: drifting nodes wired to their neighbours, pulsing — the
+     mesh-network look. Single-hue to stay on this page's own shadcn Blue
+     accent rather than the piece's authored two-stop gradient palette. No
+     external file, no build step, self-contained. -->
 <script>
 (function () {
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -317,49 +346,70 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
     return 70 * (n0 + n1 + n2);
   }
 
-  // Single fixed hue matched to this page's ClassicCottrell --accent (a
-  // muted green), not grain-field's own authored orange/blue two-stop
-  // palette — the Color Consistency Lock rule: one accent per page.
+  // Single fixed hue matched to this page's shadcn Blue --accent/--primary,
+  // not synapse's own authored two-stop gradient palette — the Color
+  // Consistency Lock rule: one accent per page.
   var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  var hue = 152, sat = 0.28, light = dark ? 0.62 : 0.32;
+  var hue = dark ? 217.2 : 221.2, sat = dark ? 0.912 : 0.832, light = dark ? 0.598 : 0.533;
 
-  var BASE_COUNT = 900; // sparser than the source piece's 3200 — this is a quiet backdrop, not the artwork
-  var grains = [];
-  function seedGrains() {
-    grains = [];
+  // sparser than the source piece's 220-node default (itself a foreground
+  // artwork setting) — this is a quiet page backdrop, not the artwork.
+  var BASE_COUNT = 70;
+  var REACH = 130; // px — connection distance, matches synapse's own default
+  var nodes = [];
+  function seedNodes() {
+    nodes = [];
     for (var i = 0; i < BASE_COUNT; i++) {
-      grains.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, j: Math.random() * Math.PI * 2 });
+      var x = Math.random() * canvas.width, y = Math.random() * canvas.height;
+      // anchor: noise-field drift wanders around this home point rather than
+      // roaming unbounded, so the mesh can't collapse into thin filaments.
+      nodes.push({ x: x, y: y, homeX: x, homeY: y, j: Math.random() * Math.PI * 2 });
     }
   }
-  seedGrains();
-  window.addEventListener('resize', seedGrains);
+  seedNodes();
+  window.addEventListener('resize', seedNodes);
 
   var start = null;
   function frame(now) {
     if (!start) start = now;
     var elapsed = (now - start) / 1000;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    var noiseScale = 0.004 * 0.6;
-    var t = elapsed * 0.25 * 0.6;
-    var drift = 14 * 0.12;
-    var len = 2.2;
+    var noiseScale = 0.0016 * 0.6;
+    var t = elapsed * 0.2 * 0.6;
+    var drift = 18 * 0.3 * 0.016;
+    var wanderRadius = 4 + 0.6 * 80;
+    var pull = (18 * 0.3) / wanderRadius;
+
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      var a = simplex2(n.x * noiseScale, n.y * noiseScale + t) * Math.PI * 2;
+      n.x += Math.cos(a) * drift - (n.x - n.homeX) * pull * 0.016;
+      n.y += Math.sin(a) * drift - (n.y - n.homeY) * pull * 0.016;
+      if (n.x < 0) n.x += canvas.width;
+      if (n.x > canvas.width) n.x -= canvas.width;
+      if (n.y < 0) n.y += canvas.height;
+      if (n.y > canvas.height) n.y -= canvas.height;
+    }
+
     ctx.lineWidth = 1;
-    for (var i = 0; i < grains.length; i++) {
-      var gr = grains[i];
-      var n = simplex2(gr.x * noiseScale, gr.y * noiseScale + t);
-      var a = n * Math.PI * 2 + gr.j * 0.15;
-      gr.x += Math.cos(a) * drift;
-      gr.y += Math.sin(a) * drift;
-      if (gr.x < 0) gr.x += canvas.width;
-      if (gr.x > canvas.width) gr.x -= canvas.width;
-      if (gr.y < 0) gr.y += canvas.height;
-      if (gr.y > canvas.height) gr.y -= canvas.height;
-      var ex = gr.x + Math.cos(a) * len, ey = gr.y + Math.sin(a) * len;
-      ctx.strokeStyle = 'hsl(' + hue + ',' + Math.round(sat * 100) + '%,' + Math.round(light * 100) + '%)';
-      ctx.beginPath();
-      ctx.moveTo(gr.x, gr.y);
-      ctx.lineTo(ex, ey);
-      ctx.stroke();
+    var reach2 = REACH * REACH;
+    for (var p = 0; p < nodes.length; p++) {
+      for (var q = p + 1; q < nodes.length; q++) {
+        var na = nodes[p], nb = nodes[q];
+        var dx = na.x - nb.x, dy = na.y - nb.y;
+        var d2 = dx * dx + dy * dy;
+        if (d2 > reach2) continue;
+        var closeness = 1 - Math.sqrt(d2) / REACH;
+        // Pulse travels as a wave through the mesh — each edge's alpha
+        // breathes on the two endpoint nodes' own phases.
+        var pulse = (Math.sin(elapsed * 2 * 0.3 + na.j + nb.j) + 1) / 2;
+        var alpha = Math.min(1, closeness * (0.25 + pulse * 0.75));
+        ctx.strokeStyle = 'hsla(' + hue + ',' + Math.round(sat * 100) + '%,' + Math.round(light * 100) + '%,' + alpha.toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.moveTo(na.x, na.y);
+        ctx.lineTo(nb.x, nb.y);
+        ctx.stroke();
+      }
     }
     requestAnimationFrame(frame);
   }
