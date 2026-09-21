@@ -17,6 +17,7 @@ Lighter sibling of the parent workspace: Obsidian second brain + dev pipeline
 - `bash System_Config/route_skill.sh "<task description>"` — deterministic, provider-neutral skill router; scans `skills/*/SKILL.md` frontmatter and prints matching skill directory paths.
 - `python3 System_Config/memory_index.py [--force]` — build/refresh the SQLite semantic-search cache over `brain/wiki/*.md` (stdlib + local Ollama embeddings; rebuildable, not source of truth).
 - `python3 System_Config/memory_search.py "<query>" [--top N]` — cosine semantic search over the `memory_index.py` cache; prints top-N matching `brain/wiki/` page paths to stdout.
+- `bash System_Config/dashboard.sh` — read-only terminal status readout: preset, provider, roster, gates, last agent session, recent pipeline runs.
 
 ## Provider Contract
 
@@ -59,7 +60,7 @@ Agentic_Light/
 │   ├── agent-roster.schema.json · agent-roster.example.json
 │   ├── gate-config.schema.json · gate-config.example.json
 │   ├── memory_index.py · memory_search.py
-│   ├── gen_site.py · gen_preset_pages.py · healthcheck.sh
+│   ├── gen_site.py · gen_preset_pages.py · healthcheck.sh · dashboard.sh
 │   ├── notify.sh · .notify.env.example
 ├── agents/
 │   └── architect.md · coder.md · creative-director.md · curator.md · eng-manager.md · qa.md · README.md

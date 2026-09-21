@@ -18,10 +18,15 @@
 #        route_skill.sh --self-test
 #
 # Prints matching skill directory paths, one per line, to stdout.
-# --verbose additionally writes a stderr note when a matched skill's
-# SKILL.md description mentions a tool/MCP dependency this script cannot
-# verify is available (e.g. "Figma") — the match is still printed to
-# stdout; --verbose only explains its provenance.
+# --verbose additionally writes a stderr note when a matched skill declares
+# what it needs: an optional `requires:` frontmatter field (single-line,
+# comma-separated, e.g. `requires: figma-mcp, some-other-tool` — a bracketed
+# `[a, b]` form is also accepted; multi-line YAML list items are NOT parsed,
+# same single-line limitation as `name`/`description`) is reported verbatim.
+# For a skill that doesn't declare `requires`, --verbose falls back to a
+# crude substring sniff of the description (e.g. "figma"/"mcp") and flags it
+# as unverifiable instead. Either way the match is still printed to stdout;
+# --verbose only explains its provenance.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -71,6 +76,16 @@ unverifiable_deps() {
   echo "$found"
 }
 
+# normalize_requires <raw requires: value> — strips optional [ ] wrapper and
+# surrounding whitespace/quotes around each comma-separated entry.
+normalize_requires() {
+  local raw="$1"
+  raw="$(printf '%s' "$raw" | sed -E 's/^[[:space:]"'\''"]+|[[:space:]"'\''"]+$//g')"
+  raw="${raw#\[}"; raw="${raw%\]}"
+  raw="$(printf '%s' "$raw" | sed -E 's/^[[:space:]"'\''"]+|[[:space:]"'\''"]+$//g')"
+  printf '%s' "$raw" | tr ',' '\n' | sed -E 's/^[[:space:]"'\''"]+|[[:space:]"'\''"]+$//g' | sed '/^$/d' | paste -sd, -
+}
+
 # selected_skill_names — if SKILLS_SELECTED_FILE exists, prints the space-
 # separated basenames under its "selected" array (specialize.sh writes this
 # via `{"selected": [...]}`, indent=2 — one string per line, parsed without
@@ -83,7 +98,7 @@ selected_skill_names() {
 }
 
 route() {
-  local task="$1" dir smd name desc desc_lc task_lc matched=0 deps
+  local task="$1" dir smd name desc desc_lc task_lc matched=0 deps requires
   local selection_active=0 selected=""
   task_lc="$(printf '%s' "$task" | lc)"
 
@@ -113,8 +128,13 @@ route() {
       matched=1
       echo "$dir"
       if [[ "$VERBOSE" -eq 1 ]]; then
-        deps="$(unverifiable_deps "$desc_lc")"
-        [[ -n "$deps" ]] && echo "[route_skill] $dir: description mentions unverifiable dependency (${deps}) — cannot confirm tool/MCP availability" >&2
+        requires="$(normalize_requires "$(frontmatter_field "$smd" requires)")"
+        if [[ -n "$requires" ]]; then
+          echo "[route_skill] $dir: declares requires: ${requires}" >&2
+        else
+          deps="$(unverifiable_deps "$desc_lc")"
+          [[ -n "$deps" ]] && echo "[route_skill] $dir: description mentions unverifiable dependency (${deps}) — cannot confirm tool/MCP availability" >&2
+        fi
       fi
     fi
   done
@@ -156,6 +176,15 @@ description: "Writes unit tests for a codebase."
 ---
 # Beta
 EOF
+  mkdir -p "$tmp/gamma-skill"
+  cat > "$tmp/gamma-skill/SKILL.md" <<'EOF'
+---
+name: gamma-skill
+description: "Exports gamma design assets for review."
+requires: figma-mcp
+---
+# Gamma
+EOF
 
   local out real_dir=$SKILLS_DIR
   SKILLS_DIR="$tmp"
@@ -172,6 +201,15 @@ EOF
   VERBOSE=0
   [[ "$err" == *"figma"* ]] || { SKILLS_DIR=$real_dir; echo "FAIL: --verbose did not note unverifiable figma dependency" >&2; exit 1; }
 
+  # gamma-skill declares requires: figma-mcp explicitly and its description
+  # contains neither "figma" nor "mcp" — proves the explicit requires: path
+  # is distinct from (and takes precedence over) the substring-sniff fallback.
+  VERBOSE=1
+  err="$(route "review gamma assets" 2>&1 >/dev/null)"
+  VERBOSE=0
+  [[ "$err" == *"declares requires: figma-mcp"* ]] || { SKILLS_DIR=$real_dir; echo "FAIL: --verbose did not report explicit requires: for gamma-skill" >&2; exit 1; }
+  [[ "$err" != *"mentions unverifiable dependency"* ]] || { SKILLS_DIR=$real_dir; echo "FAIL: gamma-skill should use explicit requires:, not the substring-sniff fallback" >&2; exit 1; }
+
   # Selection-file-present case: skills-selected.json restricts the scan to
   # only beta-skill, even though "figma export design" would otherwise also
   # match alpha-skill by name substring.
@@ -183,6 +221,12 @@ EOF
   SKILLS_SELECTED_FILE=$real_selfile
   SKILLS_DIR=$real_dir
   [[ "$out" != *"alpha-skill"* ]] || { echo "FAIL: skills-selected.json did not exclude deselected alpha-skill" >&2; exit 1; }
+
+  # normalize_requires: quoted bracketed value must strip both the quotes
+  # and brackets, not leave "[a,b]" behind.
+  local nr
+  nr="$(normalize_requires '"[a, b]"')"
+  [[ "$nr" == "a,b" ]] || { echo "FAIL: normalize_requires('\"[a, b]\"') = '$nr', expected 'a,b'" >&2; exit 1; }
 
   rm -rf "$tmp"
   echo "self-test OK"
