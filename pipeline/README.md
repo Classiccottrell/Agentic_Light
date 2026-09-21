@@ -11,6 +11,7 @@ not against Agentic_Light itself.
 
 ```
 bash pipeline/run.sh "<task description>" /path/to/target/repo
+bash pipeline/run.sh --help   # print usage and exit
 ```
 
 `target-repo-path` defaults to `$PWD` if omitted.
@@ -26,10 +27,13 @@ bash pipeline/run.sh "<task description>" /path/to/target/repo
    no opaque mid-run failure under `set -u`. See "Gate configuration" below.
 0. **Skill routing** — `System_Config/route_skill.sh "<task description>"`
    runs before the coder step. Each matched skill's `SKILL.md` is prepended
-   to the coder prompt (capped at the first 3 matches — the router's basic
-   substring/keyword match can hit many skills on an ordinary task
-   sentence; the cap keeps the prompt from ballooning). No match, or the
-   router being unavailable, is a silent no-op.
+   to the coder prompt (capped at the first `AGENTIC_LIGHT_SKILL_MATCH_LIMIT`
+   matches, default 3 — the router's basic substring/keyword match can hit
+   many skills on an ordinary task sentence; the cap keeps the prompt from
+   ballooning). Override with `AGENTIC_LIGHT_SKILL_MATCH_LIMIT=<N>` (a
+   non-negative integer; `0` injects no skill context); a malformed or unset
+   value falls back to 3 with a stderr note. No match, or the router being
+   unavailable, is a silent no-op.
 1. **Code Patch** — `run.sh` itself creates the feature branch
    (`git checkout -b agentic-light/<run-id>`) in the target repo, then
    invokes the `coder` step via `System_Config/run_agent.sh`, scoped to the

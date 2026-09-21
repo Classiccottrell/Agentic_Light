@@ -100,9 +100,14 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   stdin) scans `skills/*/SKILL.md` frontmatter (`name`/`description` only —
   ignores Claude-specific fields like `disable-model-invocation`, per
   `AGENT_AGNOSTIC_REVIEW.md`) and prints matching skill directory paths, one
-  per line. `--verbose` also notes on stderr when a matched skill's
-  description mentions a tool/MCP dependency (e.g. Figma) this script can't
-  verify is available. If `System_Config/skills-selected.json` exists (see
+  per line. A skill may declare an optional `requires:` frontmatter field
+  (single-line, comma-separated, e.g. `requires: figma-mcp, some-tool`;
+  bracketed `[a, b]` also accepted — multi-line YAML list items are not
+  parsed, same limitation as `name`/`description`). `--verbose` reports a
+  matched skill's declared `requires:` verbatim on stderr; for a skill that
+  doesn't declare one, it falls back to noting when the description
+  mentions a tool/MCP dependency (e.g. Figma) this script can't verify is
+  available. If `System_Config/skills-selected.json` exists (see
   `specialize.sh` below), the scan is restricted to only its `"selected"`
   dirs; a missing file scans all of `skills/`. `--self-test` / `--skills-dir
   <path>` for testing against a fixture dir instead of the real `skills/`.
@@ -183,6 +188,15 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   launchd/cron trigger and no GitHub Pages publish step — run it by hand.
   On a non-`PASS` result, calls `notify.sh` with the overall status and
   pass/warn/fail counts (best-effort — never affects healthcheck's own exit).
+  Also runs a heads-up config security scan (AgentShield-lite): greps
+  `System_Config/*.sh`, `System_Config/*.json` (excluding `*.example` /
+  `*.defaults.json` templates), `.mcp.json`, and any `.env`-shaped file for
+  likely-exposed secrets (provider key prefixes, bare `Bearer <token>`,
+  non-placeholder `*_KEY`/`*_TOKEN`/`*_SECRET` values) — always `WARN`, never
+  `FAIL`, and skips any file already covered by `.gitignore` (expected local
+  config, not a leak risk). Separately `WARN`s if `.mcp.json`,
+  `.agentic-light.conf`, or `System_Config/.notify.env` — each documented
+  elsewhere as local-only — isn't actually gitignored.
 - **`notify.sh`** — `notify.sh "<title>" "<body>"`. Sends to
   `SLACK_WEBHOOK_URL` and/or `GCHAT_WEBHOOK_URL` (both may be set; each tried
   independently), plus an opt-in local macOS banner

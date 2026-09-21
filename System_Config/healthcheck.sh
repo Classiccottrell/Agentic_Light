@@ -248,6 +248,68 @@ fi
 end_section
 
 # ════════════════════════════════════════════════════════════════════════
+# LAYER G — Config security scan (AgentShield-lite, heads-up only)
+# ════════════════════════════════════════════════════════════════════════
+begin_section "Config Security Scan"
+
+# secret_pattern_files — the project's own config surface: shell/json config
+# plus any .env-shaped file. *.example / *.defaults.json are templates by
+# convention (placeholder values, meant to be committed) and are excluded.
+SECRET_SCAN_FILES=""
+for f in "$SYSCFG"/*.sh "$SYSCFG"/*.json "$WORKSPACE"/.mcp.json; do
+  [ -f "$f" ] || continue
+  case "$f" in *.example|*.defaults.json) continue ;; esac
+  SECRET_SCAN_FILES="$SECRET_SCAN_FILES $f"
+done
+for f in $(find "$WORKSPACE" -maxdepth 2 -type f -name '.env*' 2>/dev/null) "$WORKSPACE/.agentic-light.conf"; do
+  [ -f "$f" ] || continue
+  case "$f" in *.example|*.defaults.json) continue ;; esac
+  SECRET_SCAN_FILES="$SECRET_SCAN_FILES $f"
+done
+
+# looks_like_secret <file> — greps for common credential shapes. Tight,
+# repo-specific pattern set (not a general secret scanner): known provider
+# key prefixes, a bare "Bearer <token>", and *_KEY/*_TOKEN/*_SECRET vars
+# assigned a non-placeholder-looking value (skips "", NULL-ish placeholders,
+# and anything wrapped in <...> or starting with YOUR_/CHANGEME/xxx).
+looks_like_secret() {
+  grep -nE '(sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{12,}|Bearer[[:space:]]+[A-Za-z0-9._-]{10,})' "$1" 2>/dev/null
+  grep -nEi '[A-Z0-9_]*(KEY|TOKEN|SECRET)[[:space:]]*[:=][[:space:]]*"?[A-Za-z0-9_/+=.-]{8,}"?' "$1" 2>/dev/null \
+    | grep -viE '=[[:space:]]*"?(null|none|changeme|your_|xxx|<.*>|\$\{)' \
+    | grep -viE '(KEY|TOKEN|SECRET)_(ENUM|SCHEMA|NAME|FIELD)'
+}
+
+SECRET_HITS=0
+for f in $SECRET_SCAN_FILES; do
+  rel="${f#$WORKSPACE/}"
+  # A real secret in a file .gitignore already covers is expected (local-only
+  # config), not a finding — only WARN on a tracked (or untracked-but-not-
+  # ignored) file so this layer stays quiet on the repo's normal template
+  # files and only flags what could actually leak via a commit.
+  if git -C "$WORKSPACE" check-ignore -q "$f" 2>/dev/null; then
+    continue
+  fi
+  hit="$(looks_like_secret "$f" | head -1)"
+  if [ -n "$hit" ]; then
+    SECRET_HITS=$((SECRET_HITS + 1))
+    check WARN "Possible secret: $rel" "$(printf '%s' "$hit" | cut -c1-120)"
+  fi
+done
+[ "$SECRET_HITS" -eq 0 ] && check PASS "Config secret scan" "no likely-exposed secrets in tracked config surface"
+
+# Documented-as-local-only files must actually be gitignored.
+LOCAL_ONLY_FILES=".mcp.json .agentic-light.conf System_Config/.notify.env"
+for rel in $LOCAL_ONLY_FILES; do
+  f="$WORKSPACE/$rel"
+  if git -C "$WORKSPACE" check-ignore -q "$f" 2>/dev/null; then
+    check PASS "Gitignore: $rel" "covered by .gitignore"
+  else
+    check WARN "Gitignore: $rel" "documented as local-only but NOT covered by .gitignore"
+  fi
+done
+end_section
+
+# ════════════════════════════════════════════════════════════════════════
 # WRITE status.json / status.js
 # ════════════════════════════════════════════════════════════════════════
 mkdir -p "$MICROSITE"

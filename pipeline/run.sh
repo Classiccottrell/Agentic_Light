@@ -13,6 +13,13 @@ LIB="$PIPELINE_DIR/lib"
 # shellcheck source=../System_Config/config.sh
 source "$ROOT/System_Config/config.sh"
 
+case "${1:-}" in
+  -h|--help)
+    sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0
+    ;;
+esac
+
 TASK_DESC="${1:?usage: run.sh \"<task description>\" [target-repo-path]}"
 TARGET_REPO="$(cd "${2:-$PWD}" && pwd)"
 
@@ -142,9 +149,24 @@ fi
 # the actual task. Capped at the first SKILL_MATCH_LIMIT matches (router's
 # own output order) so a genuine single-skill match still gets its full
 # guidance while a broad/noisy match degrades instead of ballooning.
+#
+# Overridable via AGENTIC_LIGHT_SKILL_MATCH_LIMIT (must be a non-negative
+# integer; 0 is valid and injects no skill context at all). Malformed or
+# unset falls back to the documented default of 3.
 # ---------------------------------------------------------------------------
 SKILL_CONTEXT=""
-SKILL_MATCH_LIMIT=3
+SKILL_MATCH_LIMIT_RAW="${AGENTIC_LIGHT_SKILL_MATCH_LIMIT-}"
+case "$SKILL_MATCH_LIMIT_RAW" in
+  ''|*[!0-9]*)
+    if [ -n "${AGENTIC_LIGHT_SKILL_MATCH_LIMIT+set}" ]; then
+      echo "  AGENTIC_LIGHT_SKILL_MATCH_LIMIT=\"$SKILL_MATCH_LIMIT_RAW\" is not a non-negative integer — falling back to 3" >&2
+    fi
+    SKILL_MATCH_LIMIT=3
+    ;;
+  *)
+    SKILL_MATCH_LIMIT="$SKILL_MATCH_LIMIT_RAW"
+    ;;
+esac
 ROUTE_SKILL="$ROOT/System_Config/route_skill.sh"
 if [ -x "$ROUTE_SKILL" ]; then
   set +e
