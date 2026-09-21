@@ -160,12 +160,24 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `agents/*.md` and `skills/*/SKILL.md` frontmatter.
   `--check` exits 1 if stale (used by `healthcheck.sh`); `--dry-run` prints
   the diff without writing. Stdlib-only Python 3.
+- **`gen_preset_pages.py`** — regenerates one page per fork-specialization
+  preset at `microsite/presets/<name>.html` (purpose, roster table, gate
+  table, skills note, task-flow diagram), plus the
+  `<!-- gen:presets-start/end -->` index table in `microsite/index.html`,
+  from `System_Config/presets.json` and `agent-roster.schema.json`'s fixed
+  6-role set. Copies `microsite/template.html` as the scaffold (rewriting its
+  sibling-relative `index.html`/`health.html` links to `../` since preset
+  pages live one level down). Same CLI shape as `gen_site.py`: bare (write),
+  `--check` (exit 1 if stale), `--dry-run`. Kept as a separate script from
+  `gen_site.py` because it generates whole files from a template rather than
+  rewriting marker blocks inside one fixed file. Stdlib-only Python 3.
 - **`healthcheck.sh`** — layered PASS/WARN/FAIL check: directory layout,
   agent/skill roster frontmatter completeness, brain scaffolding
   (`wiki/index.md`, current weekly note, Master Note sentinel), read-only
   provider configuration/executable resolution, pipeline log recency, and
   doc currency.
-  Self-heals a stale `microsite/index.html` by invoking `gen_site.py` for
+  Self-heals a stale `microsite/index.html` or stale `microsite/presets/*.html`
+  by invoking `gen_site.py` / `gen_preset_pages.py` for
   real. Writes `microsite/status.json` + `microsite/status.js` (the payload
   `microsite/health.html` renders). Never `set -e`, always exits 0. No
   launchd/cron trigger and no GitHub Pages publish step — run it by hand.

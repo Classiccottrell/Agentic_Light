@@ -1,31 +1,37 @@
 {
   "web-app": {
+    "description": "full team + eslint/playwright gates + all skills",
     "roles": ["architect", "coder", "creative-director", "curator", "eng-manager", "qa"],
     "gates": ["eslint", "playwright"],
     "skills": "*"
   },
   "cli-tool": {
+    "description": "coder+qa, no gates, all skills",
     "roles": ["coder", "qa"],
     "gates": [],
     "skills": "*"
   },
   "data-pipeline": {
+    "description": "architect+coder+qa, placeholder custom gate (needs a script), all skills",
     "roles": ["architect", "coder", "qa"],
     "gates": [{"name": "custom", "script": "", "cwd": ".", "args": []}],
     "skills": "*"
   },
   "design-harness": {
+    "description": "architect+coder+creative-director+qa, playwright gate, all skills",
     "roles": ["architect", "coder", "creative-director", "qa"],
     "gates": ["playwright"],
     "skills": "*"
   },
   "server-harness": {
+    "description": "architect+coder+qa, no default gates, no shipped skills yet",
     "roles": ["architect", "coder", "qa"],
     "gates": [],
     "skills": [],
     "skills_gap_note": "no shipped skill dirs apply to server work yet"
   },
   "wcag-harness": {
+    "description": "architect+coder+creative-director+qa, playwright gate, no shipped skills yet",
     "roles": ["architect", "coder", "creative-director", "qa"],
     "gates": ["playwright"],
     "skills": [],
