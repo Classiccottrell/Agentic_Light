@@ -12,7 +12,7 @@ Lighter sibling of the parent workspace: Obsidian second brain + dev pipeline
 - `bash skills/skills.sh list` — list available skills.
 - `bash System_Config/healthcheck.sh` — layered PASS/WARN/FAIL report, self-heals docs via `gen_site.py`.
 - `bash System_Config/new_agent.sh <name> "<scope>" [--write]` — scaffold a new `agents/<name>.md`.
-- `bash System_Config/specialize.sh [--preset web-app|cli-tool|data-pipeline]` — one-time fork specialization; writes `System_Config/agent-roster.json` + `pipeline/gate-config.json`.
+- `bash System_Config/specialize.sh [--preset web-app|cli-tool|data-pipeline|design-harness|server-harness|wcag-harness]` — one-time fork specialization; writes `System_Config/agent-roster.json` + `pipeline/gate-config.json`.
 - `bash System_Config/log_session.sh --provider <name> --role <role> --status <exit-code> --reason <exit|timeout|signal|refused>` — deterministic (no LLM call) session logger; appends one line to the current ISO week's weekly note under `## Agent Sessions`.
 - `bash System_Config/route_skill.sh "<task description>"` — deterministic, provider-neutral skill router; scans `skills/*/SKILL.md` frontmatter and prints matching skill directory paths.
 - `python3 System_Config/memory_index.py [--force]` — build/refresh the SQLite semantic-search cache over `brain/wiki/*.md` (stdlib + local Ollama embeddings; rebuildable, not source of truth).
@@ -59,7 +59,7 @@ Agentic_Light/
 │   ├── agent-roster.schema.json · agent-roster.example.json
 │   ├── gate-config.schema.json · gate-config.example.json
 │   ├── memory_index.py · memory_search.py
-│   ├── gen_site.py · healthcheck.sh
+│   ├── gen_site.py · gen_preset_pages.py · healthcheck.sh
 │   ├── notify.sh · .notify.env.example
 ├── agents/
 │   └── architect.md · coder.md · creative-director.md · curator.md · eng-manager.md · qa.md · README.md
@@ -68,7 +68,8 @@ Agentic_Light/
 │   └── figma-* (12 dirs, from figma/mcp-server-guide) — code-connect, create-new-file,
 │       design-to-code, generate-design, generate-diagram, generate-library,
 │       implement-motion, swiftui, use, use-figjam, use-motion, use-slides
-├── microsite/{template.html, index.html, health.html, status.json, README.md}
+├── microsite/{template.html, index.html, health.html, status.json, status.js, README.md,
+│   presets/{web-app,cli-tool,data-pipeline,design-harness,server-harness,wcag-harness}.html}
 ├── brain/
 │   ├── CLAUDE.md · README.md
 │   ├── raw/README.md

@@ -135,6 +135,22 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
         </table>
 <!-- gen:skills-end -->
 
+        <h2>Presets</h2>
+        <p>Each fork specialization preset gets its own page: purpose, roster, gates, and skill selection. Generated from <code>System_Config/presets.json</code> by <code>System_Config/gen_preset_pages.py</code>.</p>
+<!-- gen:presets-start -->
+        <table>
+          <thead><tr><th>Preset</th><th>Description</th><th>Page</th></tr></thead>
+          <tbody>
+              <tr><td><code>cli-tool</code></td><td>coder+qa, no gates, all skills</td><td><a href="presets/cli-tool.html">presets/cli-tool.html</a></td></tr>
+              <tr><td><code>data-pipeline</code></td><td>architect+coder+qa, placeholder custom gate (needs a script), all skills</td><td><a href="presets/data-pipeline.html">presets/data-pipeline.html</a></td></tr>
+              <tr><td><code>design-harness</code></td><td>architect+coder+creative-director+qa, playwright gate, all skills</td><td><a href="presets/design-harness.html">presets/design-harness.html</a></td></tr>
+              <tr><td><code>server-harness</code></td><td>architect+coder+qa, no default gates, no shipped skills yet</td><td><a href="presets/server-harness.html">presets/server-harness.html</a></td></tr>
+              <tr><td><code>wcag-harness</code></td><td>architect+coder+creative-director+qa, playwright gate, no shipped skills yet</td><td><a href="presets/wcag-harness.html">presets/wcag-harness.html</a></td></tr>
+              <tr><td><code>web-app</code></td><td>full team + eslint/playwright gates + all skills</td><td><a href="presets/web-app.html">presets/web-app.html</a></td></tr>
+          </tbody>
+        </table>
+<!-- gen:presets-end -->
+
         <h2>Regeneration</h2>
         <p>This page self-heals: <code>python3 System_Config/gen_site.py</code> rewrites the two blocks above from the current roster/skill frontmatter, and <code>System_Config/healthcheck.sh</code> invokes it automatically whenever it detects the doc has drifted. See <a href="README.md">microsite/README.md</a> for details.</p>
 
