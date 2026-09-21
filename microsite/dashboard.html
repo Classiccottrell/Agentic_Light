@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f9f5f1" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#1c1e1c" media="(prefers-color-scheme: dark)">
+    <!-- Auto-refresh: pick up a fresh status.js snapshot every 5 minutes, same as health.html -->
+    <meta http-equiv="refresh" content="300">
+    <title>Dashboard — Agentic Light</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:ital,wght@0,400..700;1,400..700&amp;family=Rosarivo:ital@0;1&amp;display=swap" rel="stylesheet">
+<style>
+/* ClassicCottrell design system — 2026-07-10 */
+/* DO NOT EDIT THIS BLOCK — copy it verbatim when creating new HTML pages. */
+:root{
+  --bg:#f9f5f1;--surface:#fffdfb;
+  --ink:#2c2c2c;--ink-2:#4a463f;--muted:#77726a;--rule:#e4ddd2;
+  --accent:#437057;--accent-hover:#2f4f3e;--accent-ink:#f9f5f1;
+  --accent-soft:#e2ebe4;--accent-soft-ink:#2f4f3e;
+  --ok:#437057;--warn:#a07d33;--fail:#b4462f;
+  --radius:0.625rem;--shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
+  --sans:"Red Hat Display",ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --serif:"Rosarivo",Georgia,"Times New Roman",serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#1c1e1c;--surface:#262825;
+    --ink:#f2ede5;--ink-2:#cfcac0;--muted:#a7a297;--rule:rgba(255,255,255,.12);
+    --accent:#7fa88c;--accent-hover:#a9c4b3;--accent-ink:#16211a;
+    --accent-soft:#33413a;--accent-soft-ink:#cfe0d5;
+    --ok:#7fa88c;--warn:#c2a878;--fail:#d9694f;--shadow:none;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink-2);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.wrap{max-width:60rem;margin:0 auto;padding:0 clamp(1.25rem,5vw,3rem)}
+a{color:var(--accent)}
+header.site{position:sticky;top:0;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:saturate(120%) blur(12px);border-bottom:1px solid var(--rule)}
+header.site .wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:56px}
+.wordmark{font-family:var(--mono);font-size:.875rem;font-weight:600;color:var(--ink);text-decoration:none}
+.wordmark .pr{color:var(--accent)}
+.back{font-family:var(--mono);font-size:.78rem;color:var(--ink-2);text-decoration:none;border:1px solid var(--rule);padding:.4rem .75rem;border-radius:var(--radius)}
+.back:hover{border-color:var(--accent);color:var(--accent)}
+main{padding:clamp(2.5rem,6vw,4rem) 0}
+.eyebrow{font-family:var(--mono);text-transform:uppercase;font-size:.72rem;letter-spacing:.1em;color:var(--muted);margin:0 0 .5rem}
+h1{color:var(--ink);font-weight:700;font-size:clamp(1.9rem,1.4rem + 2vw,2.6rem);letter-spacing:-.02em;line-height:1.1;margin:.3rem 0 1rem}
+h2{color:var(--ink);font-weight:600;font-size:1.375rem;line-height:1.25;margin:2rem 0 .75rem}
+h3{color:var(--ink);font-weight:600;font-size:1.125rem;margin:1.5rem 0 .5rem}
+h4{color:var(--ink);font-weight:600;font-size:1rem;margin:1rem 0 .5rem}
+p{max-width:68ch;margin:0 0 1rem}
+.lede{font-size:1.15rem;color:var(--ink-2);max-width:60ch;line-height:1.6}
+ul,ol{max-width:68ch;padding-left:1.5rem;margin:.5em 0}
+li{margin:.35rem 0}
+code{font-family:var(--mono);font-size:.85rem;background:var(--accent-soft);color:var(--accent-soft-ink);padding:2px 6px;border-radius:calc(var(--radius)/2)}
+pre{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin:1rem 0}
+pre code{background:none;color:var(--ink-2);padding:0;font-family:var(--mono)}
+table{border-collapse:collapse;width:100%;max-width:68ch;margin:1rem 0}
+th{font-family:var(--mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);text-align:left;font-weight:600;padding:.6rem .8rem;border-bottom:2px solid var(--rule)}
+td{font-size:.92rem;padding:.6rem .8rem;border-bottom:1px solid var(--rule);vertical-align:top}
+tbody tr:hover{background:var(--accent-soft)}
+hr{border:none;border-top:1px solid var(--rule);margin:2rem 0}
+.card{border:1px solid var(--rule);border-left:3px solid var(--accent);border-radius:var(--radius);background:var(--surface);padding:1.1rem 1.375rem;margin:1.5rem 0;box-shadow:var(--shadow);max-width:68ch}
+.btn{display:inline-flex;align-items:center;gap:.4rem;font-size:.875rem;font-weight:600;padding:0 1.1rem;min-height:2.5rem;border-radius:var(--radius);text-decoration:none;background:var(--accent);color:var(--accent-ink);border:1px solid transparent;transition:background .15s}
+.btn.alt{background:transparent;color:var(--accent);border-color:var(--rule)}
+.btn:hover{background:var(--accent-hover)}
+.btn.alt:hover{background:var(--accent-soft);border-color:var(--accent)}
+footer.site{border-top:1px solid var(--rule);margin-top:3rem}
+footer.site .wrap{padding:2rem 0;color:var(--muted);font-size:.85rem}
+footer.site a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:var(--radius)}
+  .subnav{border-bottom:1px solid var(--rule)}
+  .subnav .wrap{padding:.55rem clamp(1.25rem,5vw,3rem)}
+
+/* editorial display type — ClassicCottrell */
+h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
+
+/* dashboard-specific: generative grain-field backdrop + preset/roster panels.
+   Ported inline from Projects/linefield's grain-field piece (the "quietest,
+   good behind text" preset) so this page has no external file dependency. */
+#lf-backdrop{position:fixed;inset:0;z-index:-1;width:100vw;height:100vh;opacity:.16;pointer-events:none}
+@media (prefers-reduced-motion:reduce){#lf-backdrop{display:none}}
+
+.banner{display:flex;align-items:center;flex-wrap:wrap;gap:.65rem 1rem;border:1px solid var(--rule);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow);padding:1.1rem 1.3rem;margin:0 0 1rem;max-width:68ch}
+.banner.ok{border-color:color-mix(in srgb,var(--ok) 35%,var(--rule))}
+.banner.warn{border-color:color-mix(in srgb,var(--warn) 35%,var(--rule))}
+.banner.fail{border-color:color-mix(in srgb,var(--fail) 40%,var(--rule))}
+.banner .state{font-weight:700;font-size:1.05rem;color:var(--ink);display:flex;align-items:center;gap:.6rem}
+.bigdot{width:.7rem;height:.7rem;border-radius:50%;flex:0 0 auto}
+.bigdot.ok{background:var(--ok)}.bigdot.warn{background:var(--warn)}.bigdot.fail{background:var(--fail)}
+.counts{display:flex;gap:1.1rem;margin-left:auto;font-family:var(--mono);font-size:.82rem;color:var(--muted)}
+.counts b{color:var(--ink);font-variant-numeric:tabular-nums}
+.counts .c-ok b{color:var(--ok)}.counts .c-warn b{color:var(--warn)}.counts .c-fail b{color:var(--fail)}
+.tick{font-family:var(--mono);font-size:.7rem;padding:.1rem .45rem;border-radius:999px;color:var(--muted);border:1px solid var(--rule);font-variant-numeric:tabular-nums;margin:0 .3rem .3rem 0;display:inline-block}
+.tick.ok{color:var(--ok)}.tick.warn{color:var(--warn)}.tick.fail{color:var(--fail);border-color:color-mix(in srgb,var(--fail) 40%,var(--rule))}
+.tickrow{max-width:68ch}
+.meta{font-family:var(--mono);font-size:.78rem;color:var(--muted);margin:0 0 1.25rem}
+
+/* preset picker — cards get a CSS-approximated linen weave (Forma's
+   linen-blue material is a ~2MB JPG set, too heavy for a page this light;
+   this is a diagonal-hatch approximation of its woven character, not the
+   real texture). */
+.preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:1rem;margin:1rem 0 2rem;max-width:none}
+.preset-card{position:relative;display:block;border:1px solid var(--rule);border-radius:var(--radius);background:
+    repeating-linear-gradient(45deg,color-mix(in srgb,var(--accent) 4%,var(--surface)) 0 2px,var(--surface) 2px 5px);
+  box-shadow:var(--shadow);padding:1.1rem 1.25rem;text-decoration:none;transition:border-color .15s,transform .15s}
+.preset-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.preset-card .pname{font-family:var(--mono);font-weight:700;font-size:.95rem;color:var(--ink);display:block;margin-bottom:.35rem}
+.preset-card .pdesc{font-size:.85rem;color:var(--muted);line-height:1.45;margin:0}
+
+.roster-table{max-width:none}
+.roster-table th,.roster-table td{text-align:center}
+.roster-table th:first-child,.roster-table td:first-child{text-align:left}
+.roster-table td.on{color:var(--ok);font-weight:700}
+.roster-table td.off{color:var(--rule)}
+</style>
+</head>
+<body>
+<canvas id="lf-backdrop" aria-hidden="true"></canvas>
+
+<header class="site">
+    <div class="wrap">
+        <a class="wordmark" href="index.html">agentic-light <span class="pr">~ %</span></a>
+    </div>
+</header>
+<div class="subnav">
+    <div class="wrap"><a class="back" href="index.html">← back</a></div>
+</div>
+
+<main>
+    <div class="wrap">
+        <p class="eyebrow">// status dashboard</p>
+        <h1>Dashboard</h1>
+        <p class="lede">One page for the fork's current state: live health snapshot, every specialization preset, and how the fixed 6-role roster is shaped across them.</p>
+
+        <h2>Health</h2>
+        <div id="health-report" aria-live="polite">
+            <!-- rendered from window.__STATUS__, loaded via status.js -->
+        </div>
+        <noscript>
+            <div class="card">JavaScript required — health renders client-side from <code>status.js</code>.</div>
+        </noscript>
+        <p><a class="btn alt" href="health.html">Full health report →</a></p>
+
+        <h2>Presets</h2>
+        <p>All specialization presets declared in <code>System_Config/presets.json</code>. Apply one with <code>System_Config/specialize.sh --preset &lt;name&gt;</code>.</p>
+        <div class="preset-grid">
+            <a class="preset-card" href="presets/cli-tool.html">
+                <span class="pname">cli-tool</span>
+                <p class="pdesc">coder+qa, no gates, all skills</p>
+            </a>
+            <a class="preset-card" href="presets/data-pipeline.html">
+                <span class="pname">data-pipeline</span>
+                <p class="pdesc">architect+coder+qa, placeholder custom gate (needs a script), all skills</p>
+            </a>
+            <a class="preset-card" href="presets/design-harness.html">
+                <span class="pname">design-harness</span>
+                <p class="pdesc">architect+coder+creative-director+qa, playwright gate, all skills</p>
+            </a>
+            <a class="preset-card" href="presets/server-harness.html">
+                <span class="pname">server-harness</span>
+                <p class="pdesc">architect+coder+qa, no default gates, no shipped skills yet</p>
+            </a>
+            <a class="preset-card" href="presets/wcag-harness.html">
+                <span class="pname">wcag-harness</span>
+                <p class="pdesc">architect+coder+creative-director+qa, playwright gate, no shipped skills yet</p>
+            </a>
+            <a class="preset-card" href="presets/web-app.html">
+                <span class="pname">web-app</span>
+                <p class="pdesc">full team + eslint/playwright gates + all skills</p>
+            </a>
+        </div>
+
+        <h2>Roster by preset</h2>
+        <p>This fork ships no <code>System_Config/agent-roster.json</code> on a fresh clone, so there is no single "currently active" roster to report. The table below is the fixed 6-role roster's shape across all 6 presets, from <code>System_Config/presets.json</code> — run <code>specialize.sh</code> to write a real <code>agent-roster.json</code> and make one of these columns the live state.</p>
+        <table class="roster-table">
+          <thead>
+            <tr>
+              <th>Role</th><th>cli-tool</th><th>data-pipeline</th><th>design-harness</th><th>server-harness</th><th>wcag-harness</th><th>web-app</th>
+            </tr>
+          </thead>
+          <tbody>
+              <tr><td>architect</td><td class="off">&#8212;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td></tr>
+              <tr><td>coder</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td></tr>
+              <tr><td>creative-director</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="on">&#10003;</td><td class="off">&#8212;</td><td class="on">&#10003;</td><td class="on">&#10003;</td></tr>
+              <tr><td>curator</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="on">&#10003;</td></tr>
+              <tr><td>eng-manager</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="on">&#10003;</td></tr>
+              <tr><td>qa</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td></tr>
+          </tbody>
+        </table>
+    </div>
+</main>
+
+<footer class="site">
+    <div class="wrap">
+        agentic-light · Dashboard · <a href="index.html">home</a> · <a href="health.html">health</a>
+    </div>
+</footer>
+
+<!-- Snapshot data — same file:// -safe pattern as health.html: a plain
+     <script src>, not fetch/XHR, so this renders over file:// with no server. -->
+<script src="status.js" onerror="window.__STATUS_LOAD_ERROR__=true"></script>
+<script>
+(function () {
+  var mount = document.getElementById('health-report');
+  var data = window.__STATUS__;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  // num — coerce a status count to a non-negative integer, defaulting to 0
+  // for anything malformed (NaN, negative, non-finite). These render
+  // directly into innerHTML, so a plain html-escape isn't enough on its
+  // own — a malformed status.js could still inject markup via a string
+  // that survives escaping; validating the value is actually numeric is
+  // the real fix.
+  function num(n) {
+    n = Number(n);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  }
+
+  if (!data || !data.checks || !data.checks.length) {
+    mount.innerHTML = '<div class="card">No snapshot yet — run <code>bash System_Config/healthcheck.sh</code>, then reload.</div>';
+    return;
+  }
+
+  var cls = (data.overall || '').toUpperCase() === 'PASS' ? 'ok'
+          : (data.overall || '').toUpperCase() === 'WARN' ? 'warn' : 'fail';
+  var label = cls === 'ok' ? 'All systems operational'
+            : cls === 'warn' ? 'Operational — warnings' : 'Attention required';
+
+  var html = '<div class="banner ' + cls + '" role="status">' +
+        '<span class="state"><span class="bigdot ' + cls + '"></span>' + esc(label) + '</span>' +
+        '<span class="counts">' +
+          '<span class="c-ok"><b>' + num(data.pass) + '</b> pass</span>' +
+          '<span class="c-warn"><b>' + num(data.warn) + '</b> warn</span>' +
+          '<span class="c-fail"><b>' + num(data.fail) + '</b> fail</span>' +
+        '</span>' +
+      '</div>' +
+      '<p class="meta">Generated <span class="tabnum">' + esc(data.generated || 'unknown') + '</span></p>';
+
+  var order = [], groups = {};
+  data.checks.forEach(function (c) {
+    var k = c.layer || 'Checks';
+    if (!groups[k]) { groups[k] = []; order.push(k); }
+    groups[k].push(c);
+  });
+
+  html += '<div class="tickrow">';
+  order.forEach(function (layer) {
+    var rows = groups[layer];
+    var n = { PASS: 0, WARN: 0, FAIL: 0 };
+    rows.forEach(function (r) { var s = (r.status || 'WARN').toUpperCase(); n[s] = (n[s] || 0) + 1; });
+    var dc = n.FAIL ? 'fail' : n.WARN ? 'warn' : 'ok';
+    html += '<span class="tick ' + dc + '">' + esc(layer) + ' &middot; ' + rows.length + '</span>';
+  });
+  html += '</div>';
+
+  mount.innerHTML = html;
+})();
+</script>
+
+<!-- Generative backdrop — ported inline from Projects/linefield's grain-field
+     piece ("the quietest piece, good behind text"): drifting simplex-noise
+     grain, single-hue to stay on this page's own ClassicCottrell accent
+     rather than the piece's authored orange/blue palette. No external file,
+     no build step, self-contained. -->
+<script>
+(function () {
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion) return;
+
+  var canvas = document.getElementById('lf-backdrop');
+  var ctx = canvas.getContext('2d');
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // --- minimal 2D simplex noise (public-domain reference algorithm,
+  // Stefan Gustavson), trimmed from linefield/shared/noise.js ---
+  var GRAD = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[1,0],[-1,0],[0,1],[0,-1],[0,1],[0,-1]];
+  function buildPermutation(seed) {
+    var p = new Uint8Array(256);
+    for (var i = 0; i < 256; i++) p[i] = i;
+    var s = seed;
+    function rand() { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }
+    for (var j = 255; j > 0; j--) { var k = Math.floor(rand() * (j + 1)); var t = p[j]; p[j] = p[k]; p[k] = t; }
+    var perm = new Uint8Array(512);
+    for (var m = 0; m < 512; m++) perm[m] = p[m & 255];
+    return perm;
+  }
+  var perm = buildPermutation(1337);
+  function dot(g, x, y) { return g[0] * x + g[1] * y; }
+  var F2 = 0.5 * (Math.sqrt(3) - 1), G2 = (3 - Math.sqrt(3)) / 6;
+  function simplex2(xin, yin) {
+    var s = (xin + yin) * F2, i = Math.floor(xin + s), j = Math.floor(yin + s);
+    var t = (i + j) * G2, X0 = i - t, Y0 = j - t, x0 = xin - X0, y0 = yin - Y0;
+    var i1, j1;
+    if (x0 > y0) { i1 = 1; j1 = 0; } else { i1 = 0; j1 = 1; }
+    var x1 = x0 - i1 + G2, y1 = y0 - j1 + G2, x2 = x0 - 1 + 2 * G2, y2 = y0 - 1 + 2 * G2;
+    var ii = i & 255, jj = j & 255;
+    var gi0 = perm[ii + perm[jj]] % 12, gi1 = perm[ii + i1 + perm[jj + j1]] % 12, gi2 = perm[ii + 1 + perm[jj + 1]] % 12;
+    var n0 = 0, n1 = 0, n2 = 0;
+    var t0 = 0.5 - x0 * x0 - y0 * y0; if (t0 >= 0) { t0 *= t0; n0 = t0 * t0 * dot(GRAD[gi0], x0, y0); }
+    var t1 = 0.5 - x1 * x1 - y1 * y1; if (t1 >= 0) { t1 *= t1; n1 = t1 * t1 * dot(GRAD[gi1], x1, y1); }
+    var t2 = 0.5 - x2 * x2 - y2 * y2; if (t2 >= 0) { t2 *= t2; n2 = t2 * t2 * dot(GRAD[gi2], x2, y2); }
+    return 70 * (n0 + n1 + n2);
+  }
+
+  // Single fixed hue matched to this page's ClassicCottrell --accent (a
+  // muted green), not grain-field's own authored orange/blue two-stop
+  // palette — the Color Consistency Lock rule: one accent per page.
+  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var hue = 152, sat = 0.28, light = dark ? 0.62 : 0.32;
+
+  var BASE_COUNT = 900; // sparser than the source piece's 3200 — this is a quiet backdrop, not the artwork
+  var grains = [];
+  function seedGrains() {
+    grains = [];
+    for (var i = 0; i < BASE_COUNT; i++) {
+      grains.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, j: Math.random() * Math.PI * 2 });
+    }
+  }
+  seedGrains();
+  window.addEventListener('resize', seedGrains);
+
+  var start = null;
+  function frame(now) {
+    if (!start) start = now;
+    var elapsed = (now - start) / 1000;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    var noiseScale = 0.004 * 0.6;
+    var t = elapsed * 0.25 * 0.6;
+    var drift = 14 * 0.12;
+    var len = 2.2;
+    ctx.lineWidth = 1;
+    for (var i = 0; i < grains.length; i++) {
+      var gr = grains[i];
+      var n = simplex2(gr.x * noiseScale, gr.y * noiseScale + t);
+      var a = n * Math.PI * 2 + gr.j * 0.15;
+      gr.x += Math.cos(a) * drift;
+      gr.y += Math.sin(a) * drift;
+      if (gr.x < 0) gr.x += canvas.width;
+      if (gr.x > canvas.width) gr.x -= canvas.width;
+      if (gr.y < 0) gr.y += canvas.height;
+      if (gr.y > canvas.height) gr.y -= canvas.height;
+      var ex = gr.x + Math.cos(a) * len, ey = gr.y + Math.sin(a) * len;
+      ctx.strokeStyle = 'hsl(' + hue + ',' + Math.round(sat * 100) + '%,' + Math.round(light * 100) + '%)';
+      ctx.beginPath();
+      ctx.moveTo(gr.x, gr.y);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>

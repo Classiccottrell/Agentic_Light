@@ -13,6 +13,7 @@ Lighter sibling of the parent workspace: Obsidian second brain + dev pipeline
 - `bash System_Config/healthcheck.sh` — layered PASS/WARN/FAIL report, self-heals docs via `gen_site.py`.
 - `bash System_Config/new_agent.sh <name> "<scope>" [--write]` — scaffold a new `agents/<name>.md`.
 - `bash System_Config/specialize.sh [--preset web-app|cli-tool|data-pipeline|design-harness|server-harness|wcag-harness]` — one-time fork specialization; writes `System_Config/agent-roster.json` + `pipeline/gate-config.json`.
+- `bash System_Config/dashboard.sh` — read-only terminal status readout: preset, provider, roster, gates, last agent session, recent pipeline runs.
 
 ## Provider Contract
 
@@ -54,7 +55,7 @@ Agentic_Light/
 │   ├── specialize.sh · presets.json
 │   ├── agent-roster.schema.json · agent-roster.example.json
 │   ├── gate-config.schema.json · gate-config.example.json
-│   ├── gen_site.py · healthcheck.sh
+│   ├── gen_site.py · healthcheck.sh · dashboard.sh
 │   ├── notify.sh · .notify.env.example
 ├── agents/
 │   └── architect.md · coder.md · creative-director.md · curator.md · eng-manager.md · qa.md · README.md

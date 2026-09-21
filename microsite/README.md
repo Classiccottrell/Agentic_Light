@@ -29,6 +29,15 @@ directly from disk — no `python -m http.server` needed.
 - **`health.html`** — status dashboard. Loads `status.js` via a `<script
   src>` tag (not `fetch`/XHR), so it renders correctly over `file://` with
   no server. Auto-refreshes every 5 minutes (`<meta http-equiv="refresh">`).
+- **`dashboard.html`** — one-page overview: condensed health summary (same
+  `status.js` `<script src>` pattern as `health.html`), a card grid linking
+  every `presets/*.html` page, and a role-by-preset roster table (there is
+  no `agent-roster.json` on a fresh clone, so this shows all 6 presets'
+  roster shapes rather than a fabricated "currently active" state). Ships a
+  self-contained generative canvas backdrop ported inline from
+  `Projects/linefield`'s `grain-field` piece — no external file, no build
+  step. Hand-maintained (not marker-block generated); update its preset
+  cards and roster table if `System_Config/presets.json` changes shape.
 - **`status.json`** / **`status.js`** — the health snapshot.
   `status.json` is the plain-data form; `status.js` wraps the same payload
   as `window.__STATUS__ = {...};`, which is what `health.html` actually
