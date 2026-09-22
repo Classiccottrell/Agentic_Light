@@ -92,9 +92,22 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   AI call). `log_session.sh --provider <name> --role <role> --status
   <exit-code> --reason <exit|timeout|signal|refused> [--note <path>]`
   appends one line under the current week's `## Agent Sessions` heading
-  (also matches the legacy `## Claude Sessions` heading). `--self-test`
-  runs its own checks against temp fixtures. Called once by
-  `pipeline/run.sh` after the coder step completes.
+  (also matches the legacy `## Claude Sessions` heading). If the default
+  current-week note doesn't exist yet, it runs `monday_init.sh` first
+  (stdout redirected to stderr) to create the full templated note — plus
+  the same raw folder and Master Note index row a manual run adds — then
+  appends. It used to skip instead, to avoid writing a bare stub note
+  missing the template's sections, but that silently dropped runs from the
+  audit trail. An explicit `--note` path (or its env equivalent
+  `LOG_SESSION_NOTE`, which `pipeline/test_pipeline.sh` sets so fixtures
+  never write into `brain/`) is never auto-created. If
+  `monday_init.sh` fails or the note is still missing, it prints a warning
+  to stderr and exits 0 (logging never fails the pipeline). No lock
+  conflict: `monday_init.sh` locks `System_Config/logs/monday_init.lock`,
+  `pipeline/run.sh` locks `pipeline/logs/.run.*.lock`. `--self-test` runs
+  its own checks against temp fixtures (including a temp copy of the
+  workspace scripts for the auto-init path; the real vault is never
+  touched). Called once by `pipeline/run.sh` after the coder step completes.
 - **`route_skill.sh`** — deterministic keyword/substring skill router (no
   LLM call). `route_skill.sh "<task description>"` (or pipe the task on
   stdin) scans `skills/*/SKILL.md` frontmatter (`name`/`description` only —

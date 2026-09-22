@@ -162,8 +162,10 @@ update_master_index() {
     return
   fi
 
-  if awk -v rows="$ROWS" -v sent="$INDEX_SENTINEL" '
-        index($0, sent) && !done { printf "%s", rows; done=1 } { print }
+  # ROWS via ENVIRON, not -v: macOS awk rejects a newline in a -v value, and
+  # ROWS is two lines whenever a catch-up row applies.
+  if ROWS="$ROWS" awk -v sent="$INDEX_SENTINEL" '
+        index($0, sent) && !done { printf "%s", ENVIRON["ROWS"]; done=1 } { print }
       ' "$MASTER" > "$MASTER.tmp"; then
     post_rows=$(grep -cE '^\| \[\[' "$MASTER.tmp" 2>/dev/null || true)
     if ! grep -Fq "$INDEX_SENTINEL" "$MASTER.tmp" || [[ "$post_rows" -lt "$pre_rows" ]]; then

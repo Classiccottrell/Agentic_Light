@@ -59,6 +59,12 @@ exit 0
 EOF
 chmod +x "$FAKE_HOME/.local/bin/gh"
 
+# Fixtures drive the real run.sh, which calls the real log_session.sh; point
+# it at a scratch note so no fixture appends to (or, via monday_init.sh
+# auto-init, creates) the real brain/ weekly note.
+export LOG_SESSION_NOTE="$TMP_ROOT/weekly-note.md"
+: > "$LOG_SESSION_NOTE"
+
 # coder stub: PIPELINE_CODER_CMD override (already-documented test hook) —
 # modifies a tracked file (seed.txt, exercises `git diff HEAD`) and adds an
 # untracked one (PATCHED.txt, exercises the `git ls-files --others` half) so
@@ -130,6 +136,8 @@ git -C "$REPO1" branch --show-current | grep -q '^agentic-light/'
 # i.e. what's shown to the human matches what got committed.
 echo "$OUT1" | grep -q "seed.txt"
 echo "$OUT1" | grep -q "PATCHED.txt"
+# session logged exactly once, into the scratch note (not the real vault).
+[[ "$(grep -c "/ coder — exit 0 (exit)" "$LOG_SESSION_NOTE")" -eq 1 ]]
 echo "fixture 1 (normal pass): PASS"
 
 # ---------------------------------------------------------------------------
