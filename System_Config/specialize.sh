@@ -55,6 +55,11 @@ esac
 
 command -v python3 >/dev/null 2>&1 || { echo "FAILED: python3 not found — required to read/validate JSON config" >&2; exit 1; }
 
+# Clear the preset marker before writing anything else: if this run fails
+# partway, gen_governance.py falls back to no role_notes overlay (generic
+# scope) instead of applying a previous preset's notes to a new roster.
+rm -f "$ACTIVE_PRESET_OUT"
+
 # ---------------------------------------------------------------------------
 # Discover the fixed role set from agent-roster.schema.json (never hardcode —
 # task requires this list track the schema, not a possibly-stale copy).
@@ -404,13 +409,15 @@ echo "→ Wrote $SKILLS_OUT (route_skill.sh restricts its scan to these dirs)"
 # reads it to look up a preset's optional per-role role_notes overlay in
 # presets.json. Interactive/env-override runs don't map to a single named
 # preset, so no file means "unspecialized-shaped overlay lookup" (generic
-# scope only, no overlay) rather than a stale/incorrect guess.
+# scope only, no overlay) rather than a stale/incorrect guess. The marker was
+# already removed at the start of this run; it is only written here, last,
+# after every other output succeeded.
 # ---------------------------------------------------------------------------
 if [ -n "$PRESET" ]; then
-  printf '%s' "$PRESET" > "$ACTIVE_PRESET_OUT"
+  PRESET_TMP="$(mktemp "$SYSCFG/.active-preset.XXXXXX")"
+  printf '%s' "$PRESET" > "$PRESET_TMP"
+  mv "$PRESET_TMP" "$ACTIVE_PRESET_OUT"
   echo "→ Wrote $ACTIVE_PRESET_OUT"
-else
-  rm -f "$ACTIVE_PRESET_OUT"
 fi
 
 echo

@@ -134,10 +134,16 @@ def build_roles_block(agents):
     )
     if not role_notes:
         return table
+    # Only overlay roles active in this fork's roster; no roster => no notes.
+    roster = load_json_or_none(ROSTER_PATH) or {}
+    roster_roles = roster.get('roles') or {}
     overlay_rows = []
     for a in agents:
+        if (roster_roles.get(a['name']) or {}).get('active') is not True:
+            continue
         note = role_notes.get(a['name'])
         if note:
+            note = ' '.join(str(note).split())
             overlay_rows.append('- **`' + a['name'] + '`**: ' + note)
     if not overlay_rows:
         return table

@@ -197,7 +197,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `specialize.sh --preset <name>`) names a preset with `role_notes` in
   `presets.json`. Absent `.active-preset` (unspecialized fork, or a fork
   specialized interactively/via env-override rather than by preset name) or
-  a preset with no `role_notes` → no overlay, table unchanged.
+  a preset with no `role_notes` → no overlay, table unchanged. Notes render
+  only for roles `active: true` in `agent-roster.json` (roster absent → no
+  notes); newlines in a note are collapsed to spaces.
 - **`healthcheck.sh`** — layered PASS/WARN/FAIL check: directory layout,
   agent/skill roster frontmatter completeness, brain scaffolding
   (`wiki/index.md`, current weekly note, Master Note sentinel), read-only
@@ -243,8 +245,10 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `gate-config.schema.json`), and which `skills/*` dirs (scanned live) to
   keep. Also writes (`--preset` path only) `System_Config/.active-preset`,
   a plain-text file naming the preset — `gen_governance.py` reads it to look
-  up that preset's optional `role_notes` overlay in `presets.json`; removed
-  on interactive/env-override runs, which don't map to one named preset.
+  up that preset's optional `role_notes` overlay in `presets.json`. It is
+  removed at the start of every run and written (mktemp + `mv`) only after
+  all other outputs succeed, so a failed or interactive/env-override run
+  leaves it absent rather than stale.
   Writes canonical `System_Config/agent-roster.json` and
   `pipeline/gate-config.json` — validated by real structural checks against
   their schemas (fields read from the schema files themselves, not a second

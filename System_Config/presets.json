@@ -41,7 +41,7 @@
     "skills": ["wcag-audit"],
     "role_notes": {
       "architect": "Audit semantic HTML/ARIA structure per `wcag-audit`'s pass 4 (screen-reader/semantics): heading order, landmarks, native elements before ARIA, programmatic name/role/value (4.1.2) — before any visual sign-off.",
-      "creative-director": "Contrast ratios and visual hierarchy for low-vision/cognitive accessibility — 1.4.3/1.4.11 contrast, 1.4.1 color-alone-signals-state, 2.4.7/2.4.11 focus visibility — per `wcag-audit` pass 3, not general brand critique.",
+      "creative-director": "Contrast ratios and visual hierarchy for low-vision/cognitive accessibility — 1.4.3/1.4.11 contrast, 1.4.1 color-alone-signals-state, 2.4.7 focus visible, 2.4.11 focus not obscured (minimum) — per `wcag-audit` pass 3, not general brand critique.",
       "qa": "axe-core-informed accessibility checks living in the target repo's own specs (`@axe-core/playwright`), covering the machine-detectable third per `wcag-audit` — plus the required manual keyboard-only pass; axe passing alone is not a compliance claim."
     }
   }
