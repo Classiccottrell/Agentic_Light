@@ -34,12 +34,12 @@ case "${1:-}" in
     echo "                   data-pipeline: architect+coder+qa, placeholder custom gate (needs a script), all skills"
     echo "                   design-harness: architect+coder+creative-director+qa, playwright gate, all skills"
     echo "                   server-harness: architect+coder+qa, no default gates, server-review skill"
-    echo "                   wcag-harness: architect+coder+creative-director+qa, playwright gate, wcag-audit skill"
+    echo "                   wcag-harness: architect+coder+creative-director+qa, playwright+axe gates, wcag-audit skill"
     echo "  --help           this message"
     echo
     echo "Env overrides (non-interactive): AGENTIC_LIGHT_ROLES, AGENTIC_LIGHT_GATES,"
     echo "AGENTIC_LIGHT_SKILLS — comma-separated. AGENTIC_LIGHT_GATES entries are gate"
-    echo "names (eslint, playwright); a custom gate cannot be expressed via env override."
+    echo "names (eslint, playwright, axe); a custom gate cannot be expressed via env override."
     exit 0
     ;;
   --preset)
@@ -112,11 +112,13 @@ print(','.join(p.get('roles', [])))
 print(json.dumps(p.get('gates', [])))
 print('*' if skills == '*' else ','.join(skills))
 print(p.get('skills_gap_note', ''))
+print(','.join(p.get('requires', [])))
 ")" || exit 1
   SEL_ROLES="$(printf '%s\n' "$PRESET_DATA" | sed -n '1p' | tr ',' ' ')"
   SEL_GATES_JSON="$(printf '%s\n' "$PRESET_DATA" | sed -n '2p')"
   SEL_SKILLS_RAW="$(printf '%s\n' "$PRESET_DATA" | sed -n '3p')"
   SKILLS_GAP_NOTE="$(printf '%s\n' "$PRESET_DATA" | sed -n '4p')"
+  PRESET_REQUIRES="$(printf '%s\n' "$PRESET_DATA" | sed -n '5p')"
   if [ "$SEL_SKILLS_RAW" = "*" ]; then
     SEL_SKILLS="$SKILL_DIRS"
   else
@@ -125,6 +127,9 @@ print(p.get('skills_gap_note', ''))
   echo "→ Using preset: $PRESET"
   if [ -n "$SKILLS_GAP_NOTE" ]; then
     echo "Note: this preset ships no skill content yet ($SKILLS_GAP_NOTE) — agents will work from base instructions only."
+  fi
+  if [ -n "$PRESET_REQUIRES" ]; then
+    echo "Note: this preset's skills require: $PRESET_REQUIRES — make sure your provider has it configured (not detected or checked here)."
   fi
 elif [ -n "${AGENTIC_LIGHT_ROLES:-}${AGENTIC_LIGHT_GATES:-}${AGENTIC_LIGHT_SKILLS:-}" ]; then
   SEL_ROLES="$(printf '%s' "${AGENTIC_LIGHT_ROLES:-}" | tr ',' ' ')"
@@ -149,6 +154,15 @@ elif [ -t 0 ]; then
   echo "→ Gates — which apply after the coder step?"
   GATE_ENTRIES=""
   for gate in $KNOWN_GATES; do
+    # axe is accessibility-specific: off unless asked for (wcag-harness enables it).
+    if [ "$gate" = "axe" ]; then
+      printf "  [ ] Enable %s gate? [y/N]: " "$gate"
+      read -r reply || reply=""
+      case "$reply" in
+        y|Y|yes|YES) GATE_ENTRIES="${GATE_ENTRIES:+$GATE_ENTRIES }$gate" ;;
+      esac
+      continue
+    fi
     printf "  [x] Enable %s gate? [Y/n]: " "$gate"
     read -r reply || reply=""
     case "${reply:-Y}" in

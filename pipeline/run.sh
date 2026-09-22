@@ -85,7 +85,7 @@ if not isinstance(gates, list):
     print("FAILED: pipeline/gate-config.json \"gates\" must be an array")
     sys.exit(1)
 
-KNOWN = ("eslint", "playwright")
+KNOWN = ("eslint", "playwright", "axe")
 for i, gate in enumerate(gates):
     if isinstance(gate, str):
         if gate not in KNOWN:
@@ -366,6 +366,10 @@ run_gate() {
     playwright)
       echo "-> [gate $n] Playwright E2E gate"
       "$LIB/playwright_gate.sh" "$TARGET_REPO"
+      ;;
+    axe)
+      echo "-> [gate $n] Accessibility (axe) gate"
+      "$LIB/axe_gate.sh" "$TARGET_REPO"
       ;;
     *)
       # custom gate, tab-delimited: custom<TAB>script<TAB>cwd<TAB>args...

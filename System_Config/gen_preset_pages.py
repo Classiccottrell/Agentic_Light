@@ -7,6 +7,7 @@ Sources:
   System_Config/presets.json              -- roles/gates/skills/description per preset,
                                               plus optional per-role role_notes overlay
                                               (harness-specific, additive to agents/*.md)
+                                              and optional `requires` list (informational)
   System_Config/agent-roster.schema.json  -- fixed 6-role set (canonical order)
   microsite/template.html                 -- page scaffold (CSS + header/footer)
 
@@ -87,6 +88,17 @@ def build_skills_note(preset):
     return '<ul>' + items + '</ul>'
 
 
+def build_requires_block(preset):
+    requires = preset.get('requires')
+    if not requires:
+        return ''
+    items = ', '.join('<code>' + html_mod.escape(r) + '</code>' for r in requires)
+    return (
+        '\n        <p><strong>Requires:</strong> ' + items + ' &#8212; the selected skills assume your '
+        'provider has this configured. Informational only; <code>specialize.sh</code> does not detect or check it.</p>'
+    )
+
+
 def build_role_notes_block(preset):
     role_notes = preset.get('role_notes')
     if not role_notes:
@@ -133,6 +145,7 @@ def render_page(name, preset, all_roles, template):
         '        <h2>Gates</h2>\n' + build_gate_table(gates) + '\n'
         '\n'
         '        <h2>Skills</h2>\n        ' + build_skills_note(preset)
+        + build_requires_block(preset)
         + build_role_notes_block(preset) + '\n'
         '\n'
         '        <h2>Task Flow</h2>\n'

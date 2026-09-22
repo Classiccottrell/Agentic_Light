@@ -52,9 +52,9 @@ Presets (from `System_Config/presets.json`):
 | `web-app` | full team + eslint/playwright gates + all skills |
 | `cli-tool` | coder+qa, no gates, all skills |
 | `data-pipeline` | architect+coder+qa, placeholder custom gate (needs a script), all skills |
-| `design-harness` | architect+coder+creative-director+qa, playwright gate, all skills |
+| `design-harness` | architect+coder+creative-director+qa, playwright gate, all skills (requires Figma MCP) |
 | `server-harness` | architect+coder+qa, no default gates, server-review skill |
-| `wcag-harness` | architect+coder+creative-director+qa, playwright gate, wcag-audit skill |
+| `wcag-harness` | architect+coder+creative-director+qa, playwright+axe gates, wcag-audit skill |
 
 Specializing writes `System_Config/agent-roster.json` (active roles),
 `pipeline/gate-config.json` (gate list), and
@@ -79,10 +79,10 @@ bash pipeline/run.sh "<task description>" /path/to/target/repo
 skill routing (`route_skill.sh` prepends matching `SKILL.md` guidance to the
 coder prompt) → coder step (one provider, foreground, no retry) → gates
 (the ordered list in `pipeline/gate-config.json` if present — `eslint`,
-`playwright`, or a `custom` script; falls back to the hardcoded
+`playwright`, `axe`, or a `custom` script; falls back to the hardcoded
 eslint+playwright pair on an unspecialized fork) → human approval gate
 (`[y/N]` on the committed diff) → `gh pr create --draft`. Every gate must
-pass (or WARN-skip when the target repo has no lint/e2e setup) before the
+pass (or WARN-skip when the target repo has no lint/e2e/a11y setup) before the
 diff is ever shown to a human. See `pipeline/README.md` for the full
 contract (concurrency lock, exit codes, WARN-vs-hard-stop rules).
 

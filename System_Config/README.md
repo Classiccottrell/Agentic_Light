@@ -181,7 +181,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   role, harness-specific, additive to that role's generic scope in
   `agents/*.md`), renders an extra "Harness-Specific Role Notes" section;
   presets without `role_notes` render byte-identical to before this field
-  existed.
+  existed. Same rule for the optional `requires` list (currently
+  `design-harness` only): rendered html-escaped as a "Requires:" line under
+  Skills only when present.
 - **`gen_governance.py`** — regenerates root `GOVERNANCE.md`: per-role scope
   (`<!-- gen:roles-start/end -->`, from `agents/*.md` frontmatter) and this
   fork's live gate policy (`<!-- gen:gate-policy-start/end -->`, from
@@ -244,9 +246,10 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
 - **`specialize.sh`** — one-time fork specialization, run after
   `bootstrap.sh`. Prompts (same checkbox UX as `bootstrap.sh`) for which of
   the 6 roles (read from `agent-roster.schema.json`, never hardcoded), which
-  gates (`eslint`/`playwright`/one `custom`, read from
+  gates (`eslint`/`playwright`/`axe`/one `custom`, read from
   `gate-config.schema.json`), and which `skills/*` dirs (scanned live) to
-  keep. Also writes (`--preset` path only) `System_Config/.active-preset`,
+  keep. Gate prompts default to yes, except `axe`, which defaults to no:
+  it's accessibility-specific, and `wcag-harness` turns it on explicitly. Also writes (`--preset` path only) `System_Config/.active-preset`,
   a plain-text file naming the preset — `gen_governance.py` reads it to look
   up that preset's optional `role_notes` overlay in `presets.json`. It is
   removed at the start of every run and written (mktemp + `mv`) only after
@@ -266,10 +269,11 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   (`web-app`: full team + eslint/playwright + all skills; `cli-tool`:
   coder+qa, no gates, all skills; `data-pipeline`: architect+coder+qa,
   placeholder custom gate, all skills; `design-harness`:
-  architect+coder+creative-director+qa, playwright gate only, all skills;
+  architect+coder+creative-director+qa, playwright gate only, all skills,
+  plus `"requires": ["figma-mcp"]`;
   `server-harness`: architect+coder+qa, no default gates, `server-review`
   skill; `wcag-harness`: architect+coder+creative-director+qa, playwright
-  gate only, `wcag-audit` skill — `design-harness` and `wcag-harness` also
+  + axe gates, `wcag-audit` skill — `design-harness` and `wcag-harness` also
   carry a `role_notes` field in `presets.json`, giving `architect`/
   `creative-director`/`qa` harness-specific scope text additive to their
   generic `agents/*.md` description, rendered by `gen_governance.py` and
@@ -290,13 +294,18 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `wcag-harness` ships `"skills": ["wcag-audit"]`; a preset only carries a
   `skills_gap_note` field when its listed skill selection is a genuinely
   known content gap, not by default — neither preset sets one now that both
-  have a shipped skill dir. `wcag-harness` shares `design-harness`'s exact
-  roster and its single `playwright` gate — the differentiator is scope, not
-  shape: the architect reviews semantic HTML structure, creative-director
-  reviews contrast/visual hierarchy, `wcag-audit` drives the 4-pass
-  audit/checklist method, and the actual axe-core assertions live in the
-  target repo's own Playwright spec files, not in the gate mechanism itself
-  (this project's gate schema has no dedicated accessibility gate type).
+  have a shipped skill dir. A preset may also carry an optional `requires`
+  list (`design-harness`: `["figma-mcp"]` — all 12 `figma-*` skills need the
+  Figma MCP server); `--preset` prints it as an informational `Note:` line
+  (not a warning, never a failure, no detection of whether it's installed)
+  and `gen_preset_pages.py` renders it on the preset page. `wcag-harness`
+  shares `design-harness`'s exact roster; its gates are `["playwright",
+  "axe"]` — the `axe` gate (`pipeline/lib/axe_gate.sh`) runs the target
+  repo's `test:a11y`/`a11y` script and WARN-skips when there is none (see
+  `pipeline/README.md`'s "Accessibility (axe) gate"). Beyond that the
+  differentiator is scope: the architect reviews semantic HTML structure,
+  creative-director reviews contrast/visual hierarchy, and `wcag-audit`
+  drives the 4-pass audit/checklist method.
   Interactive
   custom-gate field values (script/cwd) are
   passed to the python3 subprocess via argv, never string-interpolated into
