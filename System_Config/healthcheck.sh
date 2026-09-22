@@ -223,9 +223,15 @@ if command -v python3 >/dev/null 2>&1; then
   else
     check WARN "microsite/presets/*.html" "stale vs presets.json"
   fi
+  if python3 "$SYSCFG/gen_governance.py" --check >/dev/null 2>&1; then
+    check PASS "GOVERNANCE.md" "up to date with agents/*.md, agent-roster.json, gate-config.json"
+  else
+    check WARN "GOVERNANCE.md" "stale vs agents/*.md, agent-roster.json, or gate-config.json"
+  fi
 else
   check WARN "microsite/index.html" "python3 not found — cannot verify currency"
   check WARN "microsite/presets/*.html" "python3 not found — cannot verify currency"
+  check WARN "GOVERNANCE.md" "python3 not found — cannot verify currency"
 fi
 
 if [ "$WARN_N" -gt "$PRE_WARN" ] || [ "$FAIL_N" -gt "$PRE_FAIL" ]; then
@@ -240,9 +246,15 @@ if [ "$WARN_N" -gt "$PRE_WARN" ] || [ "$FAIL_N" -gt "$PRE_FAIL" ]; then
     else
       check FAIL "Self-heal: gen_preset_pages.py" "regeneration failed: $(printf '%s' "$GEN_OUT" | tr '\n' ' ')"
     fi
+    if GEN_OUT=$(python3 "$SYSCFG/gen_governance.py" 2>&1); then
+      check PASS "Self-heal: gen_governance.py" "$(printf '%s' "$GEN_OUT" | tr '\n' ' ')"
+    else
+      check FAIL "Self-heal: gen_governance.py" "regeneration failed: $(printf '%s' "$GEN_OUT" | tr '\n' ' ')"
+    fi
   else
     check WARN "Self-heal: gen_site.py" "skipped — python3 not found"
     check WARN "Self-heal: gen_preset_pages.py" "skipped — python3 not found"
+    check WARN "Self-heal: gen_governance.py" "skipped — python3 not found"
   fi
 fi
 
