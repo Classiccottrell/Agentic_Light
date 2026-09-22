@@ -240,6 +240,31 @@ EOF
   fi
 fi
 
+# ---------------------------------------------------------------------------
+# Context packet — opt-in only. This pipeline operates against an EXTERNAL
+# target repo (see file header); unconditionally prepending Agentic Light's
+# own roadmap/session context into every coder prompt would be exactly the
+# "unrelated target repositories" context leak the roadmap item warns
+# against. Only activates when explicitly requested
+# (AGENTIC_LIGHT_CONTEXT_PACKET=1), or automatically when this pipeline is
+# dogfooding a run against Agentic Light's own root (TARGET_REPO resolves,
+# symlink-safe via `pwd -P` on both sides, to $ROOT). Calls
+# System_Config/context_packet.sh from $ROOT — never `cd`'d into
+# $TARGET_REPO first. Fails silently, same as the skill-routing block
+# above — never blocks the coder step.
+# ---------------------------------------------------------------------------
+CONTEXT_PACKET=""
+CONTEXT_PACKET_SCRIPT="$ROOT/System_Config/context_packet.sh"
+ROOT_P="$(cd "$ROOT" && pwd -P)"
+TARGET_P="$(cd "$TARGET_REPO" && pwd -P)"
+if [ "${AGENTIC_LIGHT_CONTEXT_PACKET:-}" = "1" ] || [ "$TARGET_P" = "$ROOT_P" ]; then
+  if [ -x "$CONTEXT_PACKET_SCRIPT" ]; then
+    set +e
+    CONTEXT_PACKET="$("$CONTEXT_PACKET_SCRIPT" 2>/dev/null)"
+    set -e
+  fi
+fi
+
 # reason_for_status <exit-code> <provider> — maps a completed coder
 # process's exit status to log_session.sh's --reason vocabulary
 # (exit|timeout|signal|refused). 64 is run_agent.sh's documented Ollama
@@ -275,6 +300,12 @@ else
   if [ -n "$SKILL_CONTEXT" ]; then
     PROMPT="Relevant skill guidance:
 ${SKILL_CONTEXT}
+${PROMPT}"
+  fi
+  if [ -n "$CONTEXT_PACKET" ]; then
+    PROMPT="Resume context packet:
+${CONTEXT_PACKET}
+
 ${PROMPT}"
   fi
   set +e

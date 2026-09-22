@@ -50,6 +50,18 @@ bash pipeline/run.sh --help   # print usage and exit
    non-negative integer; `0` injects no skill context); a malformed or unset
    value falls back to 3 with a stderr note. No match, or the router being
    unavailable, is a silent no-op.
+0. **Context packet (opt-in)** — `System_Config/context_packet.sh` (run from
+   `$ROOT`, never from inside `$TARGET_REPO`) is prepended to the coder
+   prompt, labeled `Resume context packet:`, only when
+   `AGENTIC_LIGHT_CONTEXT_PACKET=1` is set, or automatically when
+   `$TARGET_REPO` resolves (symlink-safe, `pwd -P` on both sides) to this
+   workspace's own root — i.e. a run dogfooding the pipeline against
+   Agentic Light itself. Default-off otherwise: this pipeline runs against
+   an **external target repo** (see top of this file), and unconditionally
+   injecting Agentic Light's own roadmap/session context into every coder
+   prompt would leak unrelated-workspace context into someone else's repo.
+   Fails silently, same as skill routing above — never blocks the coder
+   step.
 1. **Code Patch** — `run.sh` itself creates the feature branch
    (`git checkout -b agentic-light/<run-id>`) in the target repo, then
    invokes the `coder` step via `System_Config/run_agent.sh`, scoped to the
@@ -242,7 +254,22 @@ declined *interactive* response needs a real TTY), a direct
 before the human gate; passing `test:a11y` → pass). The axe fixtures write a
 temporary `pipeline/gate-config.json` (`["axe"]`), backing up and restoring
 any existing one on exit. Every failure/pending/decline
-case asserts the stubbed `gh` never received a `pr create` call.
+case asserts the stubbed `gh` never received a `pr create` call. A final
+pair of fixtures drives the real `System_Config/run_agent.sh` path (a fake
+`claude` binary on `$FAKE_HOME/.local/bin`, `AGENTIC_LIGHT_PROVIDERS`/
+`_PRIORITY` pinned to `claude`) — `PIPELINE_CODER_CMD` bypasses `$PROMPT`
+entirely, so the context-packet opt-in wiring above can only be exercised
+this way — asserting the packet is absent from the coder prompt by default
+and present only with `AGENTIC_LIGHT_CONTEXT_PACKET=1`.
+
+`bash System_Config/test_context_packet.sh` — fixture coverage for
+`System_Config/context_packet.sh` directly: a tiny
+`AGENTIC_LIGHT_CONTEXT_MAX_LINES`/`AGENTIC_LIGHT_CONTEXT_MAX_BYTES` budget
+against a synthetic `ROADMAP.md` with a dense multi-byte (em dash) first
+line is respected byte-for-byte (not character-for-byte — see
+`context_packet.sh`'s header comment), and the default budget still
+contains every provenance header (`# Agentic Light Context Packet`,
+`Generated:`, `## Roadmap`, `## Active Preset`, `## Recent Session Facts`).
 
 ## Files
 

@@ -34,4 +34,7 @@ packet="$( {
   fi
 } )"
 packet="$(printf '%s\n' "$packet" | awk -v max="$MAX_LINES" 'NR <= max { print }')"
-printf '%s' "${packet:0:MAX_BYTES}"
+# Byte-oriented truncation, not bash's character-count `${packet:0:N}` —
+# under UTF-8 (e.g. this repo's own em dashes, 3 bytes each), a character
+# slice can produce far more than N bytes, silently blowing the budget.
+printf '%s' "$packet" | LC_ALL=C head -c "$MAX_BYTES"

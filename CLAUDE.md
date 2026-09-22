@@ -18,9 +18,10 @@ Lighter sibling of the parent workspace: Obsidian second brain + dev pipeline
 - `bash System_Config/route_skill.sh "<task description>"` — deterministic, provider-neutral skill router; scans `skills/*/SKILL.md` frontmatter and prints matching skill directory paths.
 - `python3 System_Config/memory_index.py [--force]` — build/refresh the SQLite semantic-search cache over `brain/wiki/*.md` (stdlib + local Ollama embeddings; rebuildable, not source of truth).
 - `python3 System_Config/memory_search.py "<query>" [--top N]` — cosine semantic search over the `memory_index.py` cache; prints top-N matching `brain/wiki/` page paths to stdout.
-- `bash System_Config/context_packet.sh [query]` — print a bounded resume packet from the roadmap, active preset, recent session facts, and optional semantic matches.
-- `python3 System_Config/preset_audit.py` — validate preset role, gate, skill, and focused role-note contracts.
-- `python3 System_Config/white_label_check.py <fork> --name <name> --preset <preset>` — audit a pruned fork's identity, active role files, and selected skills without modifying it.
+- `bash System_Config/context_packet.sh [query]` — print a bounded resume packet from the roadmap, active preset, recent session facts, and optional semantic matches. Byte-exact truncation (`LC_ALL=C head -c`), not a character slice. `pipeline/run.sh` prepends its output to the coder prompt opt-in only (`AGENTIC_LIGHT_CONTEXT_PACKET=1`, or automatically when the target repo is this workspace's own root) — never injected into an unrelated external target repo by default.
+- `bash System_Config/test_context_packet.sh` — fixture tests proving the packet respects a tiny `AGENTIC_LIGHT_CONTEXT_MAX_LINES`/`_MAX_BYTES` budget against dense multi-byte (em dash) content, and that the default budget preserves every provenance header.
+- `python3 System_Config/preset_audit.py` — validate preset role, gate, skill, and focused role-note contracts, including `design-harness`/`wcag-harness`'s `role_capabilities`/`role_handoff` overlays.
+- `python3 System_Config/white_label_check.py <fork> --name <name> --preset <preset>` — audit a pruned fork's identity, active role files, selected skills, and (via each generator's own `--check` mode) that generated output isn't stale, without modifying it.
 - `bash System_Config/dashboard.sh` — read-only terminal status readout: preset, provider, roster, gates, last agent session, recent pipeline runs.
 
 ## Provider Contract
@@ -65,7 +66,7 @@ Agentic_Light/
 │   ├── specialize.sh · presets.json
 │   ├── agent-roster.schema.json · agent-roster.example.json
 │   ├── gate-config.schema.json · gate-config.example.json
-│   ├── memory_index.py · memory_search.py · context_packet.sh · preset_audit.py · white_label_check.py
+│   ├── memory_index.py · memory_search.py · context_packet.sh · test_context_packet.sh · preset_audit.py · white_label_check.py
 │   ├── gen_site.py · gen_preset_pages.py · gen_governance.py · healthcheck.sh · dashboard.sh
 │   ├── notify.sh · .notify.env.example
 ├── agents/
@@ -77,7 +78,14 @@ Agentic_Light/
 │   │   implement-motion, swiftui, use, use-figjam, use-motion, use-slides
 │   ├── wcag-audit/ (vendored from 84emllc/claude-wcag-skill, MIT + W3C
 │   │   Document License — see skills/wcag-audit/NOTICE) — wcag-harness skill
-│   └── server-review/ (authored in-repo) — server-harness skill
+│   ├── server-review/ (authored in-repo) — server-harness skill
+│   ├── react-doctor/, shadcn/ (vendored, no license metadata) — web-app skill
+│   ├── systematic-debugging/, managing-python-dependencies/ (vendored;
+│   │   managing-python-dependencies is Apache-2.0/Google — see its NOTICE)
+│   │   — cli-tool skills
+│   └── gcp-data-pipelines/, dbt-bigquery/, discovering-gcp-data-assets/
+│       (vendored, Apache-2.0/Google — see each dir's NOTICE) — data-pipeline
+│       skills
 ├── microsite/{template.html, index.html, health.html, status.json, status.js, README.md,
 │   presets/{web-app,cli-tool,data-pipeline,design-harness,server-harness,wcag-harness}.html}
 ├── brain/

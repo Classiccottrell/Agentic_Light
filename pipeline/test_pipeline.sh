@@ -96,6 +96,19 @@ exit 0
 EOF
 chmod +x "$APPROVE_STUB"
 
+# fake claude binary: logs its full argv (including the -p prompt) to
+# CALLS9 so fixture 9 can inspect what the real run_agent path actually
+# sent — PIPELINE_CODER_CMD bypasses $PROMPT entirely, so this is the only
+# way to exercise the context-packet prepend. Placed on $FAKE_HOME's
+# .local/bin, first on config.sh's PATH.
+CALLS9="$TMP_ROOT/claude_calls"
+cat > "$FAKE_HOME/.local/bin/claude" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$CALLS9"
+exit 0
+EOF
+chmod +x "$FAKE_HOME/.local/bin/claude"
+
 # new_target_repo <name> — git-init a fresh target repo with one commit.
 new_target_repo() {
   local dir="$TMP_ROOT/$1"
@@ -327,6 +340,59 @@ echo "$OUT8C" | grep -q "\[axe_gate\] PASS"
 echo "$OUT8C" | grep -q "human gate: APPROVED"
 grep -q "^gh pr create" "$CALLS"
 echo "fixture 8c (axe gate pass): PASS"
+
+# ---------------------------------------------------------------------------
+# Fixture 9: context-packet opt-in wiring, driven through the real
+# run_agent path (PIPELINE_CODER_CMD bypasses $PROMPT entirely, so this
+# must NOT be set — run_pipeline() above sets it, so it is deliberately not
+# used here). AGENTIC_LIGHT_PROVIDERS/PRIORITY pin the provider to claude so
+# resolve_agent_provider deterministically finds the fake claude binary on
+# $FAKE_HOME/.local/bin. `env -u AGENT_TYPE` so a real provider inherited
+# from this test's own environment can't override that pin.
+# ---------------------------------------------------------------------------
+REPO9="$(new_target_repo repo9)"
+# run.sh's own $TARGET_REPO is `cd ... && pwd`-normalized (e.g. collapses a
+# double slash some platforms' $TMPDIR ends with a trailing slash and
+# introduces via mktemp's template substitution), so the literal path
+# embedded in the coder prompt below won't byte-for-byte match $REPO9
+# unless normalized here the same way.
+REPO9_P="$(cd "$REPO9" && pwd)"
+
+# 9a: no AGENTIC_LIGHT_CONTEXT_PACKET set, target repo != this workspace
+# root -> packet absent from the coder prompt by default. MAX_SECONDS=3:
+# run_agent()'s watchdog subshell inherits this invocation's stdout fd
+# (the `$( )` below), so command substitution only returns once it exits —
+# capping it here bounds each fixture to a few seconds instead of the
+# real default 300s wait.
+: > "$CALLS9"
+set +e
+OUT9A="$(env -u AGENT_TYPE HOME="$FAKE_HOME" CALLS9="$CALLS9" MAX_SECONDS=3 \
+  AGENTIC_LIGHT_PROVIDERS=claude AGENTIC_LIGHT_PRIORITY=claude \
+  AGENTIC_LIGHT_TEST_MODE=1 PIPELINE_HUMAN_GATE_CMD="$APPROVE_STUB" \
+  bash "$RUN" "task" "$REPO9" 2>&1)"
+RC9A=$?
+set -e
+grep -q "Target repo: $REPO9_P" "$CALLS9"   # the stub really was invoked with the real prompt
+if grep -q "Resume context packet:" "$CALLS9"; then
+  echo "fixture 9a: context packet present by default (should be absent)" >&2
+  exit 1
+fi
+echo "fixture 9a (context packet absent by default): PASS"
+
+# 9b: AGENTIC_LIGHT_CONTEXT_PACKET=1 -> packet present in the coder prompt.
+: > "$CALLS9"
+set +e
+OUT9B="$(env -u AGENT_TYPE HOME="$FAKE_HOME" CALLS9="$CALLS9" MAX_SECONDS=3 \
+  AGENTIC_LIGHT_PROVIDERS=claude AGENTIC_LIGHT_PRIORITY=claude \
+  AGENTIC_LIGHT_CONTEXT_PACKET=1 \
+  AGENTIC_LIGHT_TEST_MODE=1 PIPELINE_HUMAN_GATE_CMD="$APPROVE_STUB" \
+  bash "$RUN" "task" "$REPO9" 2>&1)"
+RC9B=$?
+set -e
+grep -q "Target repo: $REPO9_P" "$CALLS9"
+grep -q "Resume context packet:" "$CALLS9"
+grep -q "# Agentic Light Context Packet" "$CALLS9"
+echo "fixture 9b (context packet present with opt-in flag): PASS"
 
 restore_gate_config
 

@@ -8,8 +8,21 @@ ROOT = Path(__file__).resolve().parent.parent
 PRESETS = ROOT / "System_Config" / "presets.json"
 AGENTS = ROOT / "agents"
 SKILLS = ROOT / "skills"
+ROSTER_SCHEMA = ROOT / "System_Config" / "agent-roster.schema.json"
 KNOWN_GATES = {"eslint", "playwright", "axe"}
 KNOWN_ROLES = {p.stem for p in AGENTS.glob("*.md") if p.name != "README.md"}
+FALLBACK_CAPABILITIES = {"read", "write", "shell", "delegate"}
+
+
+def known_capabilities():
+    """Live from agent-roster.schema.json's capability enum; fall back to the
+    hardcoded 4 if the schema is missing/unreadable rather than hard-failing
+    every preset check on an unrelated schema problem."""
+    try:
+        schema = json.loads(ROSTER_SCHEMA.read_text())
+        return set(schema["definitions"]["role"]["properties"]["capabilities"]["items"]["enum"])
+    except Exception:
+        return set(FALLBACK_CAPABILITIES)
 
 
 def fail(message):
@@ -40,10 +53,37 @@ def audit():
         for role in preset.get("role_notes", {}):
             if role not in (roles or []):
                 errors.append(f"{name}: role_notes contains inactive role {role}")
+        for role in preset.get("role_capabilities", {}):
+            if role not in (roles or []):
+                errors.append(f"{name}: role_capabilities contains inactive role {role}")
+        for role in preset.get("role_handoff", {}):
+            if role not in (roles or []):
+                errors.append(f"{name}: role_handoff contains inactive role {role}")
         if name in {"design-harness", "wcag-harness"}:
             missing = set(roles or []) - set(preset.get("role_notes", {})) - {"coder"}
             if missing:
                 errors.append(f"{name}: missing focused role_notes for {sorted(missing)}")
+            note_keys = set(preset.get("role_notes", {}))
+            caps_keys = set(preset.get("role_capabilities", {}))
+            handoff_keys = set(preset.get("role_handoff", {}))
+            if caps_keys != note_keys:
+                errors.append(f"{name}: role_capabilities keys {sorted(caps_keys)} != role_notes keys {sorted(note_keys)}")
+            if handoff_keys != note_keys:
+                errors.append(f"{name}: role_handoff keys {sorted(handoff_keys)} != role_notes keys {sorted(note_keys)}")
+            cap_enum = known_capabilities()
+            for role, caps in preset.get("role_capabilities", {}).items():
+                if not isinstance(caps, list) or not caps:
+                    errors.append(f"{name}: role_capabilities[{role}] must be a non-empty list")
+                    continue
+                if len(caps) != len(set(caps)):
+                    errors.append(f"{name}: role_capabilities[{role}] has duplicate entries")
+                unknown_caps = set(caps) - cap_enum
+                if unknown_caps:
+                    errors.append(f"{name}: role_capabilities[{role}] has unknown capabilities {sorted(unknown_caps)}")
+            active_roles = set(roles or [])
+            for role, target in preset.get("role_handoff", {}).items():
+                if target != "orchestrator" and target not in active_roles:
+                    errors.append(f"{name}: role_handoff[{role}] targets {target!r}, not an active role or \"orchestrator\"")
     if errors:
         for error in errors:
             print(f"preset_audit: FAIL: {error}", file=sys.stderr)

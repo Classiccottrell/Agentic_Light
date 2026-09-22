@@ -49,9 +49,9 @@ Presets (from `System_Config/presets.json`):
 
 | Preset | Description |
 |---|---|
-| `web-app` | full team + eslint/playwright gates + all skills |
-| `cli-tool` | coder+qa, no gates, all skills |
-| `data-pipeline` | architect+coder+qa, placeholder custom gate (needs a script), all skills |
+| `web-app` | full team + eslint/playwright gates + react-doctor/shadcn skills |
+| `cli-tool` | coder+qa, no gates, systematic-debugging/managing-python-dependencies skills |
+| `data-pipeline` | architect+coder+qa, placeholder custom gate (needs a script), gcp-data-pipelines/dbt-bigquery/discovering-gcp-data-assets skills |
 | `design-harness` | architect+coder+creative-director+qa, playwright gate, all skills (requires Figma MCP) |
 | `server-harness` | architect+coder+qa, no default gates, server-review skill |
 | `wcag-harness` | architect+coder+creative-director+qa, playwright+axe gates, wcag-audit skill |
