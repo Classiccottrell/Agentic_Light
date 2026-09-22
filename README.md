@@ -99,6 +99,16 @@ brain scaffolding, provider config, doc currency, a secrets scan) and
 writes `microsite/status.json`/`status.js`, which `health.html` and
 `dashboard.html` both render.
 
+## Governance
+
+`GOVERNANCE.md` (repo root, generated — `python3 System_Config/gen_governance.py`)
+is where "what can an agent here actually do, and what needs my sign-off"
+lives: per-role scope pulled from `agents/*.md`, the human approval gate
+before any PR, the session-log/pipeline-log audit trail, this fork's live
+gate policy (from `agent-roster.json`/`gate-config.json`, or "unspecialized
+fork" if neither exists), and the `healthcheck.sh` config-security scan.
+`healthcheck.sh` self-heals it when stale, same as the microsite docs below.
+
 ## Everything else, briefly
 
 **Brain** (`brain/`) — an Obsidian-vault second brain. `brain/raw/` holds
@@ -119,6 +129,7 @@ inject skill guidance into the coder prompt. Restricted to
 
 ## Full docs
 
+- `GOVERNANCE.md` — generated governance layer: role scope, human sign-off gate, audit trail, this fork's gate policy, config security
 - `System_Config/README.md` — every script's exact behavior
 - `pipeline/README.md` — gate config schema, session logging, concurrency
 - `microsite/README.md` — page structure, regeneration commands

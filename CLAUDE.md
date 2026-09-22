@@ -10,7 +10,8 @@ Lighter sibling of the parent workspace: Obsidian second brain + dev pipeline
 - `bash System_Config/test_providers.sh` — fake-provider check for ordered pre-launch fallback, one invocation, and no retry after failure.
 - `bash pipeline/run.sh` — Task Input → coder → ESLint gate → Playwright gate → Human Gate → `gh pr create`.
 - `bash skills/skills.sh list` — list available skills.
-- `bash System_Config/healthcheck.sh` — layered PASS/WARN/FAIL report, self-heals docs via `gen_site.py`.
+- `bash System_Config/healthcheck.sh` — layered PASS/WARN/FAIL report, self-heals docs via `gen_site.py` / `gen_preset_pages.py` / `gen_governance.py`.
+- `python3 System_Config/gen_governance.py [--check|--dry-run]` — generates `GOVERNANCE.md` (per-role scope, human sign-off gate, audit trail, this fork's live gate policy, config security) from `agents/*.md`, `agent-roster.json`, `gate-config.json`.
 - `bash System_Config/new_agent.sh <name> "<scope>" [--write]` — scaffold a new `agents/<name>.md`.
 - `bash System_Config/specialize.sh [--preset web-app|cli-tool|data-pipeline|design-harness|server-harness|wcag-harness]` — one-time fork specialization; writes `System_Config/agent-roster.json` + `pipeline/gate-config.json`.
 - `bash System_Config/log_session.sh --provider <name> --role <role> --status <exit-code> --reason <exit|timeout|signal|refused>` — deterministic (no LLM call) session logger; appends one line to the current ISO week's weekly note under `## Agent Sessions`.
@@ -49,6 +50,7 @@ watchdog; only Claude has the wrapper's dollar budget flag.
 ```
 Agentic_Light/
 ├── CLAUDE.md
+├── GOVERNANCE.md (generated — see gen_governance.py)
 ├── bootstrap.sh
 ├── .obsidian/{app,appearance,core-plugins,community-plugins,graph}.json
 ├── Projects/_TEMPLATE/{BRIEF.md,README.md,active/.gitkeep,archive/.gitkeep}
@@ -60,7 +62,7 @@ Agentic_Light/
 │   ├── agent-roster.schema.json · agent-roster.example.json
 │   ├── gate-config.schema.json · gate-config.example.json
 │   ├── memory_index.py · memory_search.py
-│   ├── gen_site.py · gen_preset_pages.py · healthcheck.sh · dashboard.sh
+│   ├── gen_site.py · gen_preset_pages.py · gen_governance.py · healthcheck.sh · dashboard.sh
 │   ├── notify.sh · .notify.env.example
 ├── agents/
 │   └── architect.md · coder.md · creative-director.md · curator.md · eng-manager.md · qa.md · README.md

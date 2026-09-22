@@ -176,6 +176,16 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `--check` (exit 1 if stale), `--dry-run`. Kept as a separate script from
   `gen_site.py` because it generates whole files from a template rather than
   rewriting marker blocks inside one fixed file. Stdlib-only Python 3.
+- **`gen_governance.py`** — regenerates root `GOVERNANCE.md`: per-role scope
+  (`<!-- gen:roles-start/end -->`, from `agents/*.md` frontmatter) and this
+  fork's live gate policy (`<!-- gen:gate-policy-start/end -->`, from
+  `System_Config/agent-roster.json` + `pipeline/gate-config.json`, or
+  "unspecialized fork" text if neither exists yet). Everything outside those
+  two marker pairs — the human sign-off gate, the audit-trail/logging
+  section, the config-security section — is fixed policy prose maintained in
+  the script itself, describing mechanism that doesn't vary per fork. Same
+  CLI shape as `gen_site.py`: bare (write), `--check` (exit 1 if stale),
+  `--dry-run`. Stdlib-only Python 3.
 - **`healthcheck.sh`** — layered PASS/WARN/FAIL check: directory layout,
   agent/skill roster frontmatter completeness, brain scaffolding
   (`wiki/index.md`, current weekly note, Master Note sentinel), read-only
@@ -183,8 +193,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   doc currency (including a WARN if `CLAUDE.md`'s Directory Map's
   `System_Config/*` listing drifts from actual `.sh`/`.py`/`.json` files on
   disk).
-  Self-heals a stale `microsite/index.html` or stale `microsite/presets/*.html`
-  by invoking `gen_site.py` / `gen_preset_pages.py` for
+  Self-heals a stale `microsite/index.html`, stale `microsite/presets/*.html`,
+  or stale `GOVERNANCE.md` by invoking `gen_site.py` / `gen_preset_pages.py` /
+  `gen_governance.py` for
   real. Writes `microsite/status.json` + `microsite/status.js` (the payload
   `microsite/health.html` renders). Never `set -e`, always exits 0. No
   launchd/cron trigger and no GitHub Pages publish step — run it by hand.
