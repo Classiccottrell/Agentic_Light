@@ -205,6 +205,21 @@ fi
 end_section
 
 # ════════════════════════════════════════════════════════════════════════
+# PRESET — role/gate/skill contract checks
+# ════════════════════════════════════════════════════════════════════════
+begin_section "Preset Contracts"
+if command -v python3 >/dev/null 2>&1; then
+  if PRESET_OUT=$(python3 "$SYSCFG/preset_audit.py" 2>&1); then
+    check PASS "Preset contracts" "$(printf '%s' "$PRESET_OUT" | tr '\n' ' ')"
+  else
+    check FAIL "Preset contracts" "$(printf '%s' "$PRESET_OUT" | tr '\n' ' ')"
+  fi
+else
+  check WARN "Preset contracts" "python3 not found — cannot validate presets"
+fi
+end_section
+
+# ════════════════════════════════════════════════════════════════════════
 # LAYER F — Doc currency (self-heals the microsite via gen_site.py)
 # ════════════════════════════════════════════════════════════════════════
 begin_section "Documentation Currency"

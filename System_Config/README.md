@@ -124,6 +124,17 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `specialize.sh` below), the scan is restricted to only its `"selected"`
   dirs; a missing file scans all of `skills/`. `--self-test` / `--skills-dir
   <path>` for testing against a fixture dir instead of the real `skills/`.
+- **`context_packet.sh`** — bounded, provider-neutral resume packet. It reads
+  `ROADMAP.md`, the active preset, the newest weekly log tail, and optional
+  semantic matches. `AGENTIC_LIGHT_CONTEXT_MAX_LINES` and
+  `AGENTIC_LIGHT_CONTEXT_MAX_BYTES` cap output; Markdown remains the source of
+  truth and the packet is derived output.
+- **`preset_audit.py`** — stdlib-only validation of preset roles, gates, skills,
+  and focused role-note overlays. `healthcheck.sh` runs it as a hard contract
+  check.
+- **`white_label_check.py`** — non-destructive audit for a specialized fork.
+  It checks active roles against the selected preset, pruned agent files,
+  selected skills, and old/new identity text. It never deletes or rewrites.
 - **`daily_ingest.sh`** — self-heals the current week's `brain/raw/` folder
   via `ensure_current_week_raw_folder()` before scanning (so a manual run
   works even if `monday_init.sh` hasn't run yet this week), then scans
