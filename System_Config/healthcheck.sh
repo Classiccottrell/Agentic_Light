@@ -279,17 +279,8 @@ for f in $(find "$WORKSPACE" -maxdepth 2 -type f -name '.env*' 2>/dev/null) "$WO
   SECRET_SCAN_FILES="$SECRET_SCAN_FILES $f"
 done
 
-# looks_like_secret <file> — greps for common credential shapes. Tight,
-# repo-specific pattern set (not a general secret scanner): known provider
-# key prefixes, a bare "Bearer <token>", and *_KEY/*_TOKEN/*_SECRET vars
-# assigned a non-placeholder-looking value (skips "", NULL-ish placeholders,
-# and anything wrapped in <...> or starting with YOUR_/CHANGEME/xxx).
-looks_like_secret() {
-  grep -nE '(sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{12,}|Bearer[[:space:]]+[A-Za-z0-9._-]{10,})' "$1" 2>/dev/null
-  grep -nEi '[A-Z0-9_]*(KEY|TOKEN|SECRET)[[:space:]]*[:=][[:space:]]*"?[A-Za-z0-9_/+=.-]{8,}"?' "$1" 2>/dev/null \
-    | grep -viE '=[[:space:]]*"?(null|none|changeme|your_|xxx|<.*>|\$\{)' \
-    | grep -viE '(KEY|TOKEN|SECRET)_(ENUM|SCHEMA|NAME|FIELD)'
-}
+# looks_like_secret is defined in config.sh (shared with pipeline/run.sh's
+# pre-commit secret scan — see there for the pattern rationale).
 
 SECRET_HITS=0
 for f in $SECRET_SCAN_FILES; do

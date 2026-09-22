@@ -86,6 +86,7 @@ new_target_repo() {
 run_pipeline() {
   # run_pipeline <target-repo> [extra env assignments already exported]
   env HOME="$FAKE_HOME" CALLS="$CALLS" PIPELINE_CODER_CMD="$CODER_STUB" \
+      AGENTIC_LIGHT_TEST_MODE=1 \
       "$@"
 }
 
@@ -107,8 +108,8 @@ grep -q "^gh pr create" "$CALLS"
 git -C "$REPO1" branch --show-current | grep -q '^agentic-light/'
 [[ "$(git -C "$REPO1" log --oneline main.. | wc -l | tr -d ' ')" -ge 1 ]]
 # The gate summary the approve stub echoed must show both the tracked
-# modification (git diff HEAD) and the untracked new file (git ls-files
-# --others) — i.e. what's shown to the human matches what got committed.
+# modification and the new file (git diff --cached, post `git add -A`) —
+# i.e. what's shown to the human matches what got committed.
 echo "$OUT1" | grep -q "seed.txt"
 echo "$OUT1" | grep -q "PATCHED.txt"
 echo "fixture 1 (normal pass): PASS"
@@ -120,6 +121,7 @@ REPO1B="$(new_target_repo repo1b)"
 : > "$CALLS"
 set +e
 OUT1B="$(env HOME="$FAKE_HOME" CALLS="$CALLS" PIPELINE_CODER_CMD="$NOOP_CODER_STUB" \
+  AGENTIC_LIGHT_TEST_MODE=1 \
   PIPELINE_HUMAN_GATE_CMD="$APPROVE_STUB" bash "$RUN" "no-op task" "$REPO1B" 2>&1)"
 RC1B=$?
 set -e

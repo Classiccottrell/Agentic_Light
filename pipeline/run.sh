@@ -122,6 +122,33 @@ PYEOF
 fi
 
 # ---------------------------------------------------------------------------
+# Pre-flight sensitive-file scan — the coder's cwd is TARGET_REPO, an
+# arbitrary external repo, and run_agent.sh's --allowedTools "Read,...Grep"
+# gates which TOOLS run, not which PATHS they touch. This is an existence
+# check on filenames, not access control: it does NOT stop the coder from
+# reading a sensitive file that doesn't match these globs, one created
+# mid-run, or a nested .git/node_modules it skips — and once the coder
+# launches, Read/Grep still work on anything else in cwd. Deliberately
+# includes gitignored files (unlike healthcheck.sh's Config Security Scan,
+# which skips them) — a real .env is normally gitignored, which is exactly
+# where this needs to look.
+# ---------------------------------------------------------------------------
+echo "-> [0] Pre-flight sensitive-file scan: $TARGET_REPO"
+SENSITIVE_HITS="$(find "$TARGET_REPO" \( -path '*/.git' -o -path '*/node_modules' \) -prune -o \
+  -type f \( -name '.env*' -o -name '*.key' -o -name '*.pem' -o -name 'id_rsa*' \) -print 2>/dev/null)"
+if [ -n "$SENSITIVE_HITS" ]; then
+  echo "WARNING: $TARGET_REPO contains file(s) matching sensitive-file patterns (.env*, *.key, *.pem, id_rsa*):"
+  echo "$SENSITIVE_HITS" | sed 's/^/  /'
+  if [ "${AGENTIC_LIGHT_ALLOW_SENSITIVE_REPO:-}" != "1" ]; then
+    echo "FAILED: refusing to launch the coder with these files present in its cwd (advisory filename screening, not a security boundary — see comment above) — its Read/Grep tools have no path restriction beyond cwd."
+    echo "  Set AGENTIC_LIGHT_ALLOW_SENSITIVE_REPO=1 to proceed anyway (e.g. once you've confirmed these are dummy/fixture files)."
+    exit 1
+  fi
+  echo "  AGENTIC_LIGHT_ALLOW_SENSITIVE_REPO=1 set — proceeding despite the match(es) above."
+fi
+echo
+
+# ---------------------------------------------------------------------------
 # Step 1: Code Patch (coder)
 # The pipeline — not the coder prompt — owns git: it creates the feature
 # branch here and commits the coder's edits below. That keeps the ask
@@ -129,6 +156,19 @@ fi
 # with --disallowedTools "Bash,..." and so cannot branch or commit itself.
 # ---------------------------------------------------------------------------
 echo "-> [1] Code patch step"
+
+# Precondition: the pipeline's contract is "coder starts on a clean index,
+# pipeline commits only what it added." `git checkout -b` below carries any
+# pre-existing staged changes onto the new branch, and the secret-scan
+# rollback later (`git reset -q`) resets the WHOLE index — correct only if
+# nothing was staged before this step. Assert that here, before branching or
+# invoking the coder, so a dirty-index caller fails fast and cheaply instead
+# of losing work after a full (possibly costly) coder run.
+if ! git -C "$TARGET_REPO" diff --cached --quiet; then
+  echo "FAILED: $TARGET_REPO has staged changes before the pipeline started — refusing to run. Commit or unstage them first; this pipeline assumes a clean index so its own rollback/commit steps don't touch changes it doesn't own."
+  exit 1
+fi
+
 echo "  creating feature branch: $BRANCH_NAME"
 if ! git -C "$TARGET_REPO" checkout -b "$BRANCH_NAME"; then
   echo "FAILED: could not create feature branch $BRANCH_NAME in $TARGET_REPO"
@@ -251,24 +291,50 @@ if [ "$CODER_RC" -ne 0 ]; then
   exit 1
 fi
 
-# Capture what the coder changed before committing it — tracked-file diff
-# plus any new (non-ignored) files, which is exactly what `git add -A` below
-# will stage. Reused verbatim in the Human Gate summary at step 4 so what's
-# shown to the human matches what's actually in the commit (see step 3).
-DIFF="$(cd "$TARGET_REPO" && git diff HEAD 2>/dev/null || true)"
-UNTRACKED="$(cd "$TARGET_REPO" && git ls-files --others --exclude-standard 2>/dev/null || true)"
-if [ -z "$DIFF" ] && [ -z "$UNTRACKED" ]; then
+# Stage first, then diff --cached — git diff HEAD only covers tracked-file
+# modifications; a brand-new file the coder created would otherwise only
+# appear as a bare filename (see the old UNTRACKED handling), never scanned
+# by content below. Staging first makes new files' full content visible to
+# both the secret scan and the Human Gate summary at step 4.
+echo "  staging coder's changes"
+if ! ( cd "$TARGET_REPO" && git add -A ); then
+  echo "FAILED: could not stage coder's changes in $TARGET_REPO"
+  exit 1
+fi
+DIFF="$(cd "$TARGET_REPO" && git diff --cached 2>/dev/null || true)"
+if [ -z "$DIFF" ]; then
   echo "FAILED: code patch step produced no changes — nothing to commit, no PR will be created"
   exit 1
 fi
-if [ -n "$UNTRACKED" ]; then
-  DIFF="$DIFF
 
---- new files ---
-$UNTRACKED"
+# ---------------------------------------------------------------------------
+# Secret scan (hard stop) — reuses config.sh's looks_like_secret, the same
+# pattern set as healthcheck.sh's Config Security Scan, so there is one
+# regex definition, not two. Scanned lines only (excluding the "+++ b/..."
+# diff header) to keep this a real gate rather than tripping on every
+# ordinary line of an unrelated diff; still a best-effort, repo-specific
+# pattern set, not a general secret scanner (same caveat as healthcheck.sh).
+# `|| true` on the assignment: looks_like_secret's greps exit non-zero on a
+# clean (no-match) diff, which would otherwise abort this script under
+# `set -e`.
+#
+# `git reset -q` below resets the WHOLE index, not just what this run staged
+# — that's only correct because step 1 already asserted the index was empty
+# before this run touched it (see the precondition check above `checkout
+# -b`). Given that precondition, "reset to nothing staged" is exactly
+# "reset to what this repo looked like before the pipeline ran," not a
+# blanket wipe of unrelated staged work.
+# ---------------------------------------------------------------------------
+SECRET_HIT="$(printf '%s\n' "$DIFF" | grep '^+' | grep -v '^+++' | looks_like_secret /dev/stdin | head -1 || true)"
+if [ -n "$SECRET_HIT" ]; then
+  echo "FAILED: likely secret detected in staged changes — refusing to commit."
+  echo "  match: $SECRET_HIT"
+  ( cd "$TARGET_REPO" && git reset -q )
+  exit 1
 fi
+
 echo "  committing coder's changes"
-if ! ( cd "$TARGET_REPO" && git add -A && git commit -q -m "Agentic Light: $TASK_DESC" ); then
+if ! ( cd "$TARGET_REPO" && git commit -q -m "Agentic Light: $TASK_DESC" ); then
   echo "FAILED: could not commit coder's changes in $TARGET_REPO"
   exit 1
 fi
@@ -303,12 +369,51 @@ run_gate() {
       ;;
     *)
       # custom gate, tab-delimited: custom<TAB>script<TAB>cwd<TAB>args...
-      local IFS_OLD="$IFS" fields name script cwd
+      # Containment check: script/cwd come from pipeline/gate-config.json,
+      # which lives in the Agentic Light workspace (this repo), not the
+      # target repo — an attacker who controls this fork's gate-config.json
+      # (e.g. a malicious/compromised fork) could otherwise point a gate at
+      # anything reachable from $TARGET_REPO with no check at all. Resolve
+      # both with `cd ... && pwd -P` (this project's existing idiom, e.g.
+      # config.sh's ROOT resolution; no `realpath` dependency) and reject
+      # anything that escapes $TARGET_REPO. `-P` on both sides of the
+      # comparison so a symlinked /tmp (macOS: /tmp -> /private/tmp) doesn't
+      # false-reject a legitimate path.
+      #
+      # Parent-directory resolution alone isn't enough: if $script_abs's
+      # final path component is itself a symlink pointing outside
+      # $TARGET_REPO, resolving only its parent dir passes containment while
+      # exec still follows the symlink out of the sandbox. So the final path
+      # component is checked for a symlink explicitly, in addition to
+      # resolving the parent dir. This is a check-then-exec: it does not
+      # close the TOCTOU window (a symlink swapped in between this check and
+      # the `exec` below is not prevented), only the static/at-rest case.
+      local IFS_OLD="$IFS" fields name script cwd target_p cwd_abs cwd_p script_abs script_dir_p script_p
       IFS=$'\t' read -r -a fields <<<"$gate"
       IFS="$IFS_OLD"
       name="${fields[0]}"; script="${fields[1]}"; cwd="${fields[2]:-.}"
+      target_p="$(cd "$TARGET_REPO" && pwd -P)"
+      cwd_abs="$TARGET_REPO/$cwd"
+      [ -d "$cwd_abs" ] || { echo "FAILED: custom gate cwd does not resolve to a directory: $cwd_abs"; return 1; }
+      cwd_p="$(cd "$cwd_abs" && pwd -P)"
+      case "$cwd_p" in
+        "$target_p"|"$target_p"/*) ;;
+        *) echo "FAILED: custom gate cwd escapes target repo: $cwd (resolved: $cwd_p)"; return 1 ;;
+      esac
+      script_abs="$TARGET_REPO/$script"
+      [ -f "$script_abs" ] || { echo "FAILED: custom gate script not found: $script_abs"; return 1; }
+      if [ -L "$script_abs" ]; then
+        echo "FAILED: custom gate script is a symlink, refusing (its target may resolve outside the target repo): $script"
+        return 1
+      fi
+      script_dir_p="$(cd "$(dirname "$script_abs")" && pwd -P)"
+      script_p="$script_dir_p/$(basename "$script_abs")"
+      case "$script_p" in
+        "$target_p"|"$target_p"/*) ;;
+        *) echo "FAILED: custom gate script escapes target repo: $script (resolved: $script_p)"; return 1 ;;
+      esac
       echo "-> [gate $n] custom gate: $script"
-      ( cd "$TARGET_REPO/$cwd" && "$TARGET_REPO/$script" "${fields[@]:3}" )
+      ( cd "$cwd_p" && "$script_p" "${fields[@]:3}" )
       ;;
   esac
 }
@@ -379,8 +484,17 @@ Gates: passed/skipped (see log above)
 ${DIFF:-<no diff available>}"
 
 # PIPELINE_HUMAN_GATE_CMD mirrors PIPELINE_CODER_CMD above — lets tests drive
-# the approved path without faking a TTY.
-HUMAN_GATE_CMD="${PIPELINE_HUMAN_GATE_CMD:-$LIB/human_gate.sh}"
+# the approved path without faking a TTY. Test-only: honored only alongside
+# AGENTIC_LIGHT_TEST_MODE=1, so a caller can't set this one env var to skip
+# human approval on a real run (see pipeline/README.md).
+HUMAN_GATE_CMD="$LIB/human_gate.sh"
+if [ -n "${PIPELINE_HUMAN_GATE_CMD:-}" ]; then
+  if [ "${AGENTIC_LIGHT_TEST_MODE:-}" = "1" ]; then
+    HUMAN_GATE_CMD="$PIPELINE_HUMAN_GATE_CMD"
+  else
+    echo "WARNING: PIPELINE_HUMAN_GATE_CMD is set but AGENTIC_LIGHT_TEST_MODE=1 is not — ignoring override, using the real human gate (PIPELINE_HUMAN_GATE_CMD is test-only)." >&2
+  fi
+fi
 set +e
 "$HUMAN_GATE_CMD" "$SUMMARY"
 GATE_RC=$?
