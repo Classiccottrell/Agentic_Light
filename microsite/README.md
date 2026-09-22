@@ -23,6 +23,10 @@ directly from disk — no `python -m http.server` needed.
   `<!-- gen:skills-start/end -->`, `<!-- gen:agent-count -->`,
   `<!-- gen:skills-count -->`), plus a preset index table
   (`<!-- gen:presets-start/end -->`) linking to `presets/*.html`.
+- **`whitelabel.html`** — hand-written guide: how to go beyond preset
+  selection and fully white-label a fork (rename, strip unused roles/skills,
+  rewrite `CLAUDE.md`/`GOVERNANCE.md` for one use case). Not marker-block
+  generated — same category as `dashboard.html`, update by hand.
 - **`presets/<name>.html`** — one page per fork-specialization preset
   (purpose, roster, gates, skills, task-flow diagram), generated from
   `System_Config/presets.json` by `System_Config/gen_preset_pages.py`.
