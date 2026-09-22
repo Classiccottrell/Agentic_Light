@@ -6,9 +6,9 @@ with no background service, scheduler, or retry queue — everything here runs
 by hand. It ships as a generic fork with all 6 agent roles and no gates; you
 run `specialize.sh` once to turn it into a specific harness (a CLI-tool
 harness, a design harness, a WCAG-review harness, etc.) for the project you
-actually need it for. It also bundles a second-brain (Obsidian vault +
-semantic search) and a doc-site microsite that reflect the harness's current
-configuration.
+actually need it for. It also bundles a second-brain (plain markdown +
+semantic search, optionally viewable in Obsidian) and a doc-site microsite
+that reflect the harness's current configuration.
 
 ## Install
 
@@ -101,10 +101,13 @@ writes `microsite/status.json`/`status.js`, which `health.html` and
 
 ## Everything else, briefly
 
-**Brain** (`brain/`) — an Obsidian-vault second brain. `brain/raw/` holds
-clipped notes, `daily_ingest.sh` wikifies them into `brain/wiki/`,
+**Brain** (`brain/`) — a plain-markdown + SQLite second brain, optionally
+viewable as an Obsidian vault. `brain/raw/` holds clipped notes,
+`daily_ingest.sh` wikifies them into `brain/wiki/`,
 `memory_index.py`/`memory_search.py` add local-Ollama semantic search over
-the wiki. See `brain/README.md`.
+the wiki — all plain-text/stdlib, zero Obsidian dependency. `.obsidian/` is
+shipped for zero-setup Obsidian viewing but is not required by the pipeline.
+See `brain/README.md`.
 
 **Skill routing** (`System_Config/route_skill.sh`) — a deterministic
 keyword/substring router (no LLM call) that scans `skills/*/SKILL.md`

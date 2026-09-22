@@ -1,6 +1,6 @@
 ---
 name: curator
-description: Knowledge curator for the Agentic Light Obsidian LLM-wiki. Use to ingest sources into wiki entity pages, extract concept notes, maintain wiki/index.md and cross-links, and answer knowledge queries from the brain. Follows the Karpathy LLM Wiki schema. Authority limited to Agentic_Light/brain/.
+description: Knowledge curator for the Agentic Light LLM-wiki (plain markdown + SQLite semantic index, optionally viewable in Obsidian). Use to ingest sources into wiki entity pages, extract concept notes, maintain wiki/index.md and cross-links, and answer knowledge queries from the brain. Follows the Karpathy LLM Wiki schema. Authority limited to Agentic_Light/brain/.
 tools: Read, Glob, Grep, Write, Edit
 model: inherit
 ---
