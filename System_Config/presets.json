@@ -21,7 +21,12 @@
     "description": "architect+coder+creative-director+qa, playwright gate, all skills",
     "roles": ["architect", "coder", "creative-director", "qa"],
     "gates": ["playwright"],
-    "skills": "*"
+    "skills": "*",
+    "role_notes": {
+      "architect": "Review design-system/component structure — token hierarchy, reusable component boundaries, Figma-to-code mapping — per `figma-generate-library` (variables/variants/theming foundations) and `figma-code-connect` (component-to-snippet mapping), not general system architecture.",
+      "creative-director": "Critique visual/brand direction on screens generated via `figma-generate-design` (section-by-section assembly from design-system tokens, not hardcoded values) — apply the Impact/Clarity/Disruption framework to this harness's own Figma output.",
+      "qa": "Visual regression — Playwright screenshot diffs against the design-harness's own `playwright` gate, not accessibility auditing."
+    }
   },
   "server-harness": {
     "description": "architect+coder+qa, no default gates, server-review skill",
@@ -33,6 +38,11 @@
     "description": "architect+coder+creative-director+qa, playwright gate, wcag-audit skill",
     "roles": ["architect", "coder", "creative-director", "qa"],
     "gates": ["playwright"],
-    "skills": ["wcag-audit"]
+    "skills": ["wcag-audit"],
+    "role_notes": {
+      "architect": "Audit semantic HTML/ARIA structure per `wcag-audit`'s pass 4 (screen-reader/semantics): heading order, landmarks, native elements before ARIA, programmatic name/role/value (4.1.2) — before any visual sign-off.",
+      "creative-director": "Contrast ratios and visual hierarchy for low-vision/cognitive accessibility — 1.4.3/1.4.11 contrast, 1.4.1 color-alone-signals-state, 2.4.7/2.4.11 focus visibility — per `wcag-audit` pass 3, not general brand critique.",
+      "qa": "axe-core-informed accessibility checks living in the target repo's own specs (`@axe-core/playwright`), covering the machine-detectable third per `wcag-audit` — plus the required manual keyboard-only pass; axe passing alone is not a compliance claim."
+    }
   }
 }

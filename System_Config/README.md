@@ -176,6 +176,12 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `--check` (exit 1 if stale), `--dry-run`. Kept as a separate script from
   `gen_site.py` because it generates whole files from a template rather than
   rewriting marker blocks inside one fixed file. Stdlib-only Python 3.
+  If a preset carries an optional `role_notes` object (currently
+  `design-harness` and `wcag-harness` only — one or two sentences per active
+  role, harness-specific, additive to that role's generic scope in
+  `agents/*.md`), renders an extra "Harness-Specific Role Notes" section;
+  presets without `role_notes` render byte-identical to before this field
+  existed.
 - **`gen_governance.py`** — regenerates root `GOVERNANCE.md`: per-role scope
   (`<!-- gen:roles-start/end -->`, from `agents/*.md` frontmatter) and this
   fork's live gate policy (`<!-- gen:gate-policy-start/end -->`, from
@@ -186,6 +192,12 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   the script itself, describing mechanism that doesn't vary per fork. Same
   CLI shape as `gen_site.py`: bare (write), `--check` (exit 1 if stale),
   `--dry-run`. Stdlib-only Python 3.
+  The roles section also renders a harness-specific overlay, additive below
+  the generic scope table, when `System_Config/.active-preset` (written by
+  `specialize.sh --preset <name>`) names a preset with `role_notes` in
+  `presets.json`. Absent `.active-preset` (unspecialized fork, or a fork
+  specialized interactively/via env-override rather than by preset name) or
+  a preset with no `role_notes` → no overlay, table unchanged.
 - **`healthcheck.sh`** — layered PASS/WARN/FAIL check: directory layout,
   agent/skill roster frontmatter completeness, brain scaffolding
   (`wiki/index.md`, current weekly note, Master Note sentinel), read-only
@@ -229,7 +241,11 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   the 6 roles (read from `agent-roster.schema.json`, never hardcoded), which
   gates (`eslint`/`playwright`/one `custom`, read from
   `gate-config.schema.json`), and which `skills/*` dirs (scanned live) to
-  keep. Writes canonical `System_Config/agent-roster.json` and
+  keep. Also writes (`--preset` path only) `System_Config/.active-preset`,
+  a plain-text file naming the preset — `gen_governance.py` reads it to look
+  up that preset's optional `role_notes` overlay in `presets.json`; removed
+  on interactive/env-override runs, which don't map to one named preset.
+  Writes canonical `System_Config/agent-roster.json` and
   `pipeline/gate-config.json` — validated by real structural checks against
   their schemas (fields read from the schema files themselves, not a second
   hand-maintained copy), reusing `pipeline/run.sh`'s own gate-config
@@ -246,7 +262,11 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   architect+coder+creative-director+qa, playwright gate only, all skills;
   `server-harness`: architect+coder+qa, no default gates, `server-review`
   skill; `wcag-harness`: architect+coder+creative-director+qa, playwright
-  gate only, `wcag-audit` skill); so do the
+  gate only, `wcag-audit` skill — `design-harness` and `wcag-harness` also
+  carry a `role_notes` field in `presets.json`, giving `architect`/
+  `creative-director`/`qa` harness-specific scope text additive to their
+  generic `agents/*.md` description, rendered by `gen_governance.py` and
+  `gen_preset_pages.py`); so do the
   `AGENTIC_LIGHT_ROLES`/`AGENTIC_LIGHT_GATES`/`AGENTIC_LIGHT_SKILLS`
   comma-separated env overrides (mirrors `bootstrap.sh`'s
   `AGENTIC_LIGHT_*` convention). `data-pipeline`'s custom gate ships with an

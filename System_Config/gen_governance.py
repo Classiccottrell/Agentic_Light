@@ -16,6 +16,15 @@ Sources:
   pipeline/gate-config.json       -- ordered gate list for THIS fork (absent
                                       => default eslint+playwright, per
                                       pipeline/run.sh's own fallback)
+  System_Config/.active-preset    -- named preset this fork was specialized
+                                      with, if any (written by specialize.sh
+                                      only on its --preset path; absent for
+                                      interactive/env-override runs and on an
+                                      unspecialized fork)
+  System_Config/presets.json      -- looked up by the preset name above for
+                                      an optional per-role `role_notes`
+                                      overlay, rendered additively alongside
+                                      each role's generic scope in agents/*.md
   pipeline/README.md, System_Config/log_session.sh, System_Config/healthcheck.sh
                                       -- referenced, not parsed; the flow/
                                       logging/security text below is fixed
@@ -41,6 +50,8 @@ ROOT = os.path.dirname(SCRIPT_DIR)
 AGENTS_DIR = os.path.join(ROOT, 'agents')
 ROSTER_PATH = os.path.join(SCRIPT_DIR, 'agent-roster.json')
 GATE_CONFIG_PATH = os.path.join(ROOT, 'pipeline', 'gate-config.json')
+PRESETS_PATH = os.path.join(SCRIPT_DIR, 'presets.json')
+ACTIVE_PRESET_PATH = os.path.join(SCRIPT_DIR, '.active-preset')
 OUT_PATH = os.path.join(ROOT, 'GOVERNANCE.md')
 
 ALL_ROLES = ['architect', 'coder', 'creative-director', 'curator', 'eng-manager', 'qa']
@@ -93,16 +104,49 @@ def gate_label(gate):
     return str(gate)
 
 
+def get_active_preset_role_notes():
+    """Look up the current fork's harness-specific role_notes overlay, if any.
+
+    Additive to the generic per-role scope in agents/*.md, never a
+    replacement -- see presets.json's role_notes field. Returns (None, {})
+    when unspecialized, when specialized via interactive/env-override (no
+    single named preset), or when the active preset has no role_notes.
+    """
+    if not os.path.exists(ACTIVE_PRESET_PATH):
+        return None, {}
+    with open(ACTIVE_PRESET_PATH) as f:
+        preset_name = f.read().strip()
+    presets = load_json_or_none(PRESETS_PATH) or {}
+    preset = presets.get(preset_name) or {}
+    return preset_name, preset.get('role_notes', {})
+
+
 def build_roles_block(agents):
+    preset_name, role_notes = get_active_preset_role_notes()
     rows = []
     for a in agents:
         rows.append(
             '| `' + a['name'] + '` | ' + a['description'] + ' | `' + a['tools'] + '` | `' + a['rel'] + '` |'
         )
-    return (
+    table = (
         '| Role | Stated scope (from frontmatter `description`) | Granted tools | Source |\n'
         '|---|---|---|---|\n' + '\n'.join(rows)
     )
+    if not role_notes:
+        return table
+    overlay_rows = []
+    for a in agents:
+        note = role_notes.get(a['name'])
+        if note:
+            overlay_rows.append('- **`' + a['name'] + '`**: ' + note)
+    if not overlay_rows:
+        return table
+    overlay = (
+        '\n\n**Harness-specific overlay — preset `' + preset_name + '`** (additive to the '
+        'generic scope above, not a replacement; from `System_Config/presets.json`'
+        "'s `role_notes`):\n\n" + '\n'.join(overlay_rows)
+    )
+    return table + overlay
 
 
 def build_gate_policy_block():

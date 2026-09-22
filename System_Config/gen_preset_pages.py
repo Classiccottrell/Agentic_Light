@@ -4,7 +4,9 @@ gen_preset_pages.py -- generate one microsite page per fork-specialization
 preset, plus the index.html preset index table, from presets.json.
 
 Sources:
-  System_Config/presets.json              -- roles/gates/skills/description per preset
+  System_Config/presets.json              -- roles/gates/skills/description per preset,
+                                              plus optional per-role role_notes overlay
+                                              (harness-specific, additive to agents/*.md)
   System_Config/agent-roster.schema.json  -- fixed 6-role set (canonical order)
   microsite/template.html                 -- page scaffold (CSS + header/footer)
 
@@ -85,6 +87,21 @@ def build_skills_note(preset):
     return '<ul>' + items + '</ul>'
 
 
+def build_role_notes_block(preset):
+    role_notes = preset.get('role_notes')
+    if not role_notes:
+        return ''
+    items = ''.join(
+        '<li><code>' + html_mod.escape(role) + '</code>: ' + html_mod.escape(note) + '</li>'
+        for role, note in role_notes.items()
+    )
+    return (
+        '\n\n        <h2>Harness-Specific Role Notes</h2>\n'
+        '        <p>Additive to each role\'s generic scope in <code>agents/*.md</code> — not a replacement.</p>\n'
+        '        <ul>' + items + '</ul>'
+    )
+
+
 def build_flowchart(active_roles, gates):
     steps = ['Task in'] + list(active_roles) + (['Gate: ' + ', '.join(gate_label(g) for g in gates)] if gates else ['No automated gate']) + ['Human gate', 'PR']
     escaped = [html_mod.escape(s) for s in steps]
@@ -115,7 +132,8 @@ def render_page(name, preset, all_roles, template):
         '\n'
         '        <h2>Gates</h2>\n' + build_gate_table(gates) + '\n'
         '\n'
-        '        <h2>Skills</h2>\n        ' + build_skills_note(preset) + '\n'
+        '        <h2>Skills</h2>\n        ' + build_skills_note(preset)
+        + build_role_notes_block(preset) + '\n'
         '\n'
         '        <h2>Task Flow</h2>\n'
         '        <pre><code>' + build_flowchart(active_roles, gates) + '</code></pre>\n'

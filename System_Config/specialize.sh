@@ -22,6 +22,7 @@ GATE_SCHEMA="$SYSCFG/gate-config.schema.json"
 ROSTER_OUT="$SYSCFG/agent-roster.json"
 GATE_OUT="$ROOT/pipeline/gate-config.json"
 SKILLS_OUT="$SYSCFG/skills-selected.json"
+ACTIVE_PRESET_OUT="$SYSCFG/.active-preset"
 
 case "${1:-}" in
   --help)
@@ -397,6 +398,20 @@ with open(sys.argv[2], 'w') as f:
 " "$SEL_SKILLS" "$SKILLS_TMP"
 mv "$SKILLS_TMP" "$SKILLS_OUT"
 echo "→ Wrote $SKILLS_OUT (route_skill.sh restricts its scan to these dirs)"
+
+# ---------------------------------------------------------------------------
+# Record which named preset (if any) produced this state — gen_governance.py
+# reads it to look up a preset's optional per-role role_notes overlay in
+# presets.json. Interactive/env-override runs don't map to a single named
+# preset, so no file means "unspecialized-shaped overlay lookup" (generic
+# scope only, no overlay) rather than a stale/incorrect guess.
+# ---------------------------------------------------------------------------
+if [ -n "$PRESET" ]; then
+  printf '%s' "$PRESET" > "$ACTIVE_PRESET_OUT"
+  echo "→ Wrote $ACTIVE_PRESET_OUT"
+else
+  rm -f "$ACTIVE_PRESET_OUT"
+fi
 
 echo
 echo "=================================================="
