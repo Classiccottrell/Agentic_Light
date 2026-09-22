@@ -36,7 +36,8 @@ bash pipeline/run.sh --help   # print usage and exit
 0. **Gate-config validation** — before anything else runs (before the coder
    step), if `pipeline/gate-config.json` exists it's validated up front:
    valid JSON, and every entry either a known gate name (`eslint`,
-   `playwright`, `axe`) or a well-formed `custom` object (`script` required,
+   `playwright`, `axe` — read from `System_Config/gate-config.schema.json`'s
+   enum, which must be readable) or a well-formed `custom` object (`script` required,
    `cwd`/`args` optional, no unknown fields). A malformed config prints a
    `FAILED: ...` message and exits 1 immediately — no coder run, no gates,
    no opaque mid-run failure under `set -u`. See "Gate configuration" below.

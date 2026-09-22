@@ -65,10 +65,11 @@ echo
 GATE_CONFIG="$PIPELINE_DIR/gate-config.json"
 if [ -f "$GATE_CONFIG" ]; then
   command -v python3 >/dev/null 2>&1 || { echo "FAILED: pipeline/gate-config.json present but python3 not found — cannot validate gates"; exit 1; }
-  if ! python3 - "$GATE_CONFIG" <<'PYEOF'
+  if ! python3 - "$GATE_CONFIG" "$ROOT/System_Config/gate-config.schema.json" <<'PYEOF'
 import json, sys
 
 path = sys.argv[1]
+schema_path = sys.argv[2]
 try:
     with open(path) as f:
         cfg = json.load(f)
@@ -85,7 +86,15 @@ if not isinstance(gates, list):
     print("FAILED: pipeline/gate-config.json \"gates\" must be an array")
     sys.exit(1)
 
-KNOWN = ("eslint", "playwright", "axe")
+# Known gate names come from the schema's enum (same path specialize.sh
+# reads), so a gate added to the schema needs no edit here.
+try:
+    with open(schema_path) as f:
+        KNOWN = tuple(json.load(f)["definitions"]["gate"]["oneOf"][0]["enum"])
+except Exception as e:
+    print("FAILED: cannot read known gate names from System_Config/gate-config.schema.json: %s" % e)
+    sys.exit(1)
+
 for i, gate in enumerate(gates):
     if isinstance(gate, str):
         if gate not in KNOWN:

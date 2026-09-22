@@ -255,7 +255,9 @@ explicit human approval.** This is the governance checkpoint of the whole
 pipeline, enforced structurally, not by convention:
 
 - `pipeline/run.sh` step 3, the **Human Gate** (`pipeline/lib/human_gate.sh`
-  by default, swappable via `PIPELINE_HUMAN_GATE_CMD` for tests only),
+  by default; `PIPELINE_HUMAN_GATE_CMD` overrides it only when
+  `AGENTIC_LIGHT_TEST_MODE=1` is also set — otherwise the override is
+  ignored with a warning and the real gate runs),
   renders the full diff already committed to the run's feature branch plus
   the gate-run summary, and blocks on an interactive `[y/N]` prompt.
 - The gate **never auto-approves**. A non-interactive session (no TTY on
@@ -266,15 +268,15 @@ pipeline, enforced structurally, not by convention:
   — a failed gate, a declined human gate, a pending non-interactive gate —
   hard-stops before this step; see `pipeline/README.md`'s "Halt-on-failure
   guarantee" and "Human Gate exit codes".
-- Every configured gate (ESLint/Playwright, or the fork's own
+- Every configured gate (ESLint/Playwright/axe, or the fork's own
   `gate-config.json` list — see §4 below) must pass, or be skipped via its
   own documented no-op condition, **before** the human ever sees the diff.
   A failing gate is a hard stop, not a warning shown alongside the PR.
 
 ## 3. Audit Trail — What Gets Logged, and Where
 
-- **`System_Config/log_session.sh`** — called exactly once per pipeline
-  run, after the coder step, regardless of outcome (success, watchdog
+- **`System_Config/log_session.sh`** — called exactly once per coder
+  invocation, after the coder step, regardless of outcome (success, watchdog
   timeout, or an Ollama write-workflow refusal). Appends one line —
   provider, role, exit status, reason — under `## Agent Sessions` in the
   current ISO week's weekly note (`brain/weekly_logs/YYYY/YYYY-Www.md`).
