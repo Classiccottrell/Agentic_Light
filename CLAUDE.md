@@ -68,9 +68,12 @@ Agentic_Light/
 │   └── architect.md · coder.md · creative-director.md · curator.md · eng-manager.md · qa.md · README.md
 ├── skills/
 │   ├── skills.sh
-│   └── figma-* (12 dirs, from figma/mcp-server-guide) — code-connect, create-new-file,
-│       design-to-code, generate-design, generate-diagram, generate-library,
-│       implement-motion, swiftui, use, use-figjam, use-motion, use-slides
+│   ├── figma-* (12 dirs, from figma/mcp-server-guide) — code-connect, create-new-file,
+│   │   design-to-code, generate-design, generate-diagram, generate-library,
+│   │   implement-motion, swiftui, use, use-figjam, use-motion, use-slides
+│   ├── wcag-audit/ (vendored from 84emllc/claude-wcag-skill, MIT + W3C
+│   │   Document License — see skills/wcag-audit/NOTICE) — wcag-harness skill
+│   └── server-review/ (authored in-repo) — server-harness skill
 ├── microsite/{template.html, index.html, health.html, status.json, status.js, README.md,
 │   presets/{web-app,cli-tool,data-pipeline,design-harness,server-harness,wcag-harness}.html}
 ├── brain/

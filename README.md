@@ -53,8 +53,8 @@ Presets (from `System_Config/presets.json`):
 | `cli-tool` | coder+qa, no gates, all skills |
 | `data-pipeline` | architect+coder+qa, placeholder custom gate (needs a script), all skills |
 | `design-harness` | architect+coder+creative-director+qa, playwright gate, all skills |
-| `server-harness` | architect+coder+qa, no default gates, no shipped skills yet |
-| `wcag-harness` | architect+coder+creative-director+qa, playwright gate, no shipped skills yet |
+| `server-harness` | architect+coder+qa, no default gates, server-review skill |
+| `wcag-harness` | architect+coder+creative-director+qa, playwright gate, wcag-audit skill |
 
 Specializing writes three files: `System_Config/agent-roster.json` (active
 roles), `pipeline/gate-config.json` (gate list), and
