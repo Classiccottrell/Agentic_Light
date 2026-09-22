@@ -56,10 +56,14 @@ Presets (from `System_Config/presets.json`):
 | `server-harness` | architect+coder+qa, no default gates, server-review skill |
 | `wcag-harness` | architect+coder+creative-director+qa, playwright gate, wcag-audit skill |
 
-Specializing writes three files: `System_Config/agent-roster.json` (active
-roles), `pipeline/gate-config.json` (gate list), and
+Specializing writes `System_Config/agent-roster.json` (active roles),
+`pipeline/gate-config.json` (gate list), and
 `System_Config/skills-selected.json` (which `skills/*` dirs `route_skill.sh`
-scans). Re-running overwrites cleanly — it's idempotent, not additive. A
+scans). With `--preset`, it also writes `System_Config/.active-preset` (the
+preset name), which `gen_governance.py` reads to render that preset's
+`role_notes` — harness-specific notes on what each active role covers.
+Re-running overwrites cleanly — it's idempotent, not additive. None of these
+are gitignored: in a fork you commit them (see `microsite/whitelabel.html`). A
 fresh, unspecialized clone has none of these files and runs with the full
 default roster and the legacy eslint+playwright gate pair. See
 `System_Config/README.md` for the full mechanics (env-var overrides,
