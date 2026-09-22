@@ -94,7 +94,7 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
              Keep the eyebrow/h1/lede pattern; use .card for callouts, .btn for CTAs. -->
         <p class="eyebrow">// specialization preset</p>
         <h1>wcag-harness</h1>
-        <p class="lede">architect+coder+creative-director+qa, playwright gate, no shipped skills yet</p>
+        <p class="lede">architect+coder+creative-director+qa, playwright+axe gates, wcag-audit skill</p>
 
         <h2>Roster</h2>
         <table>
@@ -114,11 +114,16 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
           <thead><tr><th>Gate</th></tr></thead>
           <tbody>
               <tr><td><code>playwright</code></td></tr>
+              <tr><td><code>axe</code></td></tr>
           </tbody>
         </table>
 
         <h2>Skills</h2>
-        <p>No skill dirs selected &#8212; no shipped skill dirs cover accessibility review yet.</p>
+        <ul><li><code>wcag-audit</code></li></ul>
+
+        <h2>Harness-Specific Role Notes</h2>
+        <p>Additive to each role's generic scope in <code>agents/*.md</code> — not a replacement.</p>
+        <ul><li><code>architect</code>: Audit semantic HTML/ARIA structure per `wcag-audit`&#x27;s pass 4 (screen-reader/semantics): heading order, landmarks, native elements before ARIA, programmatic name/role/value (4.1.2) — before any visual sign-off.</li><li><code>creative-director</code>: Contrast ratios and visual hierarchy for low-vision/cognitive accessibility — 1.4.3/1.4.11 contrast, 1.4.1 color-alone-signals-state, 2.4.7 focus visible, 2.4.11 focus not obscured (minimum) — per `wcag-audit` pass 3, not general brand critique.</li><li><code>qa</code>: axe-core-informed accessibility checks living in the target repo&#x27;s own specs (`@axe-core/playwright`), covering the machine-detectable third per `wcag-audit` — plus the required manual keyboard-only pass; axe passing alone is not a compliance claim.</li></ul>
 
         <h2>Task Flow</h2>
         <pre><code>Task in
@@ -136,7 +141,7 @@ creative-director
 qa
   |
   v
-Gate: playwright
+Gate: playwright, axe
   |
   v
 Human gate

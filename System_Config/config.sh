@@ -157,6 +157,21 @@ ensure_current_week_raw_folder() {
   mkdir -p "$raw_dir"
 }
 
+# looks_like_secret <file> — greps for common credential shapes. Tight,
+# repo-specific pattern set (not a general secret scanner): known provider
+# key prefixes, a bare "Bearer <token>", and *_KEY/*_TOKEN/*_SECRET vars
+# assigned a non-placeholder-looking value (skips "", NULL-ish placeholders,
+# and anything wrapped in <...> or starting with YOUR_/CHANGEME/xxx).
+# Shared by healthcheck.sh's Config Security Scan and pipeline/run.sh's
+# pre-commit secret scan — do not fork a second copy of this regex set.
+# Accepts /dev/stdin as "$1" for piped input. bash 3.2 safe.
+looks_like_secret() {
+  grep -nE '(sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{12,}|Bearer[[:space:]]+[A-Za-z0-9._-]{10,})' "$1" 2>/dev/null
+  grep -nEi '[A-Z0-9_]*(KEY|TOKEN|SECRET)[[:space:]]*[:=][[:space:]]*"?[A-Za-z0-9_/+=.-]{8,}"?' "$1" 2>/dev/null \
+    | grep -viE '=[[:space:]]*"?(null|none|changeme|your_|xxx|<.*>|\$\{)' \
+    | grep -viE '(KEY|TOKEN|SECRET)_(ENUM|SCHEMA|NAME|FIELD)'
+}
+
 # acquire_lock <lock_dir> [max_age_seconds] — atomic mkdir lock. If the lock
 # is already held, checks its mtime: a lock older than max_age_seconds (default
 # 3600) is assumed abandoned by a killed/crashed run and is reclaimed once

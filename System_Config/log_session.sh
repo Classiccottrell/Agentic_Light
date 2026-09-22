@@ -14,7 +14,9 @@
 # matches the legacy '## Claude Sessions' heading still present in notes
 # created before the rename, so an older note gets one section stamped
 # in place rather than a second duplicate heading. --note overrides the
-# target file (used by --self-test to avoid touching the real vault).
+# target file (never auto-created). If the default current-week note is
+# missing, monday_init.sh is run first to create it from the template (see
+# the comment at the bottom of this file).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -61,6 +63,7 @@ current_week_note() {
 
 self_test() {
   local tmp
+  unset LOG_SESSION_NOTE  # the auto-init case below needs the default path
   tmp="$(mktemp -t log_session_selftest.XXXXXX).md"
   cat > "$tmp" <<'EOF'
 # W99 — Self-Test
@@ -101,10 +104,52 @@ EOF
   [[ "$(grep -cF 'exit 0 (exit)' "$tmp")" -eq 1 ]] || { echo "FAIL: line not stamped into legacy heading" >&2; exit 1; }
   rm -f "$tmp"
 
+  # Missing current-week note: run a copy of this script + monday_init.sh +
+  # config.sh from a temp workspace (both derive brain/ from their own path),
+  # so the real vault is never touched. Must create the note from the
+  # template, stamp the line under '## Agent Sessions', and print nothing
+  # on stdout.
+  local ws out note
+  ws="$(mktemp -d -t log_session_ws.XXXXXX)"
+  mkdir -p "$ws/System_Config" "$ws/brain/weekly_logs"
+  cp "$ROOT/System_Config/log_session.sh" "$ROOT/System_Config/monday_init.sh" "$ROOT/System_Config/config.sh" "$ws/System_Config/"
+  cat > "$ws/brain/weekly_logs/Weekly_Note_Template.md" <<'EOF'
+# W{{WEEK_NUM}} {{YEAR}} — TEMPLATE-MARKER
+---
+
+## Agent Sessions
+> Auto-appended after each launcher-completed session.
+
+---
+EOF
+  note="$ws/brain/weekly_logs/$(date +%G)/$(date +%G)-W$(date +%V).md"
+  out="$(bash "$ws/System_Config/log_session.sh" --provider claude --role coder --status 0 --reason exit 2>/dev/null)"
+  [[ -f "$note" ]] || { echo "FAIL: missing note not auto-created via monday_init.sh" >&2; rm -rf "$ws"; exit 1; }
+  grep -qF "TEMPLATE-MARKER" "$note" || { echo "FAIL: auto-created note not from template" >&2; rm -rf "$ws"; exit 1; }
+  [[ "$(awk '/^## Agent Sessions/{s=1} s&&/^---/{exit} s' "$note" | grep -cF 'claude / coder — exit 0 (exit)')" -eq 1 ]] \
+    || { echo "FAIL: line not under ## Agent Sessions in auto-created note" >&2; rm -rf "$ws"; exit 1; }
+  [[ -z "$out" ]] || { echo "FAIL: stdout contract changed: $out" >&2; rm -rf "$ws"; exit 1; }
+
+  # monday_init.sh fails (no template): still exit 0, no note written.
+  rm -rf "$ws/brain/weekly_logs"; mkdir -p "$ws/brain/weekly_logs"
+  bash "$ws/System_Config/log_session.sh" --provider claude --role coder --status 0 --reason exit >/dev/null 2>&1 \
+    || { echo "FAIL: non-zero exit when monday_init.sh fails" >&2; rm -rf "$ws"; exit 1; }
+  [[ ! -f "$note" ]] || { echo "FAIL: note written despite monday_init.sh failure" >&2; rm -rf "$ws"; exit 1; }
+
+  # Explicit --note that doesn't exist: skip, never auto-create.
+  bash "$ws/System_Config/log_session.sh" --provider claude --role coder --status 0 --reason exit --note "$ws/nope.md" >/dev/null 2>&1 \
+    || { echo "FAIL: non-zero exit on missing --note" >&2; rm -rf "$ws"; exit 1; }
+  [[ ! -e "$ws/nope.md" && ! -d "$ws/brain/weekly_logs/$(date +%G)" ]] \
+    || { echo "FAIL: explicit --note triggered auto-create" >&2; rm -rf "$ws"; exit 1; }
+  rm -rf "$ws"
+
   echo "self-test OK"
 }
 
-PROVIDER="" ROLE="" STATUS="" REASON="" NOTE=""
+# LOG_SESSION_NOTE: env equivalent of --note (same explicit, never-auto-
+# created semantics) for callers that reach this script indirectly via
+# pipeline/run.sh — test_pipeline.sh uses it to keep fixtures out of brain/.
+PROVIDER="" ROLE="" STATUS="" REASON="" NOTE="${LOG_SESSION_NOTE:-}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --self-test) self_test; exit 0 ;;
@@ -121,10 +166,31 @@ done
 [[ -n "$PROVIDER" && -n "$ROLE" && -n "$STATUS" && -n "$REASON" ]] || { usage; exit 1; }
 case "$REASON" in exit|timeout|signal|refused) ;; *) echo "invalid --reason: $REASON" >&2; exit 1 ;; esac
 
-NOTE="${NOTE:-$(current_week_note)}"
-if [[ ! -f "$NOTE" ]]; then
-  echo "log_session.sh: no weekly note at $NOTE — skipping (run monday_init.sh first)" >&2
-  exit 0
+# Missing note: this used to always skip, so a stub note lacking the
+# template's sections was never written — but that silently dropped runs
+# from the audit trail (GOVERNANCE.md §3) in any week monday_init.sh hadn't
+# run yet. Now, for the default current-week note only, run monday_init.sh
+# (as a subprocess: its acquire_lock EXIT trap stays in the child; lock is
+# System_Config/logs/monday_init.lock, distinct from pipeline/run.sh's
+# pipeline/logs/.run.*.lock) to create the full templated note, exactly as a
+# human run would. Its stdout goes to stderr to keep this script's output
+# contract. An explicit --note is never auto-created. If init fails or the
+# note is still missing, skip as before — logging never fails the caller.
+if [[ -n "$NOTE" ]]; then
+  if [[ ! -f "$NOTE" ]]; then
+    echo "log_session.sh: no weekly note at $NOTE — skipping (explicit --note is never auto-created)" >&2
+    exit 0
+  fi
+else
+  NOTE="$(current_week_note)"
+  if [[ ! -f "$NOTE" ]]; then
+    echo "log_session.sh: no weekly note at $NOTE — running monday_init.sh to create it" >&2
+    bash "$ROOT/System_Config/monday_init.sh" >&2 || echo "log_session.sh: monday_init.sh exited non-zero" >&2
+    if [[ ! -f "$NOTE" ]]; then
+      echo "log_session.sh: weekly note still missing at $NOTE after monday_init.sh — skipping" >&2
+      exit 0
+    fi
+  fi
 fi
 
 append_session_line "$NOTE" "$PROVIDER" "$ROLE" "$STATUS" "$REASON"

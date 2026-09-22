@@ -37,7 +37,7 @@ Query method that owns the fallback decision, dropping to `rg -l` in that
 case. See `brain/CLAUDE.md`'s Query section.
 
 ## Weekly cycle
-- `System_Config/monday_init.sh` — starts the week's note + raw folder.
+- `System_Config/monday_init.sh` — starts the week's note + raw folder. Also runs automatically the first time `log_session.sh` logs a session in a week with no note yet; sessions are appended after initialization succeeds, while initialization failure emits a warning and skips the append.
 - `System_Config/friday_process.sh` — closes out the week.
 
 Both are manual-trigger only — Agentic Light has no background scheduler.

@@ -16,6 +16,15 @@ Sources:
   pipeline/gate-config.json       -- ordered gate list for THIS fork (absent
                                       => default eslint+playwright, per
                                       pipeline/run.sh's own fallback)
+  System_Config/.active-preset    -- named preset this fork was specialized
+                                      with, if any (written by specialize.sh
+                                      only on its --preset path; absent for
+                                      interactive/env-override runs and on an
+                                      unspecialized fork)
+  System_Config/presets.json      -- looked up by the preset name above for
+                                      an optional per-role `role_notes`
+                                      overlay, rendered additively alongside
+                                      each role's generic scope in agents/*.md
   pipeline/README.md, System_Config/log_session.sh, System_Config/healthcheck.sh
                                       -- referenced, not parsed; the flow/
                                       logging/security text below is fixed
@@ -41,6 +50,8 @@ ROOT = os.path.dirname(SCRIPT_DIR)
 AGENTS_DIR = os.path.join(ROOT, 'agents')
 ROSTER_PATH = os.path.join(SCRIPT_DIR, 'agent-roster.json')
 GATE_CONFIG_PATH = os.path.join(ROOT, 'pipeline', 'gate-config.json')
+PRESETS_PATH = os.path.join(SCRIPT_DIR, 'presets.json')
+ACTIVE_PRESET_PATH = os.path.join(SCRIPT_DIR, '.active-preset')
 OUT_PATH = os.path.join(ROOT, 'GOVERNANCE.md')
 
 ALL_ROLES = ['architect', 'coder', 'creative-director', 'curator', 'eng-manager', 'qa']
@@ -93,16 +104,55 @@ def gate_label(gate):
     return str(gate)
 
 
+def get_active_preset_role_notes():
+    """Look up the current fork's harness-specific role_notes overlay, if any.
+
+    Additive to the generic per-role scope in agents/*.md, never a
+    replacement -- see presets.json's role_notes field. Returns (None, {})
+    when unspecialized, when specialized via interactive/env-override (no
+    single named preset), or when the active preset has no role_notes.
+    """
+    if not os.path.exists(ACTIVE_PRESET_PATH):
+        return None, {}
+    with open(ACTIVE_PRESET_PATH) as f:
+        preset_name = f.read().strip()
+    presets = load_json_or_none(PRESETS_PATH) or {}
+    preset = presets.get(preset_name) or {}
+    return preset_name, preset.get('role_notes', {})
+
+
 def build_roles_block(agents):
+    preset_name, role_notes = get_active_preset_role_notes()
     rows = []
     for a in agents:
         rows.append(
             '| `' + a['name'] + '` | ' + a['description'] + ' | `' + a['tools'] + '` | `' + a['rel'] + '` |'
         )
-    return (
+    table = (
         '| Role | Stated scope (from frontmatter `description`) | Granted tools | Source |\n'
         '|---|---|---|---|\n' + '\n'.join(rows)
     )
+    if not role_notes:
+        return table
+    # Only overlay roles active in this fork's roster; no roster => no notes.
+    roster = load_json_or_none(ROSTER_PATH) or {}
+    roster_roles = roster.get('roles') or {}
+    overlay_rows = []
+    for a in agents:
+        if (roster_roles.get(a['name']) or {}).get('active') is not True:
+            continue
+        note = role_notes.get(a['name'])
+        if note:
+            note = ' '.join(str(note).split())
+            overlay_rows.append('- **`' + a['name'] + '`**: ' + note)
+    if not overlay_rows:
+        return table
+    overlay = (
+        '\n\n**Harness-specific overlay — preset `' + preset_name + '`** (additive to the '
+        'generic scope above, not a replacement; from `System_Config/presets.json`'
+        "'s `role_notes`):\n\n" + '\n'.join(overlay_rows)
+    )
+    return table + overlay
 
 
 def build_gate_policy_block():
@@ -205,7 +255,9 @@ explicit human approval.** This is the governance checkpoint of the whole
 pipeline, enforced structurally, not by convention:
 
 - `pipeline/run.sh` step 3, the **Human Gate** (`pipeline/lib/human_gate.sh`
-  by default, swappable via `PIPELINE_HUMAN_GATE_CMD` for tests only),
+  by default; `PIPELINE_HUMAN_GATE_CMD` overrides it only when
+  `AGENTIC_LIGHT_TEST_MODE=1` is also set — otherwise the override is
+  ignored with a warning and the real gate runs),
   renders the full diff already committed to the run's feature branch plus
   the gate-run summary, and blocks on an interactive `[y/N]` prompt.
 - The gate **never auto-approves**. A non-interactive session (no TTY on
@@ -216,15 +268,15 @@ pipeline, enforced structurally, not by convention:
   — a failed gate, a declined human gate, a pending non-interactive gate —
   hard-stops before this step; see `pipeline/README.md`'s "Halt-on-failure
   guarantee" and "Human Gate exit codes".
-- Every configured gate (ESLint/Playwright, or the fork's own
+- Every configured gate (ESLint/Playwright/axe, or the fork's own
   `gate-config.json` list — see §4 below) must pass, or be skipped via its
   own documented no-op condition, **before** the human ever sees the diff.
   A failing gate is a hard stop, not a warning shown alongside the PR.
 
 ## 3. Audit Trail — What Gets Logged, and Where
 
-- **`System_Config/log_session.sh`** — called exactly once per pipeline
-  run, after the coder step, regardless of outcome (success, watchdog
+- **`System_Config/log_session.sh`** — called exactly once per coder
+  invocation, after the coder step, regardless of outcome (success, watchdog
   timeout, or an Ollama write-workflow refusal). Appends one line —
   provider, role, exit status, reason — under `## Agent Sessions` in the
   current ISO week's weekly note (`brain/weekly_logs/YYYY/YYYY-Www.md`).

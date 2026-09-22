@@ -92,9 +92,22 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   AI call). `log_session.sh --provider <name> --role <role> --status
   <exit-code> --reason <exit|timeout|signal|refused> [--note <path>]`
   appends one line under the current week's `## Agent Sessions` heading
-  (also matches the legacy `## Claude Sessions` heading). `--self-test`
-  runs its own checks against temp fixtures. Called once by
-  `pipeline/run.sh` after the coder step completes.
+  (also matches the legacy `## Claude Sessions` heading). If the default
+  current-week note doesn't exist yet, it runs `monday_init.sh` first
+  (stdout redirected to stderr) to create the full templated note — plus
+  the same raw folder and Master Note index row a manual run adds — then
+  appends. It used to skip instead, to avoid writing a bare stub note
+  missing the template's sections, but that silently dropped runs from the
+  audit trail. An explicit `--note` path (or its env equivalent
+  `LOG_SESSION_NOTE`, which `pipeline/test_pipeline.sh` sets so fixtures
+  never write into `brain/`) is never auto-created. If
+  `monday_init.sh` fails or the note is still missing, it prints a warning
+  to stderr and exits 0 (logging never fails the pipeline). No lock
+  conflict: `monday_init.sh` locks `System_Config/logs/monday_init.lock`,
+  `pipeline/run.sh` locks `pipeline/logs/.run.*.lock`. `--self-test` runs
+  its own checks against temp fixtures (including a temp copy of the
+  workspace scripts for the auto-init path; the real vault is never
+  touched). Called once by `pipeline/run.sh` after the coder step completes.
 - **`route_skill.sh`** — deterministic keyword/substring skill router (no
   LLM call). `route_skill.sh "<task description>"` (or pipe the task on
   stdin) scans `skills/*/SKILL.md` frontmatter (`name`/`description` only —
@@ -176,6 +189,14 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `--check` (exit 1 if stale), `--dry-run`. Kept as a separate script from
   `gen_site.py` because it generates whole files from a template rather than
   rewriting marker blocks inside one fixed file. Stdlib-only Python 3.
+  If a preset carries an optional `role_notes` object (currently
+  `design-harness` and `wcag-harness` only — one or two sentences per active
+  role, harness-specific, additive to that role's generic scope in
+  `agents/*.md`), renders an extra "Harness-Specific Role Notes" section;
+  presets without `role_notes` render byte-identical to before this field
+  existed. Same rule for the optional `requires` list (currently
+  `design-harness` only): rendered html-escaped as a "Requires:" line under
+  Skills only when present.
 - **`gen_governance.py`** — regenerates root `GOVERNANCE.md`: per-role scope
   (`<!-- gen:roles-start/end -->`, from `agents/*.md` frontmatter) and this
   fork's live gate policy (`<!-- gen:gate-policy-start/end -->`, from
@@ -186,6 +207,14 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   the script itself, describing mechanism that doesn't vary per fork. Same
   CLI shape as `gen_site.py`: bare (write), `--check` (exit 1 if stale),
   `--dry-run`. Stdlib-only Python 3.
+  The roles section also renders a harness-specific overlay, additive below
+  the generic scope table, when `System_Config/.active-preset` (written by
+  `specialize.sh --preset <name>`) names a preset with `role_notes` in
+  `presets.json`. Absent `.active-preset` (unspecialized fork, or a fork
+  specialized interactively/via env-override rather than by preset name) or
+  a preset with no `role_notes` → no overlay, table unchanged. Notes render
+  only for roles `active: true` in `agent-roster.json` (roster absent → no
+  notes); newlines in a note are collapsed to spaces.
 - **`healthcheck.sh`** — layered PASS/WARN/FAIL check: directory layout,
   agent/skill roster frontmatter completeness, brain scaffolding
   (`wiki/index.md`, current weekly note, Master Note sentinel), read-only
@@ -209,7 +238,10 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `FAIL`, and skips any file already covered by `.gitignore` (expected local
   config, not a leak risk). Separately `WARN`s if `.mcp.json`,
   `.agentic-light.conf`, or `System_Config/.notify.env` — each documented
-  elsewhere as local-only — isn't actually gitignored.
+  elsewhere as local-only — isn't actually gitignored. The pattern set lives
+  once, in `config.sh`'s `looks_like_secret`, shared with
+  `pipeline/run.sh`'s pre-commit secret scan (see `pipeline/README.md`) —
+  not duplicated between the two.
 - **`notify.sh`** — `notify.sh "<title>" "<body>"`. Sends to
   `SLACK_WEBHOOK_URL` and/or `GCHAT_WEBHOOK_URL` (both may be set; each tried
   independently), plus an opt-in local macOS banner
@@ -227,9 +259,16 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
 - **`specialize.sh`** — one-time fork specialization, run after
   `bootstrap.sh`. Prompts (same checkbox UX as `bootstrap.sh`) for which of
   the 6 roles (read from `agent-roster.schema.json`, never hardcoded), which
-  gates (`eslint`/`playwright`/one `custom`, read from
+  gates (`eslint`/`playwright`/`axe`/one `custom`, read from
   `gate-config.schema.json`), and which `skills/*` dirs (scanned live) to
-  keep. Writes canonical `System_Config/agent-roster.json` and
+  keep. Gate prompts default to yes, except `axe`, which defaults to no:
+  it's accessibility-specific, and `wcag-harness` turns it on explicitly. Also writes (`--preset` path only) `System_Config/.active-preset`,
+  a plain-text file naming the preset — `gen_governance.py` reads it to look
+  up that preset's optional `role_notes` overlay in `presets.json`. It is
+  removed at the start of every run and written (mktemp + `mv`) only after
+  all other outputs succeed, so a failed or interactive/env-override run
+  leaves it absent rather than stale.
+  Writes canonical `System_Config/agent-roster.json` and
   `pipeline/gate-config.json` — validated by real structural checks against
   their schemas (fields read from the schema files themselves, not a second
   hand-maintained copy), reusing `pipeline/run.sh`'s own gate-config
@@ -243,10 +282,15 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   (`web-app`: full team + eslint/playwright + all skills; `cli-tool`:
   coder+qa, no gates, all skills; `data-pipeline`: architect+coder+qa,
   placeholder custom gate, all skills; `design-harness`:
-  architect+coder+creative-director+qa, playwright gate only, all skills;
-  `server-harness`: architect+coder+qa, no default gates, no shipped skills
-  yet; `wcag-harness`: architect+coder+creative-director+qa, playwright gate
-  only, no shipped skills yet); so do the
+  architect+coder+creative-director+qa, playwright gate only, all skills,
+  plus `"requires": ["figma-mcp"]`;
+  `server-harness`: architect+coder+qa, no default gates, `server-review`
+  skill; `wcag-harness`: architect+coder+creative-director+qa, playwright
+  + axe gates, `wcag-audit` skill — `design-harness` and `wcag-harness` also
+  carry a `role_notes` field in `presets.json`, giving `architect`/
+  `creative-director`/`qa` harness-specific scope text additive to their
+  generic `agents/*.md` description, rendered by `gen_governance.py` and
+  `gen_preset_pages.py`); so do the
   `AGENTIC_LIGHT_ROLES`/`AGENTIC_LIGHT_GATES`/`AGENTIC_LIGHT_SKILLS`
   comma-separated env overrides (mirrors `bootstrap.sh`'s
   `AGENTIC_LIGHT_*` convention). `data-pipeline`'s custom gate ships with an
@@ -259,17 +303,22 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   custom gate — a server project's test command varies too much to guess,
   and an always-failing placeholder preset would be less honest than an
   explicit "no default gates" preset a human fills in later. `server-harness`
-  and `wcag-harness` both ship `"skills": []` with a `skills_gap_note` field
-  (the only two presets to set one — `wcag-harness` because no shipped
-  `skills/*` dir covers accessibility review); when present, `specialize.sh`
-  prints an informational "no skill content yet" note after resolving the
-  preset, distinguishing a known content gap from a role-appropriate empty
-  selection. `wcag-harness` shares `design-harness`'s exact roster and its
-  single `playwright` gate — the differentiator is scope, not shape: the
-  architect reviews semantic HTML structure, creative-director reviews
-  contrast/visual hierarchy, and the actual axe-core assertions live in the
-  target repo's own Playwright spec files, not in the gate mechanism itself
-  (this project's gate schema has no dedicated accessibility gate type).
+  ships `"skills": ["server-review"]` (see `skills/server-review/SKILL.md`) and
+  `wcag-harness` ships `"skills": ["wcag-audit"]`; a preset only carries a
+  `skills_gap_note` field when its listed skill selection is a genuinely
+  known content gap, not by default — neither preset sets one now that both
+  have a shipped skill dir. A preset may also carry an optional `requires`
+  list (`design-harness`: `["figma-mcp"]` — all 12 `figma-*` skills need the
+  Figma MCP server); `--preset` prints it as an informational `Note:` line
+  (not a warning, never a failure, no detection of whether it's installed)
+  and `gen_preset_pages.py` renders it on the preset page. `wcag-harness`
+  shares `design-harness`'s exact roster; its gates are `["playwright",
+  "axe"]` — the `axe` gate (`pipeline/lib/axe_gate.sh`) runs the target
+  repo's `test:a11y`/`a11y` script and WARN-skips when there is none (see
+  `pipeline/README.md`'s "Accessibility (axe) gate"). Beyond that the
+  differentiator is scope: the architect reviews semantic HTML structure,
+  creative-director reviews contrast/visual hierarchy, and `wcag-audit`
+  drives the 4-pass audit/checklist method.
   Interactive
   custom-gate field values (script/cwd) are
   passed to the python3 subprocess via argv, never string-interpolated into

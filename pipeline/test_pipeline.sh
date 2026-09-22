@@ -10,7 +10,23 @@ LIB="$ROOT/pipeline/lib"
 
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/agentic-light-pipeline-test.XXXXXX")"
 PRE_LOGS="$(ls "$ROOT/pipeline/logs"/*.log 2>/dev/null || true)"
+# run.sh reads gate-config.json from this workspace's own pipeline/ (no env
+# override), so the axe fixtures write a temporary one there. Any
+# pre-existing file (a specialized fork) is backed up and restored on exit.
+REAL_GATE_CONFIG="$ROOT/pipeline/gate-config.json"
+GATE_CONFIG_BACKUP="$TMP_ROOT/gate-config.json.bak"
+GATE_CONFIG_TOUCHED=0
+restore_gate_config() {
+  [ "$GATE_CONFIG_TOUCHED" -eq 1 ] || return 0
+  if [ -f "$GATE_CONFIG_BACKUP" ]; then
+    mv -f "$GATE_CONFIG_BACKUP" "$REAL_GATE_CONFIG"
+  else
+    rm -f "$REAL_GATE_CONFIG"
+  fi
+  GATE_CONFIG_TOUCHED=0
+}
 cleanup() {
+  restore_gate_config
   rm -rf "$TMP_ROOT"
   # run.sh tees its own log into the real repo's pipeline/logs/ (gitignored
   # but still real files on disk) — remove only the ones this test run added.
@@ -22,6 +38,8 @@ cleanup() {
   done
 }
 trap cleanup EXIT
+# Ctrl-C/kill must still restore pipeline/gate-config.json: exiting fires the EXIT trap once.
+trap 'exit 130' INT TERM
 
 # git identity via env — no dependency on a real ~/.gitconfig.
 export GIT_AUTHOR_NAME="Agentic Light Test" GIT_AUTHOR_EMAIL="test@agentic.light"
@@ -40,6 +58,12 @@ printf 'gh %s\n' "$*" >> "$CALLS"
 exit 0
 EOF
 chmod +x "$FAKE_HOME/.local/bin/gh"
+
+# Fixtures drive the real run.sh, which calls the real log_session.sh; point
+# it at a scratch note so no fixture appends to (or, via monday_init.sh
+# auto-init, creates) the real brain/ weekly note.
+export LOG_SESSION_NOTE="$TMP_ROOT/weekly-note.md"
+: > "$LOG_SESSION_NOTE"
 
 # coder stub: PIPELINE_CODER_CMD override (already-documented test hook) —
 # modifies a tracked file (seed.txt, exercises `git diff HEAD`) and adds an
@@ -86,6 +110,7 @@ new_target_repo() {
 run_pipeline() {
   # run_pipeline <target-repo> [extra env assignments already exported]
   env HOME="$FAKE_HOME" CALLS="$CALLS" PIPELINE_CODER_CMD="$CODER_STUB" \
+      AGENTIC_LIGHT_TEST_MODE=1 \
       "$@"
 }
 
@@ -107,10 +132,12 @@ grep -q "^gh pr create" "$CALLS"
 git -C "$REPO1" branch --show-current | grep -q '^agentic-light/'
 [[ "$(git -C "$REPO1" log --oneline main.. | wc -l | tr -d ' ')" -ge 1 ]]
 # The gate summary the approve stub echoed must show both the tracked
-# modification (git diff HEAD) and the untracked new file (git ls-files
-# --others) — i.e. what's shown to the human matches what got committed.
+# modification and the new file (git diff --cached, post `git add -A`) —
+# i.e. what's shown to the human matches what got committed.
 echo "$OUT1" | grep -q "seed.txt"
 echo "$OUT1" | grep -q "PATCHED.txt"
+# session logged exactly once, into the scratch note (not the real vault).
+[[ "$(grep -c "/ coder — exit 0 (exit)" "$LOG_SESSION_NOTE")" -eq 1 ]]
 echo "fixture 1 (normal pass): PASS"
 
 # ---------------------------------------------------------------------------
@@ -120,6 +147,7 @@ REPO1B="$(new_target_repo repo1b)"
 : > "$CALLS"
 set +e
 OUT1B="$(env HOME="$FAKE_HOME" CALLS="$CALLS" PIPELINE_CODER_CMD="$NOOP_CODER_STUB" \
+  AGENTIC_LIGHT_TEST_MODE=1 \
   PIPELINE_HUMAN_GATE_CMD="$APPROVE_STUB" bash "$RUN" "no-op task" "$REPO1B" 2>&1)"
 RC1B=$?
 set -e
@@ -239,5 +267,67 @@ if grep -q "Create a feature branch, implement the change, and commit it" "$RUN"
   exit 1
 fi
 echo "fixture 7 (coder prompt no longer asks for branch/commit): PASS"
+
+# ---------------------------------------------------------------------------
+# Fixtures 8a-8c: axe (accessibility) gate, driven through run.sh with a
+# temporary gate-config.json of ["axe"]. The test:a11y scripts are plain
+# shell exits run by npm — no network, no real npm installs.
+# ---------------------------------------------------------------------------
+[ -f "$REAL_GATE_CONFIG" ] && cp "$REAL_GATE_CONFIG" "$GATE_CONFIG_BACKUP"
+GATE_CONFIG_TOUCHED=1
+printf '{"gates":["axe"]}\n' > "$REAL_GATE_CONFIG"
+
+# 8a: no a11y tooling -> WARN+skip, run continues through to the PR.
+REPO8A="$(new_target_repo repo8a)"
+: > "$CALLS"
+set +e
+OUT8A="$(run_pipeline env PIPELINE_HUMAN_GATE_CMD="$APPROVE_STUB" bash "$RUN" "task" "$REPO8A" 2>&1)"
+RC8A=$?
+set -e
+[[ "$RC8A" -eq 0 ]]
+echo "$OUT8A" | grep -q "Accessibility (axe) gate"
+echo "$OUT8A" | grep -q "\[axe_gate\] WARN — no automated accessibility check ran"
+echo "$OUT8A" | grep -q "skills/wcag-audit/references/running-axe.md"
+echo "$OUT8A" | grep -q "human gate: APPROVED"
+grep -q "^gh pr create" "$CALLS"
+echo "fixture 8a (axe gate, no a11y tooling -> WARN+skip): PASS"
+
+# 8b: failing test:a11y script -> hard stop before the human gate, no PR.
+REPO8B="$(new_target_repo repo8b)"
+printf '{"scripts":{"test:a11y":"exit 1"}}' > "$REPO8B/package.json"
+git -C "$REPO8B" add package.json
+git -C "$REPO8B" commit -q -m "add failing a11y script"
+: > "$CALLS"
+set +e
+OUT8B="$(run_pipeline env PIPELINE_HUMAN_GATE_CMD="$APPROVE_STUB" bash "$RUN" "task" "$REPO8B" 2>&1)"
+RC8B=$?
+set -e
+[[ "$RC8B" -eq 1 ]]
+echo "$OUT8B" | grep -q "\[axe_gate\] FAIL — test:a11y script exited"
+echo "$OUT8B" | grep -q "FAILED: gate 1 (axe)"
+if echo "$OUT8B" | grep -q "\[3\] Human gate"; then
+  echo "fixture 8b: human gate reached after a failing axe gate" >&2
+  exit 1
+fi
+[[ ! -s "$CALLS" ]]
+echo "fixture 8b (axe gate failure -> hard stop): PASS"
+
+# 8c: passing test:a11y script -> gate passes, run continues.
+REPO8C="$(new_target_repo repo8c)"
+printf '{"scripts":{"test:a11y":"exit 0"}}' > "$REPO8C/package.json"
+git -C "$REPO8C" add package.json
+git -C "$REPO8C" commit -q -m "add passing a11y script"
+: > "$CALLS"
+set +e
+OUT8C="$(run_pipeline env PIPELINE_HUMAN_GATE_CMD="$APPROVE_STUB" bash "$RUN" "task" "$REPO8C" 2>&1)"
+RC8C=$?
+set -e
+[[ "$RC8C" -eq 0 ]]
+echo "$OUT8C" | grep -q "\[axe_gate\] PASS"
+echo "$OUT8C" | grep -q "human gate: APPROVED"
+grep -q "^gh pr create" "$CALLS"
+echo "fixture 8c (axe gate pass): PASS"
+
+restore_gate_config
 
 echo "pipeline test: PASS"

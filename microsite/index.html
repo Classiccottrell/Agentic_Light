@@ -92,7 +92,7 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
 
         <p class="card">
             <strong>Roster:</strong> <!-- gen:agent-count -->6<!-- /gen:agent-count --> agents ·
-            <strong>Skills:</strong> <!-- gen:skills-count -->12<!-- /gen:skills-count --> ·
+            <strong>Skills:</strong> <!-- gen:skills-count -->14<!-- /gen:skills-count --> ·
             <a href="health.html">view system health →</a>
         </p>
 
@@ -131,6 +131,8 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
               <tr><td><code>figma-use-motion</code></td><td>"Motion / animation context for the `use_figma` MCP tool — animating Figma no...</td><td><code>skills/figma-use-motion/SKILL.md</code></td></tr>
               <tr><td><code>figma-use-slides</code></td><td>"This skill helps agents use Figma's use_figma MCP tool in the Slides context</td><td><code>skills/figma-use-slides/SKILL.md</code></td></tr>
               <tr><td><code>figma-use</code></td><td>"**MANDATORY prerequisite** — you MUST invoke this skill BEFORE every `use_fi...</td><td><code>skills/figma-use/SKILL.md</code></td></tr>
+              <tr><td><code>server-review</code></td><td>Use when reviewing, writing, or auditing backend/server code and APIs - error...</td><td><code>skills/server-review/SKILL.md</code></td></tr>
+              <tr><td><code>wcag-2.2-aa</code></td><td>Use when auditing, remediating, or building any user-facing UI to meet WCAG 2</td><td><code>skills/wcag-audit/SKILL.md</code></td></tr>
           </tbody>
         </table>
 <!-- gen:skills-end -->
@@ -144,8 +146,8 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
               <tr><td><code>cli-tool</code></td><td>coder+qa, no gates, all skills</td><td><a href="presets/cli-tool.html">presets/cli-tool.html</a></td></tr>
               <tr><td><code>data-pipeline</code></td><td>architect+coder+qa, placeholder custom gate (needs a script), all skills</td><td><a href="presets/data-pipeline.html">presets/data-pipeline.html</a></td></tr>
               <tr><td><code>design-harness</code></td><td>architect+coder+creative-director+qa, playwright gate, all skills</td><td><a href="presets/design-harness.html">presets/design-harness.html</a></td></tr>
-              <tr><td><code>server-harness</code></td><td>architect+coder+qa, no default gates, no shipped skills yet</td><td><a href="presets/server-harness.html">presets/server-harness.html</a></td></tr>
-              <tr><td><code>wcag-harness</code></td><td>architect+coder+creative-director+qa, playwright gate, no shipped skills yet</td><td><a href="presets/wcag-harness.html">presets/wcag-harness.html</a></td></tr>
+              <tr><td><code>server-harness</code></td><td>architect+coder+qa, no default gates, server-review skill</td><td><a href="presets/server-harness.html">presets/server-harness.html</a></td></tr>
+              <tr><td><code>wcag-harness</code></td><td>architect+coder+creative-director+qa, playwright+axe gates, wcag-audit skill</td><td><a href="presets/wcag-harness.html">presets/wcag-harness.html</a></td></tr>
               <tr><td><code>web-app</code></td><td>full team + eslint/playwright gates + all skills</td><td><a href="presets/web-app.html">presets/web-app.html</a></td></tr>
           </tbody>
         </table>
@@ -154,6 +156,10 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
         <h2>Dashboard</h2>
         <p>Live health snapshot, every preset, and the roster shape across them, on one page.</p>
         <p><a class="btn alt" href="dashboard.html">Open dashboard →</a></p>
+
+        <h2>White-labeling</h2>
+        <p>Beyond picking a preset: rename, strip, and rewrite this fork down to exactly one use case.</p>
+        <p><a class="btn alt" href="whitelabel.html">Read the white-labeling guide →</a></p>
 
         <h2>Regeneration</h2>
         <p>This page self-heals: <code>python3 System_Config/gen_site.py</code> rewrites the two blocks above from the current roster/skill frontmatter, and <code>System_Config/healthcheck.sh</code> invokes it automatically whenever it detects the doc has drifted. See <a href="README.md">microsite/README.md</a> for details.</p>
