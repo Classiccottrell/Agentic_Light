@@ -18,6 +18,21 @@ bash pipeline/run.sh --help   # print usage and exit
 
 ## Flow
 
+0. **Pre-flight sensitive-file scan** — before the coder step, `run.sh` scans
+   the target repo for filenames matching `.env*`, `*.key`, `*.pem`,
+   `id_rsa*` (including gitignored files — that's normally where a real
+   `.env` lives). A match hard-stops the run (`FAILED: ...`) unless
+   `AGENTIC_LIGHT_ALLOW_SENSITIVE_REPO=1` is set. **This is advisory
+   filename screening, not a security boundary** — a check on filenames,
+   not access control. It catches common accidental-secret-file patterns
+   sitting in the target repo; it is not a guarantee the coder can't reach
+   a secret some other way. The
+   coder's `--allowedTools "Read,...Grep"` (`System_Config/run_agent.sh`)
+   still has no path restriction within its cwd once it launches — this
+   check doesn't stop it reading a sensitive file that doesn't match these
+   globs, a file created mid-run, or anything the coder can reach some other
+   way. It only closes the "obviously-named credential file sitting in the
+   target repo" gap.
 0. **Gate-config validation** — before anything else runs (before the coder
    step), if `pipeline/gate-config.json` exists it's validated up front:
    valid JSON, and every entry either a known gate name (`eslint`,
@@ -46,9 +61,20 @@ bash pipeline/run.sh --help   # print usage and exit
    provider/role/exit-status/reason (success, timeout, or refusal alike) —
    see "Session logging" below. A `64` exit only maps to `refused` when the
    resolved provider for that run was `ollama`; any other provider exiting
-   64 is logged as a generic `exit`. `run.sh` then captures the coder's
-   diff (`git diff HEAD` + any new untracked files) and commits it itself;
-   a coder run that produces no changes fails this step (no commit, no PR).
+   64 is logged as a generic `exit`. `run.sh` then stages the coder's
+   changes (`git add -A`) and diffs `--cached` — staging first, not just
+   `git diff HEAD`, so a brand-new file's full content is visible, not just
+   its filename. Before committing, it scans the added lines of that staged
+   diff for likely secrets with `config.sh`'s `looks_like_secret` (the same
+   pattern set `System_Config/healthcheck.sh`'s Config Security Scan uses —
+   one regex definition, not two); a hit hard-stops the run (`git reset` +
+   `FAILED: ...`, no commit, no PR). This reset is safe because step 1 also
+   asserts, before creating the feature branch, that `$TARGET_REPO`'s index
+   is empty at the start of the run — the pipeline's contract is "coder
+   starts on a clean index, pipeline commits only what it added," and a
+   dirty index at launch is a hard `FAILED: ...`, not silently overridden.
+   A coder run that produces no changes also fails this step (no commit,
+   no PR).
    Swappable for testing: set `PIPELINE_CODER_CMD` to any command; if set,
    `run.sh` execs `$PIPELINE_CODER_CMD "<task>" "<target-repo>"` instead of
    the live agent call — no agent CLI round-trip needed to test the rest of
@@ -60,7 +86,12 @@ bash pipeline/run.sh --help   # print usage and exit
    committed diff + gate summary, blocks on interactive `[y/N]`. Swappable
    for testing the same way as the coder step: set `PIPELINE_HUMAN_GATE_CMD`
    to any command taking a summary string as its only argument; `run.sh`
-   calls that instead of `lib/human_gate.sh`.
+   calls that instead of `lib/human_gate.sh` — but **only** when
+   `AGENTIC_LIGHT_TEST_MODE=1` is also set. `PIPELINE_HUMAN_GATE_CMD` is
+   test-only: it exists so `test_pipeline.sh` can drive the approved path
+   without faking a TTY, not as a way to skip human approval on a real run.
+   Setting it alone, without the guard flag, is ignored (with a stderr
+   warning) and the real interactive gate still runs.
 4. **PR creation** (`lib/pr_create.sh <target-repo> --confirmed`) — only
    called by `run.sh`, only after explicit approval.
 
@@ -81,6 +112,22 @@ but `python3` is not found, `run.sh` hard-fails rather than silently
 falling back — running the wrong gate set would defeat the "100% pass
 before a human sees the diff" contract. No config file (an un-specialized
 fork) keeps the original hardcoded eslint+playwright behavior.
+
+A custom gate's resolved `script` and `cwd` are contained to the target
+repo: both are resolved with `cd ... && pwd -P` (this project's existing
+path-resolution idiom, no `realpath` dependency) and rejected with a clear
+`FAILED: ...` if the resolved path doesn't fall under the target repo.
+`pipeline/gate-config.json` is read from the **Agentic Light workspace**
+(`$PIPELINE_DIR/gate-config.json`), not from the target repo's own tree —
+so this containment check is what stops a traversal path like `"script":
+"../../evil.sh"`, or a legitimate-looking relative path resolving through a
+symlink, from reaching outside `$TARGET_REPO`; without it, a
+malicious/compromised fork's `gate-config.json` could point a gate
+anywhere on disk. The script path is additionally rejected outright if its
+final component is a symlink (not just if its parent directory resolves
+outside the target repo) — resolving only the parent directory would let a
+symlinked script pass containment while still executing whatever it
+points at.
 
 Before any of this runs, the file is validated in full (see "Flow" step 0
 above) — an unknown gate name or a malformed `custom` object fails the run

@@ -223,7 +223,10 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `FAIL`, and skips any file already covered by `.gitignore` (expected local
   config, not a leak risk). Separately `WARN`s if `.mcp.json`,
   `.agentic-light.conf`, or `System_Config/.notify.env` — each documented
-  elsewhere as local-only — isn't actually gitignored.
+  elsewhere as local-only — isn't actually gitignored. The pattern set lives
+  once, in `config.sh`'s `looks_like_secret`, shared with
+  `pipeline/run.sh`'s pre-commit secret scan (see `pipeline/README.md`) —
+  not duplicated between the two.
 - **`notify.sh`** — `notify.sh "<title>" "<body>"`. Sends to
   `SLACK_WEBHOOK_URL` and/or `GCHAT_WEBHOOK_URL` (both may be set; each tried
   independently), plus an opt-in local macOS banner
