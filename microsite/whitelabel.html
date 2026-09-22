@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f9f5f1" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#1c1e1c" media="(prefers-color-scheme: dark)">
+    <title>White-labeling — Agentic Light</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:ital,wght@0,400..700;1,400..700&amp;family=Rosarivo:ital@0;1&amp;display=swap" rel="stylesheet">
+<style>
+/* ClassicCottrell design system — 2026-07-10 */
+/* DO NOT EDIT THIS BLOCK — copy it verbatim when creating new HTML pages. */
+:root{
+  --bg:#f9f5f1;--surface:#fffdfb;
+  --ink:#2c2c2c;--ink-2:#4a463f;--muted:#77726a;--rule:#e4ddd2;
+  --accent:#437057;--accent-hover:#2f4f3e;--accent-ink:#f9f5f1;
+  --accent-soft:#e2ebe4;--accent-soft-ink:#2f4f3e;
+  --ok:#437057;--warn:#a07d33;--fail:#b4462f;
+  --radius:0.625rem;--shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
+  --sans:"Red Hat Display",ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --serif:"Rosarivo",Georgia,"Times New Roman",serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#1c1e1c;--surface:#262825;
+    --ink:#f2ede5;--ink-2:#cfcac0;--muted:#a7a297;--rule:rgba(255,255,255,.12);
+    --accent:#7fa88c;--accent-hover:#a9c4b3;--accent-ink:#16211a;
+    --accent-soft:#33413a;--accent-soft-ink:#cfe0d5;
+    --ok:#7fa88c;--warn:#c2a878;--fail:#d9694f;--shadow:none;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink-2);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.wrap{max-width:60rem;margin:0 auto;padding:0 clamp(1.25rem,5vw,3rem)}
+a{color:var(--accent)}
+header.site{position:sticky;top:0;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:saturate(120%) blur(12px);border-bottom:1px solid var(--rule)}
+header.site .wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:56px}
+.wordmark{font-family:var(--mono);font-size:.875rem;font-weight:600;color:var(--ink);text-decoration:none}
+.wordmark .pr{color:var(--accent)}
+.back{font-family:var(--mono);font-size:.78rem;color:var(--ink-2);text-decoration:none;border:1px solid var(--rule);padding:.4rem .75rem;border-radius:var(--radius)}
+.back:hover{border-color:var(--accent);color:var(--accent)}
+main{padding:clamp(2.5rem,6vw,4rem) 0}
+.eyebrow{font-family:var(--mono);text-transform:uppercase;font-size:.72rem;letter-spacing:.1em;color:var(--muted);margin:0 0 .5rem}
+h1{color:var(--ink);font-weight:700;font-size:clamp(1.9rem,1.4rem + 2vw,2.6rem);letter-spacing:-.02em;line-height:1.1;margin:.3rem 0 1rem}
+h2{color:var(--ink);font-weight:600;font-size:1.375rem;line-height:1.25;margin:2rem 0 .75rem}
+h3{color:var(--ink);font-weight:600;font-size:1.125rem;margin:1.5rem 0 .5rem}
+h4{color:var(--ink);font-weight:600;font-size:1rem;margin:1rem 0 .5rem}
+p{max-width:68ch;margin:0 0 1rem}
+.lede{font-size:1.15rem;color:var(--ink-2);max-width:60ch;line-height:1.6}
+ul,ol{max-width:68ch;padding-left:1.5rem;margin:.5em 0}
+li{margin:.35rem 0}
+code{font-family:var(--mono);font-size:.85rem;background:var(--accent-soft);color:var(--accent-soft-ink);padding:2px 6px;border-radius:calc(var(--radius)/2)}
+pre{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin:1rem 0}
+pre code{background:none;color:var(--ink-2);padding:0;font-family:var(--mono)}
+table{border-collapse:collapse;width:100%;max-width:68ch;margin:1rem 0}
+th{font-family:var(--mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);text-align:left;font-weight:600;padding:.6rem .8rem;border-bottom:2px solid var(--rule)}
+td{font-size:.92rem;padding:.6rem .8rem;border-bottom:1px solid var(--rule);vertical-align:top}
+tbody tr:hover{background:var(--accent-soft)}
+hr{border:none;border-top:1px solid var(--rule);margin:2rem 0}
+.card{border:1px solid var(--rule);border-left:3px solid var(--accent);border-radius:var(--radius);background:var(--surface);padding:1.1rem 1.375rem;margin:1.5rem 0;box-shadow:var(--shadow);max-width:68ch}
+.btn{display:inline-flex;align-items:center;gap:.4rem;font-size:.875rem;font-weight:600;padding:0 1.1rem;min-height:2.5rem;border-radius:var(--radius);text-decoration:none;background:var(--accent);color:var(--accent-ink);border:1px solid transparent;transition:background .15s}
+.btn.alt{background:transparent;color:var(--accent);border-color:var(--rule)}
+.btn:hover{background:var(--accent-hover)}
+.btn.alt:hover{background:var(--accent-soft);border-color:var(--accent)}
+footer.site{border-top:1px solid var(--rule);margin-top:3rem}
+footer.site .wrap{padding:2rem 0;color:var(--muted);font-size:.85rem}
+footer.site a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:var(--radius)}
+  .subnav{border-bottom:1px solid var(--rule)}
+  .subnav .wrap{padding:.55rem clamp(1.25rem,5vw,3rem)}
+
+/* editorial display type — ClassicCottrell */
+h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
+</style>
+</head>
+<body>
+<!-- HEADER: wordmark always points at microsite/index.html — every page in this microsite is a sibling. -->
+<header class="site">
+    <div class="wrap">
+        <a class="wordmark" href="index.html">agentic-light <span class="pr">~ %</span></a>
+    </div>
+</header>
+<div class="subnav">
+    <div class="wrap"><a class="back" href="index.html">← back</a></div>
+</div>
+
+<main>
+    <div class="wrap">
+        <p class="eyebrow">// guide</p>
+        <h1>White-labeling this template</h1>
+        <p class="lede">Presets narrow the <em>roster and gates</em> for a use case. White-labeling goes further; it strips this repo's own identity, the name "Agentic Light", the generic multi-preset framing, the unused role files and skill dirs, so what ships looks like a tool built from scratch for exactly one job.</p>
+
+        <div class="card">
+            <strong>Not the same as a preset.</strong> Picking <code>--preset wcag-harness</code> configures which roles/gates/skills are <em>active</em>. It edits three JSON files and leaves everything else on disk untouched: <code>System_Config/specialize.sh</code>'s own setup step says so directly: <code>config-only gate; files are never deleted</code>. White-labeling is the pass that comes after, deleting what specialize.sh only deselected, and rewriting the identity layer (name, <code>CLAUDE.md</code>, docs) around the one job the fork now does.
+        </div>
+
+        <h2>What white-label means here, concretely</h2>
+        <ul>
+            <li><strong>Rename</strong>: "Agentic Light" stops appearing anywhere: root <code>README.md</code>, <code>CLAUDE.md</code>'s title and wordmark references, <code>microsite/template.html</code>'s <code>&lt;title&gt;</code> suffix and <code>.wordmark</code> text (every generated microsite page inherits both from the template), <code>package.json</code>-equivalent metadata if the target repo has one.</li>
+            <li><strong>Strip, don't deselect</strong>: delete the preset entries, role files, and skill dirs the fork will never use, instead of leaving them selected-off in JSON. A generic fork carries all 6 roles and 12 <code>figma-*</code> skill dirs for optionality; a white-labeled one carries only what the one job needs.</li>
+            <li><strong>Rewrite <code>CLAUDE.md</code>/<code>AGENTS.md</code> for one job</strong>: the shipped <code>CLAUDE.md</code> documents a generic multi-preset harness (6 roles, "pick a preset"). A white-labeled fork's version should describe the one thing this instance does, not the menu it was chosen from.</li>
+            <li><strong>Narrow policy prose</strong>: if your fork carries a <code>GOVERNANCE.md</code> (this template does not ship one yet), the same narrowing applies: rewrite its generic role-framing around the one specialization, rather than leaving 6-role language that no longer describes what's active.</li>
+        </ul>
+
+        <h2>Walkthrough: an internal accessibility-review bot</h2>
+        <p>Scenario: a team wants to ship this as their own internal tool, "our WCAG bot," with no trace of the generic template underneath. Grounded in <code>wcag-harness</code>'s real definition in <code>System_Config/presets.json</code>: <code>architect+coder+creative-director+qa</code>, a <code>playwright</code> gate, and honestly, <code>"no shipped skill dirs cover accessibility review yet"</code>.</p>
+
+        <ol>
+            <li><strong>Specialize first.</strong> <code>bash System_Config/specialize.sh --preset wcag-harness</code>. Writes <code>System_Config/agent-roster.json</code> (4 active roles), <code>pipeline/gate-config.json</code> (<code>playwright</code>), <code>System_Config/skills-selected.json</code> (empty, see below).</li>
+            <li><strong>Delete the unused roles' files.</strong> <code>curator</code> and <code>eng-manager</code> are inactive under this preset. Removing <code>agents/curator.md</code> and <code>agents/eng-manager.md</code> is safe against <code>healthcheck.sh</code>'s roster check (Layer B), which only validates frontmatter on the agent files that <em>exist</em>; it does not require all 6. The generated preset page will still list them as <code>&mdash; inactive</code> by name (the roster table's role list comes from the fixed set in <code>agent-roster.schema.json</code>, not from which files are present, which is fine for an already-decided single-purpose fork, or delete the whole <code>presets/</code> section from the rewritten <code>CLAUDE.md</code>/docs if that framing no longer applies.</li>
+            <li><strong>Delete the unused skill dirs.</strong> All 12 shipped dirs under <code>skills/</code> are <code>figma-*</code>; none apply to accessibility review. Delete the lot: <code>rm -rf skills/figma-*</code>. This matches what <code>skills-selected.json</code> already says (empty for this preset); deleting just makes the filesystem agree with the config instead of leaving 12 dead dirs around.</li>
+            <li><strong>Author the missing skill.</strong> The preset's own gap note says accessibility review has no shipped skill yet. A real white-label pass writes one, <code>skills/wcag-review/SKILL.md</code>, rather than shipping the bot without the domain knowledge its name promises.</li>
+            <li><strong>Prune <code>presets.json</code> down to one entry (or remove the concept entirely).</strong> Delete the other 5 preset objects, keep only the one this fork is. Re-run <code>python3 System_Config/gen_preset_pages.py</code>: its orphan sweep deletes the now-unlisted pages under <code>microsite/presets/</code> automatically (verified in the script: any <code>.html</code> under <code>presets/</code> not matching a current key is removed on a real run). <code>microsite/dashboard.html</code> is hand-maintained, not generated; its README says to update it by hand when <code>presets.json</code>'s shape changes, so edit its preset cards and roster table to match.</li>
+            <li><strong>Rename before regenerating.</strong> Edit <code>microsite/template.html</code>'s <code>&lt;title&gt;</code> and <code>.wordmark</code> text first; every generated page (preset pages via <code>gen_preset_pages.py</code>, <code>index.html</code>'s marker blocks via <code>gen_site.py</code>) inherits both from the template. Rename, <em>then</em> re-run both generators, not the other way; re-running before the rename just bakes the old name back in.</li>
+            <li><strong>Rewrite <code>CLAUDE.md</code>.</strong> Replace the generic "6 roles, pick a preset" framing with a description of the one thing this fork does: an internal accessibility-review bot for this team, not a template.</li>
+            <li><strong>Tighten what specialize.sh left generic.</strong> A single-purpose harness no longer needs the <code>custom</code> gate placeholder's escape hatch (see <code>data-pipeline</code>'s definition, a <code>{"name": "custom", "script": ""}</code> stub with no script wired in) or a configurable multi-preset gate list. Recommend, once <code>GOVERNANCE.md</code> exists in your fork, hand-fixing the pipeline to exactly <code>playwright</code> plus whatever accessibility-specific check the team standardizes on, instead of leaving the gate list open-ended. This is a recommendation grounded in what <code>specialize.sh</code> and <code>presets.json</code> actually leave configurable, not a claim about specifics of hardening work not yet reviewed here.</li>
+        </ol>
+
+        <h2>What NOT to touch</h2>
+        <p>The mechanism stays. Only the identity and scope narrow.</p>
+        <ul>
+            <li><strong>Gate/pipeline mechanics</strong> in <code>pipeline/run.sh</code>, <code>pipeline/lib/</code>: the ordered gate-run, human-approval, and PR-draft flow doesn't change per fork.</li>
+            <li><strong>Session logging</strong>: <code>System_Config/log_session.sh</code> and its output shape stay as-is.</li>
+            <li><strong>Healthcheck's layered structure</strong>: <code>System_Config/healthcheck.sh</code>'s PASS/WARN/FAIL layers keep working against whatever roster/skill files remain; they don't assume all 6 roles or all 12 skills exist.</li>
+            <li><strong>The generator scripts themselves</strong> (<code>gen_site.py</code>, <code>gen_preset_pages.py</code>): don't fork or hand-edit their logic; they already handle a pruned <code>presets.json</code> and a trimmed <code>agents/</code> dir correctly.</li>
+        </ul>
+
+        <h2>Checklist</h2>
+        <table>
+          <thead><tr><th>File / dir</th><th>Action</th></tr></thead>
+          <tbody>
+              <tr><td><code>System_Config/specialize.sh --preset &lt;name&gt;</code></td><td>Run first, sets active roles/gates/skills</td></tr>
+              <tr><td><code>agents/&lt;inactive-role&gt;.md</code></td><td>Delete for each role not in the preset</td></tr>
+              <tr><td><code>skills/&lt;unused-dir&gt;/</code></td><td>Delete entirely, don't just leave unselected in <code>skills-selected.json</code></td></tr>
+              <tr><td><code>skills/&lt;new-skill&gt;/SKILL.md</code></td><td>Author if the preset's <code>skills_gap_note</code> flags a gap</td></tr>
+              <tr><td><code>System_Config/presets.json</code></td><td>Prune to the one preset in use (or drop the concept)</td></tr>
+              <tr><td><code>microsite/template.html</code></td><td>Rename title/wordmark <em>before</em> regenerating anything</td></tr>
+              <tr><td><code>python3 System_Config/gen_preset_pages.py</code></td><td>Re-run after pruning presets.json, auto-removes orphaned preset pages</td></tr>
+              <tr><td><code>python3 System_Config/gen_site.py</code></td><td>Re-run after renaming/role changes, refreshes roster/skill tables</td></tr>
+              <tr><td><code>microsite/dashboard.html</code></td><td>Hand-edit; not generated, hardcodes all 6 presets by default</td></tr>
+              <tr><td><code>CLAUDE.md</code> / <code>AGENTS.md</code></td><td>Rewrite for the one use case, not the generic 6-role menu</td></tr>
+              <tr><td><code>GOVERNANCE.md</code></td><td>If your fork carries one, narrow its policy prose to the one specialization</td></tr>
+              <tr><td><code>pipeline/gate-config.json</code></td><td>Consider fully specifying it, drop the <code>custom</code>-gate placeholder pattern</td></tr>
+              <tr><td>Pipeline/gate/logging mechanics</td><td>Leave alone; the harness, not the identity, is what specialize.sh already handles</td></tr>
+          </tbody>
+        </table>
+
+        <h2>See also</h2>
+        <p>
+            <a href="presets/wcag-harness.html">presets/wcag-harness.html</a> ·
+            <a href="presets/design-harness.html">presets/design-harness.html</a> ·
+            <a href="../README.md">root README.md</a> (Specialize section)
+        </p>
+    </div>
+</main>
+
+<!-- FOOTER: update "Page Name" to match this page; home/health links stay relative siblings. -->
+<footer class="site">
+    <div class="wrap">
+        agentic-light · White-labeling · <a href="index.html">home</a> · <a href="health.html">health</a>
+    </div>
+</footer>
+
+</body>
+</html>
