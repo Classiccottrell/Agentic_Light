@@ -24,17 +24,15 @@
     "skills": "*"
   },
   "server-harness": {
-    "description": "architect+coder+qa, no default gates, no shipped skills yet",
+    "description": "architect+coder+qa, no default gates, server-review skill",
     "roles": ["architect", "coder", "qa"],
     "gates": [],
-    "skills": [],
-    "skills_gap_note": "no shipped skill dirs apply to server work yet"
+    "skills": ["server-review"]
   },
   "wcag-harness": {
-    "description": "architect+coder+creative-director+qa, playwright gate, no shipped skills yet",
+    "description": "architect+coder+creative-director+qa, playwright gate, wcag-audit skill",
     "roles": ["architect", "coder", "creative-director", "qa"],
     "gates": ["playwright"],
-    "skills": [],
-    "skills_gap_note": "no shipped skill dirs cover accessibility review yet"
+    "skills": ["wcag-audit"]
   }
 }

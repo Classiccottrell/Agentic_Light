@@ -233,9 +233,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   coder+qa, no gates, all skills; `data-pipeline`: architect+coder+qa,
   placeholder custom gate, all skills; `design-harness`:
   architect+coder+creative-director+qa, playwright gate only, all skills;
-  `server-harness`: architect+coder+qa, no default gates, no shipped skills
-  yet; `wcag-harness`: architect+coder+creative-director+qa, playwright gate
-  only, no shipped skills yet); so do the
+  `server-harness`: architect+coder+qa, no default gates, `server-review`
+  skill; `wcag-harness`: architect+coder+creative-director+qa, playwright
+  gate only, `wcag-audit` skill); so do the
   `AGENTIC_LIGHT_ROLES`/`AGENTIC_LIGHT_GATES`/`AGENTIC_LIGHT_SKILLS`
   comma-separated env overrides (mirrors `bootstrap.sh`'s
   `AGENTIC_LIGHT_*` convention). `data-pipeline`'s custom gate ships with an
@@ -248,15 +248,15 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   custom gate — a server project's test command varies too much to guess,
   and an always-failing placeholder preset would be less honest than an
   explicit "no default gates" preset a human fills in later. `server-harness`
-  and `wcag-harness` both ship `"skills": []` with a `skills_gap_note` field
-  (the only two presets to set one — `wcag-harness` because no shipped
-  `skills/*` dir covers accessibility review); when present, `specialize.sh`
-  prints an informational "no skill content yet" note after resolving the
-  preset, distinguishing a known content gap from a role-appropriate empty
-  selection. `wcag-harness` shares `design-harness`'s exact roster and its
-  single `playwright` gate — the differentiator is scope, not shape: the
-  architect reviews semantic HTML structure, creative-director reviews
-  contrast/visual hierarchy, and the actual axe-core assertions live in the
+  ships `"skills": ["server-review"]` (see `skills/server-review/SKILL.md`) and
+  `wcag-harness` ships `"skills": ["wcag-audit"]`; a preset only carries a
+  `skills_gap_note` field when its listed skill selection is a genuinely
+  known content gap, not by default — neither preset sets one now that both
+  have a shipped skill dir. `wcag-harness` shares `design-harness`'s exact
+  roster and its single `playwright` gate — the differentiator is scope, not
+  shape: the architect reviews semantic HTML structure, creative-director
+  reviews contrast/visual hierarchy, `wcag-audit` drives the 4-pass
+  audit/checklist method, and the actual axe-core assertions live in the
   target repo's own Playwright spec files, not in the gate mechanism itself
   (this project's gate schema has no dedicated accessibility gate type).
   Interactive

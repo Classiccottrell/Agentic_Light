@@ -32,8 +32,8 @@ case "${1:-}" in
     echo "                   cli-tool: coder+qa, no gates, all skills"
     echo "                   data-pipeline: architect+coder+qa, placeholder custom gate (needs a script), all skills"
     echo "                   design-harness: architect+coder+creative-director+qa, playwright gate, all skills"
-    echo "                   server-harness: architect+coder+qa, no default gates, no shipped skills yet"
-    echo "                   wcag-harness: architect+coder+creative-director+qa, playwright gate, no shipped skills yet"
+    echo "                   server-harness: architect+coder+qa, no default gates, server-review skill"
+    echo "                   wcag-harness: architect+coder+creative-director+qa, playwright gate, wcag-audit skill"
     echo "  --help           this message"
     echo
     echo "Env overrides (non-interactive): AGENTIC_LIGHT_ROLES, AGENTIC_LIGHT_GATES,"
