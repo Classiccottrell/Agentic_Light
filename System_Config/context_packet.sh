@@ -94,4 +94,7 @@ case "$TOP" in ''|*[!0-9]*) TOP=5;; esac
       echo
     done
   fi
-} | awk -v max="$MAX_LINES" 'NR <= max { print }' | LC_ALL=C head -c "$MAX_BYTES"
+} | awk -v max="$MAX_LINES" 'NR <= max { print }' | LC_ALL=C head -c "$MAX_BYTES" || {
+  status=$?
+  [ "$status" -eq 141 ] || exit "$status"
+}

@@ -50,10 +50,17 @@ def links(root, docs):
     output = []
     for item in docs:
         path = root / item["path"]
-        _, body = parse_frontmatter(path)
+        meta, body = parse_frontmatter(path)
         for target in LINK_RE.findall(body):
             target = target.strip()
             output.append({"source": item["path"], "target": by_id.get(target, target), "relation": "related", "origin": "body", "confidence": 1.0 if target in by_id else 0.0})
+        for field in ("related", "source"):
+            values = meta.get(field, [])
+            if not isinstance(values, list):
+                values = [values]
+            for target in LINK_RE.findall(" ".join(str(value) for value in values)):
+                target = target.strip()
+                output.append({"source": item["path"], "target": by_id.get(target, target), "relation": field, "origin": "frontmatter", "confidence": 1.0 if target in by_id else 0.0})
     return output
 
 

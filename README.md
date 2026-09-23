@@ -116,10 +116,12 @@ fork" if neither exists), and the `healthcheck.sh` config-security scan.
 ## Everything else, briefly
 
 **Brain** (`brain/`) — a plain-markdown + SQLite second brain, optionally
-viewable as an Obsidian vault. `brain/raw/` holds clipped notes,
-`daily_ingest.sh` wikifies them into `brain/wiki/`,
-`memory_index.py`/`memory_search.py` add local-Ollama semantic search over
-the wiki — all plain-text/stdlib, zero Obsidian dependency. `.obsidian/` is
+viewable as an Obsidian vault. `brain/raw/` holds immutable clipped notes;
+typed records under `brain/records/` capture projects, decisions, learnings,
+references, and sessions. `context.sh` validates, catalogs, searches, curates,
+and builds profile-scoped packets; FTS5 works offline and Ollama embeddings
+are optional. `daily_ingest.sh` still wikifies raw clips into `brain/wiki/`.
+All source is plain text/stdlib, with zero Obsidian dependency. `.obsidian/` is
 shipped for zero-setup Obsidian viewing but is not required by the pipeline.
 See `brain/README.md`.
 

@@ -27,6 +27,9 @@ brain/
     └── [YYYY]/YYYY-Www.md           ← e.g. weekly_logs/2026/2026-W30.md
 ```
 
+`records/` is the durable, app-agnostic contract for projects, decisions,
+learnings, references, and sessions. `index/` is disposable generated output.
+
 ---
 
 ## Layer 1 — Raw (Immutable)
@@ -138,6 +141,11 @@ without changing the source. Use `--review` to inspect medium and low
 confidence candidates. Use `--apply` only when an explicit workflow permits
 validated high-confidence links; it appends a Related Context section and
 creates an AI session record. Human prose is never rewritten.
+
+`System_Config/context.sh validate` checks record frontmatter, required
+sections, provenance, IDs, and wikilinks. `context.sh catalog` rebuilds
+`brain/index/catalog.json` and `links.json`; links in record bodies and
+`related`/`source` frontmatter are projected together.
 
 ### Semantic search index (cache, not source of truth)
 `System_Config/memory_index.py --root <workspace>` indexes records, wiki

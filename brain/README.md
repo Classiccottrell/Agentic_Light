@@ -1,7 +1,8 @@
 # brain/ — Second Brain (plain markdown + SQLite)
 
-The context layer is plain markdown (`brain/wiki/*.md`, `brain/raw/`,
-`brain/weekly_logs/`) plus a gitignored SQLite semantic-search cache
+The context layer is plain markdown (`brain/records/`, `brain/wiki/*.md`,
+`brain/raw/`, `brain/weekly_logs/`) plus gitignored catalog and SQLite
+search caches
 (`memory_index.py`/`memory_search.py`) — readable and writable by any editor,
 script, or agent, with zero Obsidian dependency. Opening it in Obsidian is
 one optional way to browse it (graph view, backlinks, switcher); it is not
@@ -35,6 +36,15 @@ offline; add `--semantic` to request local Ollama embeddings. Use
 `System_Config/memory_search.py "<query>" --root <workspace> --json` for
 typed results with excerpts. Markdown remains the source of truth and the
 cache can be deleted and rebuilt at any time.
+
+Use `System_Config/context.sh` as the provider-neutral entrypoint. `validate`
+checks typed records, `catalog` rebuilds metadata and links, `packet` creates
+a bounded profile-scoped handoff, and `curate <record> --suggest|--review|--apply`
+lets an agent propose or apply high-confidence links without rewriting human
+prose.
+
+The durable record contract and curation safety rules are defined in
+`brain/CLAUDE.md`; generated indexes are disposable and never replace Markdown.
 
 ## Weekly cycle
 - `System_Config/monday_init.sh` — starts the week's note + raw folder. Also runs automatically the first time `log_session.sh` logs a session in a week with no note yet; sessions are appended after initialization succeeds, while initialization failure emits a warning and skips the append.
