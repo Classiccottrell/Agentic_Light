@@ -61,7 +61,9 @@ bash pipeline/run.sh --help   # print usage and exit
    injecting Agentic Light's own roadmap/session context into every coder
    prompt would leak unrelated-workspace context into someone else's repo.
    Fails silently, same as skill routing above — never blocks the coder
-   step.
+   step. Set `AGENTIC_LIGHT_CONTEXT_PROFILE=<name>` to use the profile-driven
+   packet interface; without it, the legacy Agentic Light packet remains the
+   compatibility path.
 1. **Code Patch** — `run.sh` itself creates the feature branch
    (`git checkout -b agentic-light/<run-id>`) in the target repo, then
    invokes the `coder` step via `System_Config/run_agent.sh`, scoped to the

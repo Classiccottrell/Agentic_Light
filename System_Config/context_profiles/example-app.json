@@ -1,0 +1,7 @@
+{
+  "name": "example-app",
+  "context_root": "brain",
+  "default_scopes": ["project", "decision", "learning", "session"],
+  "roadmap": "ROADMAP.md",
+  "include_paths": []
+}

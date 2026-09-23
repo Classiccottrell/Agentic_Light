@@ -137,6 +137,19 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   (`AGENTIC_LIGHT_CONTEXT_PACKET=1`, or automatically when the pipeline's
   target repo resolves to this workspace's own root) — never injected into an
   unrelated external target repo by default.
+- **`context_validate.py`** / **`context_catalog.py`** — validate typed
+  `brain/records/` Markdown and build disposable `brain/index/catalog.json`
+  and `brain/index/links.json` projections. Markdown stays canonical; broken
+  links, duplicate IDs, missing provenance, and invalid record sections fail
+  validation.
+- **`context.sh`** — app-agnostic entrypoint: `validate`, `catalog`, `packet`,
+  and `curate <record> --suggest|--review|--apply`. Profiles restrict packet
+  context roots and explicit includes; curation proposes links from human
+  records and applies only high-confidence links while recording an AI session.
+- **`test_context_layer.sh`** — end-to-end fixture covering record validation,
+  frontmatter/body links, curation, FTS excerpts, bounded packets, unrelated
+  profiles, broken links, duplicate IDs, stale embedding dimensions, Ollama
+  absence, Unicode byte caps, and raw-source immutability.
 - **`test_context_packet.sh`** — fixture tests for `context_packet.sh`: a
   tiny `AGENTIC_LIGHT_CONTEXT_MAX_LINES`/`AGENTIC_LIGHT_CONTEXT_MAX_BYTES`
   budget against a synthetic `ROADMAP.md` with a dense multi-byte (em dash)
@@ -187,8 +200,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `MAX_CLIPS_PER_RUN × (MAX_SECONDS + 30s)` so a legitimately long ingest is
   never reclaimed from under itself; `DRY_RUN=1` preview.
 
-- **`memory_index.py`** — `memory_index.py [--force]`. Embeds
-  `brain/wiki/*.md` pages via a local Ollama call
+- **`memory_index.py`** — `memory_index.py [--root ROOT] [--force]`. Builds
+  SQLite FTS5 over the unified context catalog; `--semantic` additionally
+  embeds records, wiki pages, and weekly logs via a local Ollama call
   (`POST /api/embeddings`, model `nomic-embed-text`, stdlib `urllib`) into
   `brain/wiki/.memoryfield.sqlite3` (gitignored cache, not source of
   truth — `brain/wiki/*.md` stays canonical). Incremental: re-embeds only
