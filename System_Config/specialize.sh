@@ -113,12 +113,14 @@ print(json.dumps(p.get('gates', [])))
 print('*' if skills == '*' else ','.join(skills))
 print(p.get('skills_gap_note', ''))
 print(','.join(p.get('requires', [])))
+print(json.dumps(p.get('capabilities', {})))
 ")" || exit 1
   SEL_ROLES="$(printf '%s\n' "$PRESET_DATA" | sed -n '1p' | tr ',' ' ')"
   SEL_GATES_JSON="$(printf '%s\n' "$PRESET_DATA" | sed -n '2p')"
   SEL_SKILLS_RAW="$(printf '%s\n' "$PRESET_DATA" | sed -n '3p')"
   SKILLS_GAP_NOTE="$(printf '%s\n' "$PRESET_DATA" | sed -n '4p')"
   PRESET_REQUIRES="$(printf '%s\n' "$PRESET_DATA" | sed -n '5p')"
+  SEL_CAPABILITIES_JSON="$(printf '%s\n' "$PRESET_DATA" | sed -n '6p')"
   if [ "$SEL_SKILLS_RAW" = "*" ]; then
     SEL_SKILLS="$SKILL_DIRS"
   else
@@ -213,6 +215,8 @@ else
   exit 1
 fi
 
+SEL_CAPABILITIES_JSON="${SEL_CAPABILITIES_JSON:-{}}"
+
 [ -n "$SEL_GATES_JSON" ] || SEL_GATES_JSON="[]"
 
 # ---------------------------------------------------------------------------
@@ -250,11 +254,12 @@ done
 # duplicated here) and validate before writing.
 # ---------------------------------------------------------------------------
 ROSTER_TMP="$(mktemp "${TMPDIR:-/tmp}/agent-roster.XXXXXX")"
-python3 - "$ROOT" "$SEL_ROLES" "$ROSTER_TMP" "$ROSTER_SCHEMA" <<'PYEOF'
+python3 - "$ROOT" "$SEL_ROLES" "$SEL_CAPABILITIES_JSON" "$ROSTER_TMP" "$ROSTER_SCHEMA" <<'PYEOF
 import json, sys
 
-root, sel_roles_str, out_path, schema_path = sys.argv[1:5]
+root, sel_roles_str, capabilities_json, out_path, schema_path = sys.argv[1:6]
 sel_roles = set(sel_roles_str.split())
+selected_caps = json.loads(capabilities_json)
 
 with open(schema_path) as f:
     schema = json.load(f)
@@ -273,7 +278,9 @@ except FileNotFoundError:
 roster = {"roles": {}}
 for role in all_roles:
     entry = {"active": role in sel_roles}
-    if role in default_caps:
+    if role in selected_caps:
+        entry["capabilities"] = selected_caps[role]
+    elif role in default_caps:
         entry["capabilities"] = default_caps[role]
     roster["roles"][role] = entry
 

@@ -9,6 +9,7 @@ PRESETS = ROOT / "System_Config" / "presets.json"
 AGENTS = ROOT / "agents"
 SKILLS = ROOT / "skills"
 KNOWN_GATES = {"eslint", "playwright", "axe"}
+KNOWN_CAPABILITIES = {"read", "write", "shell", "delegate"}
 KNOWN_ROLES = {p.stem for p in AGENTS.glob("*.md") if p.name != "README.md"}
 
 
@@ -37,6 +38,25 @@ def audit():
         for skill in preset.get("skills", []):
             if skill != "*" and not (SKILLS / skill / "SKILL.md").is_file():
                 errors.append(f"{name}: missing skill {skill}")
+        capabilities = preset.get("capabilities", {})
+        if not isinstance(capabilities, dict):
+            errors.append(f"{name}: capabilities must be an object")
+        else:
+            for role, granted in capabilities.items():
+                if role not in (roles or []):
+                    errors.append(f"{name}: capabilities contains inactive role {role}")
+                if not isinstance(granted, list) or not granted or len(granted) != len(set(granted)):
+                    errors.append(f"{name}: capabilities.{role} must be a non-empty unique list")
+                elif any(cap not in KNOWN_CAPABILITIES for cap in granted):
+                    errors.append(f"{name}: capabilities.{role} has unknown capability")
+        handoff = preset.get("handoff", [])
+        if not isinstance(handoff, list):
+            errors.append(f"{name}: handoff must be a list")
+        for item in handoff if isinstance(handoff, list) else []:
+            if not isinstance(item, dict) or item.get("from") not in (roles or []) or item.get("to") not in (roles or []):
+                errors.append(f"{name}: handoff entries must connect active roles")
+            elif not isinstance(item.get("scope"), list) or not item["scope"]:
+                errors.append(f"{name}: handoff scope must be a non-empty list")
         for role in preset.get("role_notes", {}):
             if role not in (roles or []):
                 errors.append(f"{name}: role_notes contains inactive role {role}")
@@ -44,6 +64,11 @@ def audit():
             missing = set(roles or []) - set(preset.get("role_notes", {})) - {"coder"}
             if missing:
                 errors.append(f"{name}: missing focused role_notes for {sorted(missing)}")
+            missing_caps = set(roles or []) - set(capabilities if isinstance(capabilities, dict) else {})
+            if missing_caps:
+                errors.append(f"{name}: missing focused capabilities for {sorted(missing_caps)}")
+            if not handoff:
+                errors.append(f"{name}: focused preset requires handoff contracts")
     if errors:
         for error in errors:
             print(f"preset_audit: FAIL: {error}", file=sys.stderr)

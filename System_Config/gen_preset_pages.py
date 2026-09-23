@@ -114,6 +114,18 @@ def build_role_notes_block(preset):
     )
 
 
+def build_handoff_block(preset):
+    handoff = preset.get('handoff')
+    if not handoff:
+        return ''
+    items = ''.join(
+        '<li><code>' + html_mod.escape(item['from']) + ' &#8594; ' + html_mod.escape(item['to']) + '</code>: '
+        + html_mod.escape(', '.join(item['scope'])) + '</li>'
+        for item in handoff
+    )
+    return '\n\n        <h2>Handoff Contract</h2>\n        <ul>' + items + '</ul>'
+
+
 def build_flowchart(active_roles, gates):
     steps = ['Task in'] + list(active_roles) + (['Gate: ' + ', '.join(gate_label(g) for g in gates)] if gates else ['No automated gate']) + ['Human gate', 'PR']
     escaped = [html_mod.escape(s) for s in steps]
@@ -146,7 +158,8 @@ def render_page(name, preset, all_roles, template):
         '\n'
         '        <h2>Skills</h2>\n        ' + build_skills_note(preset)
         + build_requires_block(preset)
-        + build_role_notes_block(preset) + '\n'
+        + build_role_notes_block(preset)
+        + build_handoff_block(preset) + '\n'
         '\n'
         '        <h2>Task Flow</h2>\n'
         '        <pre><code>' + build_flowchart(active_roles, gates) + '</code></pre>\n'
