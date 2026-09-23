@@ -10,5 +10,6 @@ case "$COMMAND" in
   packet) exec "$SCRIPT_DIR/context_packet.sh" --root "$ROOT" "$@";;
   validate) exec python3 "$SCRIPT_DIR/context_validate.py" validate "${1:-$ROOT/brain/records}" --root "$ROOT";;
   catalog) exec python3 "$SCRIPT_DIR/context_catalog.py" build --root "$ROOT" --out-dir "$ROOT/brain/index";;
-  *) echo "usage: context.sh [--root ROOT] packet|validate|catalog" >&2; exit 2;;
+  curate) FILE="${1:-}"; shift || true; exec python3 "$SCRIPT_DIR/context_curate.py" "$FILE" --root "$ROOT" "$@";;
+  *) echo "usage: context.sh [--root ROOT] packet|validate|catalog|curate" >&2; exit 2;;
 esac

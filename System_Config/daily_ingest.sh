@@ -170,6 +170,12 @@ Constraints: create-or-append only; never overwrite a page wholesale; never dele
   log_offset="$(wc -c < "$LOG" | tr -d ' ')"
   if run_agent "$PROMPT"; then
     if grep -rqF "[[${src_link}]]" "$BRAIN/wiki/" 2>/dev/null; then
+      while IFS= read -r page; do
+        [[ -z "$page" ]] && continue
+        if ! bash "$ROOT/System_Config/context.sh" --root "$ROOT" curate "$page" --apply >>"$LOG" 2>&1; then
+          log "WARN: curation failed for $page — ingest remains recorded"
+        fi
+      done < <(rg -l -F "[[${src_link}]]" "$BRAIN/wiki/" 2>/dev/null || true)
       h="$(sha256sum "$RAW/$rel" | awk '{print $1}')"
       printf '%s\t%s\n' "$h" "$rel" >> "$MANIFEST"
       total_ingested=$((total_ingested + 1))

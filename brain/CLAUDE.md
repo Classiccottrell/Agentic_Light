@@ -132,6 +132,13 @@ session that touches `brain/`.
 4. Synthesize an answer with `[[citations]]`.
 5. If the answer is novel → file it back into the wiki as a new page or update.
 
+### Human-record curation
+`System_Config/context.sh curate <record> --suggest` proposes related records
+without changing the source. Use `--review` to inspect medium and low
+confidence candidates. Use `--apply` only when an explicit workflow permits
+validated high-confidence links; it appends a Related Context section and
+creates an AI session record. Human prose is never rewritten.
+
 ### Semantic search index (cache, not source of truth)
 `System_Config/memory_index.py --root <workspace>` indexes records, wiki
 pages, and weekly logs into SQLite FTS5 at `brain/index/memory.sqlite3`.
