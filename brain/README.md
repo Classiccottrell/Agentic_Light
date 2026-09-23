@@ -1,12 +1,15 @@
-# brain/ — Second Brain (Obsidian Vault)
+# brain/ — Second Brain (plain markdown + SQLite)
 
-Open `Agentic_Light/` itself (the folder containing this `brain/` directory
-one level up, i.e. `Agentic_Light/`) as an Obsidian vault — `.obsidian/` is
-shipped at the `Agentic_Light/` root, so the vault opens with working core
-plugins and graph view out of the box. `brain/` is where the actual content
-lives.
+The context layer is plain markdown (`brain/wiki/*.md`, `brain/raw/`,
+`brain/weekly_logs/`) plus a gitignored SQLite semantic-search cache
+(`memory_index.py`/`memory_search.py`) — readable and writable by any editor,
+script, or agent, with zero Obsidian dependency. Opening it in Obsidian is
+one optional way to browse it (graph view, backlinks, switcher); it is not
+required for ingest, search, or curation to work. `.obsidian/` config is
+shipped at the `Agentic_Light/` root purely for that optional zero-setup
+Obsidian experience — see "`.obsidian/` Is Shipped" in the root `CLAUDE.md`.
 
-## Open in Obsidian
+## Open in Obsidian (optional)
 1. Obsidian → **Open folder as vault** → select `Agentic_Light/`.
 2. Graph view, backlinks, and the switcher populate from `brain/wiki/` and
    `brain/weekly_logs/` immediately (`.obsidian/graph.json` groups them by

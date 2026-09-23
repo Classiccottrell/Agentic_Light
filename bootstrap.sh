@@ -292,7 +292,9 @@ echo
 echo "=================================================="
 echo " Done. Next steps:"
 echo "=================================================="
-echo " 1. Open Agentic_Light/ in Obsidian (the folder containing .obsidian/)."
+echo " 1. (Optional) Open Agentic_Light/ in Obsidian (the folder containing"
+echo "    .obsidian/) for graph view/backlinks — the context layer itself is"
+echo "    plain markdown + SQLite and works with any editor or agent."
 echo " 2. Run bash Agentic_Light/System_Config/healthcheck.sh"
 echo " 3. Run bash Agentic_Light/System_Config/notify.sh \"title\" \"body\" to test notifications."
 echo
