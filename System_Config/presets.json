@@ -46,14 +46,14 @@
     "skills": ["server-review"]
   },
   "wcag-harness": {
-    "description": "architect+coder+creative-director+qa, playwright+axe gates, wcag-audit skill",
+    "description": "architect+coder+creative-director+qa, playwright+axe+vpat-lint gates, wcag-audit+vpat-authoring skills",
     "roles": ["architect", "coder", "creative-director", "qa"],
-    "gates": ["playwright", "axe"],
-    "skills": ["wcag-audit"],
+    "gates": ["playwright", "axe", "vpat-lint"],
+    "skills": ["wcag-audit", "vpat-authoring"],
     "role_notes": {
-      "architect": "Audit semantic HTML/ARIA structure per `wcag-audit`'s pass 4 (screen-reader/semantics): heading order, landmarks, native elements before ARIA, programmatic name/role/value (4.1.2) — before any visual sign-off.",
-      "creative-director": "Contrast ratios and visual hierarchy for low-vision/cognitive accessibility — 1.4.3/1.4.11 contrast, 1.4.1 color-alone-signals-state, 2.4.7 focus visible, 2.4.11 focus not obscured (minimum) — per `wcag-audit` pass 3, not general brand critique.",
-      "qa": "axe-core-informed accessibility checks living in the target repo's own specs (`@axe-core/playwright`), covering the machine-detectable third per `wcag-audit` — plus the required manual keyboard-only pass; axe passing alone is not a compliance claim."
+      "architect": "Audit semantic HTML/ARIA structure per `wcag-audit`'s pass 4 (screen-reader/semantics): heading order, landmarks, native elements before ARIA, programmatic name/role/value (4.1.2) — before any visual sign-off. Confirm `accessibility/vpat-draft.json` (per `vpat-authoring`) reflects this pass before handing off to creative-director.",
+      "creative-director": "Contrast ratios and visual hierarchy for low-vision/cognitive accessibility — 1.4.3/1.4.11 contrast, 1.4.1 color-alone-signals-state, 2.4.7 focus visible, 2.4.11 focus not obscured (minimum) — per `wcag-audit` pass 3, not general brand critique. Confirm these findings land in the VPAT draft's per-criterion remarks per `vpat-authoring`.",
+      "qa": "axe-core-informed accessibility checks living in the target repo's own specs (`@axe-core/playwright`), covering the machine-detectable third per `wcag-audit` — plus the required manual keyboard-only pass; axe passing alone is not a compliance claim. Also the only wcag-harness role with `shell` capability: normalize the axe scan output to `accessibility/axe-scan.json` (per `vpat-authoring`'s scan-evidence shape) so the coder's VPAT draft has real evidence to cite, and confirm `accessibility/vpat-draft.json` clears the `vpat-lint` gate before hand-off to orchestrator."
     },
     "role_capabilities": {
       "architect": ["read", "write"],

@@ -318,10 +318,11 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
 - **`specialize.sh`** — one-time fork specialization, run after
   `bootstrap.sh`. Prompts (same checkbox UX as `bootstrap.sh`) for which of
   the 6 roles (read from `agent-roster.schema.json`, never hardcoded), which
-  gates (`eslint`/`playwright`/`axe`/one `custom`, read from
+  gates (`eslint`/`playwright`/`axe`/`vpat-lint`/one `custom`, read from
   `gate-config.schema.json`), and which `skills/*` dirs (scanned live) to
-  keep. Gate prompts default to yes, except `axe`, which defaults to no:
-  it's accessibility-specific, and `wcag-harness` turns it on explicitly. Also writes (`--preset` path only) `System_Config/.active-preset`,
+  keep. Gate prompts default to yes, except `axe` and `vpat-lint`, which
+  default to no: they're accessibility-specific, and `wcag-harness` turns
+  them on explicitly. Also writes (`--preset` path only) `System_Config/.active-preset`,
   a plain-text file naming the preset — `gen_governance.py` reads it to look
   up that preset's optional `role_notes` overlay in `presets.json`. It is
   removed at the start of every run and written (mktemp + `mv`) only after
@@ -347,7 +348,8 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   plus `"requires": ["figma-mcp"]`;
   `server-harness`: architect+coder+qa, no default gates, `server-review`
   skill; `wcag-harness`: architect+coder+creative-director+qa, playwright
-  + axe gates, `wcag-audit` skill — `design-harness` and `wcag-harness` also
+  + axe + vpat-lint gates, `wcag-audit`/`vpat-authoring` skills —
+  `design-harness` and `wcag-harness` also
   carry a `role_notes` field in `presets.json`, giving `architect`/
   `creative-director`/`qa` harness-specific scope text additive to their
   generic `agents/*.md` description, rendered by `gen_governance.py` and
@@ -365,7 +367,7 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   and an always-failing placeholder preset would be less honest than an
   explicit "no default gates" preset a human fills in later. `server-harness`
   ships `"skills": ["server-review"]` (see `skills/server-review/SKILL.md`) and
-  `wcag-harness` ships `"skills": ["wcag-audit"]`; a preset only carries a
+  `wcag-harness` ships `["wcag-audit", "vpat-authoring"]`; a preset only carries a
   `skills_gap_note` field when its listed skill selection is a genuinely
   known content gap, not by default — neither preset sets one now that both
   have a shipped skill dir. A preset may also carry an optional `requires`
@@ -374,12 +376,17 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   (not a warning, never a failure, no detection of whether it's installed)
   and `gen_preset_pages.py` renders it on the preset page. `wcag-harness`
   shares `design-harness`'s exact roster; its gates are `["playwright",
-  "axe"]` — the `axe` gate (`pipeline/lib/axe_gate.sh`) runs the target
-  repo's `test:a11y`/`a11y` script and WARN-skips when there is none (see
-  `pipeline/README.md`'s "Accessibility (axe) gate"). Beyond that the
-  differentiator is scope: the architect reviews semantic HTML structure,
-  creative-director reviews contrast/visual hierarchy, and `wcag-audit`
-  drives the 4-pass audit/checklist method. Both harnesses also carry a
+  "axe", "vpat-lint"]` — the `axe` gate (`pipeline/lib/axe_gate.sh`) runs
+  the target repo's `test:a11y`/`a11y` script and WARN-skips when there is
+  none, and the `vpat-lint` gate (`pipeline/lib/vpat_lint_gate.sh`) checks
+  any `accessibility/vpat-draft.json` against 6 deterministic ITI-discipline
+  rules and WARN-skips when there is no draft (see `pipeline/README.md`'s
+  "Accessibility (axe) gate" and "VPAT draft lint (vpat-lint) gate").
+  Beyond that the differentiator is scope: the architect reviews semantic
+  HTML structure, creative-director reviews contrast/visual hierarchy,
+  `wcag-audit` drives the 4-pass audit/checklist method, and
+  `vpat-authoring` turns those findings into an ITI VPAT 2.5Rev conformance
+  report. Both harnesses also carry a
   `role_capabilities`/`role_handoff` overlay in `presets.json`, alongside
   `role_notes`: per-role tool capabilities and which role (or
   `"orchestrator"`) receives that role's output. Written `agent-roster.json`

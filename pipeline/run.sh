@@ -411,6 +411,10 @@ run_gate() {
       echo "-> [gate $n] Accessibility (axe) gate"
       "$LIB/axe_gate.sh" "$TARGET_REPO"
       ;;
+    vpat-lint)
+      echo "-> [gate $n] VPAT draft lint gate"
+      "$LIB/vpat_lint_gate.sh" "$TARGET_REPO"
+      ;;
     *)
       # custom gate, tab-delimited: custom<TAB>script<TAB>cwd<TAB>args...
       # Containment check: script/cwd come from pipeline/gate-config.json,

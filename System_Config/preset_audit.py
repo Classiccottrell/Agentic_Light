@@ -9,7 +9,7 @@ PRESETS = ROOT / "System_Config" / "presets.json"
 AGENTS = ROOT / "agents"
 SKILLS = ROOT / "skills"
 ROSTER_SCHEMA = ROOT / "System_Config" / "agent-roster.schema.json"
-KNOWN_GATES = {"eslint", "playwright", "axe"}
+KNOWN_GATES = {"eslint", "playwright", "axe", "vpat-lint"}
 KNOWN_ROLES = {p.stem for p in AGENTS.glob("*.md") if p.name != "README.md"}
 FALLBACK_CAPABILITIES = {"read", "write", "shell", "delegate"}
 

@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agentic Light normalized accessibility scan evidence",
+  "type": "object",
+  "required": ["source", "page", "scanned_at", "engine", "findings", "manual_review"],
+  "additionalProperties": false,
+  "properties": {
+    "source": { "const": "axe-core" },
+    "page": {
+      "type": "object", "required": ["url"], "additionalProperties": true,
+      "properties": { "url": { "type": "string" }, "title": { "type": "string" } }
+    },
+    "scanned_at": { "type": "string" },
+    "engine": {
+      "type": "object", "required": ["name", "version"], "additionalProperties": false,
+      "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule_id", "impact", "tags", "description"],
+        "additionalProperties": true,
+        "properties": {
+          "rule_id": { "type": "string" },
+          "impact": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "description": { "type": "string" },
+          "failure_summary": { "type": "string" },
+          "target": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "manual_review": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule_id", "description"],
+        "additionalProperties": true,
+        "properties": { "rule_id": { "type": "string" }, "description": { "type": "string" } }
+      }
+    }
+  }
+}

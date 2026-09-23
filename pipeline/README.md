@@ -173,6 +173,30 @@ No browser driver, no dependency added to this repo. A passing axe gate is
 one machine-detectable pass (roughly a third of WCAG AA failures), not a
 conformance claim.
 
+## VPAT draft lint (vpat-lint) gate
+
+`lib/vpat_lint_gate.sh` (gate name `vpat-lint`; the `wcag-harness` preset
+sets `["playwright", "axe", "vpat-lint"]`) checks the target repo's VPAT
+draft — `accessibility/vpat-draft.json` by default, `VPAT_DRAFT_PATH`
+overrides (repo-root-relative) — against 6 deterministic, structural rules:
+ITI terms only, one rating per criterion, no `Supports`/defect
+contradiction, rating-aware `What:`/`Who:`/`Where:`/`Evidence:`/`Why:`
+markers, no Markdown leak in remarks/limitations, and automated-only
+evidence capped below `Supports`/`Does Not Support`. Full rule list:
+`skills/vpat-authoring/references/lint-rules.md`.
+
+- No draft file at the resolved path → `WARN`, exit 0, points to
+  `skills/vpat-authoring/SKILL.md`. Skipping.
+- Draft present and passes all 6 rules → `PASS`, exit 0. Proves structure
+  and ITI-discipline compliance only — not semantic accuracy; human
+  accessibility review is still required before the draft becomes a
+  customer-facing VPAT.
+- Draft present and violates any rule → `FAIL`, propagated, `run.sh`
+  hard-stops before the human gate.
+- Draft present but `python3` unavailable → `FAIL` (hard stop, not a WARN —
+  a missing interpreter when a draft actually exists to check is a real
+  gap, not an absent-tool no-op).
+
 ## Session logging
 
 After the coder step completes (success, watchdog timeout, or an Ollama
@@ -254,13 +278,23 @@ declined *interactive* response needs a real TTY), a direct
 before the human gate; passing `test:a11y` → pass). The axe fixtures write a
 temporary `pipeline/gate-config.json` (`["axe"]`), backing up and restoring
 any existing one on exit. Every failure/pending/decline
-case asserts the stubbed `gh` never received a `pr create` call. A final
-pair of fixtures drives the real `System_Config/run_agent.sh` path (a fake
+case asserts the stubbed `gh` never received a `pr create` call. A pair of
+fixtures drives the real `System_Config/run_agent.sh` path (a fake
 `claude` binary on `$FAKE_HOME/.local/bin`, `AGENTIC_LIGHT_PROVIDERS`/
 `_PRIORITY` pinned to `claude`) — `PIPELINE_CODER_CMD` bypasses `$PROMPT`
 entirely, so the context-packet opt-in wiring above can only be exercised
 this way — asserting the packet is absent from the coder prompt by default
-and present only with `AGENTIC_LIGHT_CONTEXT_PACKET=1`.
+and present only with `AGENTIC_LIGHT_CONTEXT_PACKET=1`. A final seven
+fixtures (10a-10g) cover the `vpat-lint` gate via a temporary
+`pipeline/gate-config.json` (`["vpat-lint"]`, reusing the axe fixtures'
+backup/restore): no draft → WARN+skip and continue; a compliant draft →
+PASS and continue; four distinct rule violations (`iti_terms_only`,
+`no_supports_contradiction`, `automated_evidence_cap`, `structured_remarks`)
+each → hard stop before the human gate, with the stubbed `gh` never
+receiving a `pr create` call; and a `Supports` row using legitimate
+compliant language containing "does not" → PASS (regression test proving
+the narrowed `no_supports_contradiction` word list doesn't false-positive
+on genuine compliant remarks).
 
 `bash System_Config/test_context_packet.sh` — fixture coverage for
 `System_Config/context_packet.sh` directly: a tiny
@@ -280,6 +314,7 @@ contains every provenance header (`# Agentic Light Context Packet`,
 | `lib/eslint_gate.sh` | ESLint gate — WARN+skip or hard-stop |
 | `lib/playwright_gate.sh` | Playwright E2E gate — WARN+skip or hard-stop |
 | `lib/axe_gate.sh` | Accessibility gate — runs `test:a11y`/`a11y`, else WARN+skip |
+| `lib/vpat_lint_gate.sh` | VPAT draft lint gate — 6 rules, else WARN+skip if no draft |
 | `lib/human_gate.sh` | Renders summary/diff, blocks on `[y/N]` |
 | `lib/pr_create.sh` | Guarded `gh pr create --draft` wrapper |
 | `test_pipeline.sh` | Fixture tests — see Tests above |

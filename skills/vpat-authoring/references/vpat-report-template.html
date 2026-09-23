@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{REPORT_TITLE}}</title>
+<style>
+  :root {
+    --fg: #1a1a1a;
+    --bg: #ffffff;
+    --border: #cccccc;
+    --accent: #2b5797;
+    --supports: #1a6b3a;
+    --partial: #8a6100;
+    --nosupport: #a3242b;
+    --na: #555555;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fg: #eaeaea;
+      --bg: #121212;
+      --border: #3a3a3a;
+      --accent: #7fb0ff;
+      --supports: #4fd17a;
+      --partial: #e0b34a;
+      --nosupport: #ff7b7b;
+      --na: #a0a0a0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+    margin: 0;
+    line-height: 1.5;
+  }
+  header, footer {
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid var(--border);
+  }
+  footer {
+    border-top: 1px solid var(--border);
+    border-bottom: none;
+    font-size: 0.9rem;
+  }
+  main {
+    max-width: 60rem;
+    margin: 0 auto;
+    padding: 1.5rem 2rem;
+  }
+  h1 { font-size: 1.6rem; margin: 0 0 0.25rem; }
+  h2 { font-size: 1.2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; }
+  dt { font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th, td { text-align: left; padding: 0.5rem; border: 1px solid var(--border); vertical-align: top; }
+  th { background: color-mix(in srgb, var(--accent) 12%, var(--bg)); }
+  .rating-supports { color: var(--supports); font-weight: 600; }
+  .rating-partial { color: var(--partial); font-weight: 600; }
+  .rating-nosupport { color: var(--nosupport); font-weight: 600; }
+  .rating-na { color: var(--na); font-weight: 600; }
+  ul.limitations { padding-left: 1.25rem; }
+  a { color: var(--accent); }
+  :focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  @media print {
+    header, footer { border-color: #000; }
+    a { color: inherit; text-decoration: underline; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>{{REPORT_TITLE}}</h1>
+  <p>VPAT&reg; Version {{VPAT_VERSION}} | Report Date: {{REPORT_DATE}}</p>
+</header>
+<main>
+  <section aria-labelledby="product-heading">
+    <h2 id="product-heading">Product / Version</h2>
+    <dl>
+      <dt>Name</dt><dd>{{PRODUCT_NAME}}</dd>
+      <dt>Version</dt><dd>{{PRODUCT_VERSION}}</dd>
+      <dt>Contact</dt><dd>{{CONTACT}}</dd>
+    </dl>
+  </section>
+
+  <section aria-labelledby="methods-heading">
+    <h2 id="methods-heading">Evaluation Methods</h2>
+    <ul>
+      {{EVALUATION_METHODS_LIST_ITEMS}}
+    </ul>
+  </section>
+
+  <section aria-labelledby="conformance-heading">
+    <h2 id="conformance-heading">Conformance Table</h2>
+    <table>
+      <thead>
+        <tr><th scope="col">Criterion</th><th scope="col">Level</th><th scope="col">Rating</th><th scope="col">Remarks</th></tr>
+      </thead>
+      <tbody>
+        {{CRITERION_ROWS}}
+        <!-- one row per criterion, e.g.:
+        <tr>
+          <td>{{CRITERION_ID}} {{CRITERION_NAME}}</td>
+          <td>{{CRITERION_LEVEL}}</td>
+          <td class="rating-{{RATING_CLASS}}">{{RATING_LABEL}}</td>
+          <td>{{REMARKS}}</td>
+        </tr>
+        -->
+      </tbody>
+    </table>
+  </section>
+
+  <section aria-labelledby="limitations-heading">
+    <h2 id="limitations-heading">Limitations</h2>
+    <ul class="limitations">
+      {{LIMITATIONS_LIST_ITEMS}}
+    </ul>
+  </section>
+</main>
+<footer>
+  <p>This report requires human accessibility review against source
+  evidence and current ITI VPAT instructions before distribution. It is
+  not, on its own, a certification or legal conclusion.</p>
+</footer>
+</body>
+</html>

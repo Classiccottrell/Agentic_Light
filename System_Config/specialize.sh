@@ -34,12 +34,12 @@ case "${1:-}" in
     echo "                   data-pipeline: architect+coder+qa, placeholder custom gate (needs a script), gcp-data-pipelines/dbt-bigquery/discovering-gcp-data-assets skills"
     echo "                   design-harness: architect+coder+creative-director+qa, playwright gate, all skills"
     echo "                   server-harness: architect+coder+qa, no default gates, server-review skill"
-    echo "                   wcag-harness: architect+coder+creative-director+qa, playwright+axe gates, wcag-audit skill"
+    echo "                   wcag-harness: architect+coder+creative-director+qa, playwright+axe+vpat-lint gates, wcag-audit+vpat-authoring skills"
     echo "  --help           this message"
     echo
     echo "Env overrides (non-interactive): AGENTIC_LIGHT_ROLES, AGENTIC_LIGHT_GATES,"
     echo "AGENTIC_LIGHT_SKILLS — comma-separated. AGENTIC_LIGHT_GATES entries are gate"
-    echo "names (eslint, playwright, axe); a custom gate cannot be expressed via env override."
+    echo "names (eslint, playwright, axe, vpat-lint); a custom gate cannot be expressed via env override."
     exit 0
     ;;
   --preset)
@@ -156,8 +156,8 @@ elif [ -t 0 ]; then
   echo "→ Gates — which apply after the coder step?"
   GATE_ENTRIES=""
   for gate in $KNOWN_GATES; do
-    # axe is accessibility-specific: off unless asked for (wcag-harness enables it).
-    if [ "$gate" = "axe" ]; then
+    # axe/vpat-lint are accessibility-specific: off unless asked for (wcag-harness enables them).
+    if [ "$gate" = "axe" ] || [ "$gate" = "vpat-lint" ]; then
       printf "  [ ] Enable %s gate? [y/N]: " "$gate"
       read -r reply || reply=""
       case "$reply" in

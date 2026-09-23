@@ -94,7 +94,7 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
              Keep the eyebrow/h1/lede pattern; use .card for callouts, .btn for CTAs. -->
         <p class="eyebrow">// specialization preset</p>
         <h1>wcag-harness</h1>
-        <p class="lede">architect+coder+creative-director+qa, playwright+axe gates, wcag-audit skill</p>
+        <p class="lede">architect+coder+creative-director+qa, playwright+axe+vpat-lint gates, wcag-audit+vpat-authoring skills</p>
 
         <h2>Roster</h2>
         <table>
@@ -115,15 +115,16 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
           <tbody>
               <tr><td><code>playwright</code></td></tr>
               <tr><td><code>axe</code></td></tr>
+              <tr><td><code>vpat-lint</code></td></tr>
           </tbody>
         </table>
 
         <h2>Skills</h2>
-        <ul><li><code>wcag-audit</code></li></ul>
+        <ul><li><code>wcag-audit</code></li><li><code>vpat-authoring</code></li></ul>
 
         <h2>Harness-Specific Role Notes</h2>
         <p>Additive to each role's generic scope in <code>agents/*.md</code> — not a replacement.</p>
-        <ul><li><code>architect</code>: Audit semantic HTML/ARIA structure per `wcag-audit`&#x27;s pass 4 (screen-reader/semantics): heading order, landmarks, native elements before ARIA, programmatic name/role/value (4.1.2) — before any visual sign-off. <em>(capabilities: <code>read</code>, <code>write</code>)</em> <em>(hands off to: <code>creative-director</code>)</em></li><li><code>creative-director</code>: Contrast ratios and visual hierarchy for low-vision/cognitive accessibility — 1.4.3/1.4.11 contrast, 1.4.1 color-alone-signals-state, 2.4.7 focus visible, 2.4.11 focus not obscured (minimum) — per `wcag-audit` pass 3, not general brand critique. <em>(capabilities: <code>read</code>)</em> <em>(hands off to: <code>qa</code>)</em></li><li><code>qa</code>: axe-core-informed accessibility checks living in the target repo&#x27;s own specs (`@axe-core/playwright`), covering the machine-detectable third per `wcag-audit` — plus the required manual keyboard-only pass; axe passing alone is not a compliance claim. <em>(capabilities: <code>read</code>, <code>write</code>, <code>shell</code>)</em> <em>(hands off to: <code>orchestrator</code>)</em></li></ul>
+        <ul><li><code>architect</code>: Audit semantic HTML/ARIA structure per `wcag-audit`&#x27;s pass 4 (screen-reader/semantics): heading order, landmarks, native elements before ARIA, programmatic name/role/value (4.1.2) — before any visual sign-off. Confirm `accessibility/vpat-draft.json` (per `vpat-authoring`) reflects this pass before handing off to creative-director. <em>(capabilities: <code>read</code>, <code>write</code>)</em> <em>(hands off to: <code>creative-director</code>)</em></li><li><code>creative-director</code>: Contrast ratios and visual hierarchy for low-vision/cognitive accessibility — 1.4.3/1.4.11 contrast, 1.4.1 color-alone-signals-state, 2.4.7 focus visible, 2.4.11 focus not obscured (minimum) — per `wcag-audit` pass 3, not general brand critique. Confirm these findings land in the VPAT draft&#x27;s per-criterion remarks per `vpat-authoring`. <em>(capabilities: <code>read</code>)</em> <em>(hands off to: <code>qa</code>)</em></li><li><code>qa</code>: axe-core-informed accessibility checks living in the target repo&#x27;s own specs (`@axe-core/playwright`), covering the machine-detectable third per `wcag-audit` — plus the required manual keyboard-only pass; axe passing alone is not a compliance claim. Also the only wcag-harness role with `shell` capability: normalize the axe scan output to `accessibility/axe-scan.json` (per `vpat-authoring`&#x27;s scan-evidence shape) so the coder&#x27;s VPAT draft has real evidence to cite, and confirm `accessibility/vpat-draft.json` clears the `vpat-lint` gate before hand-off to orchestrator. <em>(capabilities: <code>read</code>, <code>write</code>, <code>shell</code>)</em> <em>(hands off to: <code>orchestrator</code>)</em></li></ul>
 
         <h2>Task Flow</h2>
         <pre><code>Task in
@@ -141,7 +142,7 @@ creative-director
 qa
   |
   v
-Gate: playwright, axe
+Gate: playwright, axe, vpat-lint
   |
   v
 Human gate
