@@ -128,13 +128,53 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `ROADMAP.md`, the active preset, the newest weekly log tail, and optional
   semantic matches. `AGENTIC_LIGHT_CONTEXT_MAX_LINES` and
   `AGENTIC_LIGHT_CONTEXT_MAX_BYTES` cap output; Markdown remains the source of
-  truth and the packet is derived output.
+  truth and the packet is derived output. Truncation is byte-exact
+  (`printf '%s' "$packet" | LC_ALL=C head -c "$MAX_BYTES"`), not a bash
+  character slice — under UTF-8, `${s:0:N}` counts characters, so a tiny
+  `MAX_BYTES` override against multi-byte content (this repo's own em dashes)
+  could silently exceed its budget. `pipeline/run.sh` prepends this script's
+  output to the coder prompt, labeled `Resume context packet:`, opt-in only
+  (`AGENTIC_LIGHT_CONTEXT_PACKET=1`, or automatically when the pipeline's
+  target repo resolves to this workspace's own root) — never injected into an
+  unrelated external target repo by default.
+- **`test_context_packet.sh`** — fixture tests for `context_packet.sh`: a
+  tiny `AGENTIC_LIGHT_CONTEXT_MAX_LINES`/`AGENTIC_LIGHT_CONTEXT_MAX_BYTES`
+  budget against a synthetic `ROADMAP.md` with a dense multi-byte (em dash)
+  first line stays under budget byte-for-byte (not just character-for-byte —
+  the scenario that would have passed on the old buggy line), and the default
+  budget preserves every provenance header. Uses POSIX `[ ]`, not `[[ ]]`, for
+  its numeric assertions — this system's bash 3.2.57 does not abort under
+  `set -e` on a failing bare `[[ ]]` command, verified empirically.
 - **`preset_audit.py`** — stdlib-only validation of preset roles, gates, skills,
-  and focused role-note overlays. `healthcheck.sh` runs it as a hard contract
-  check.
+  and focused role-note overlays. For `design-harness`/`wcag-harness`
+  specifically, also validates the optional `role_capabilities`/
+  `role_handoff` maps: keys must exactly match `role_notes`'s keys, each
+  role's capabilities must be a non-empty, duplicate-free subset of
+  `agent-roster.schema.json`'s capability enum (read live, falling back to
+  the hardcoded 4 if unreadable), and each handoff target must be one of the
+  preset's active roles or `"orchestrator"`. Any preset's `role_notes`/
+  `role_capabilities`/`role_handoff` map is also checked for an inactive-role
+  key. `healthcheck.sh` runs it as a hard contract check.
 - **`white_label_check.py`** — non-destructive audit for a specialized fork.
   It checks active roles against the selected preset, pruned agent files,
-  selected skills, and old/new identity text. It never deletes or rewrites.
+  selected skills, and old/new identity text — plus, via
+  `_check_generated_output()`, that `gen_governance.py`/`gen_site.py`/
+  `gen_preset_pages.py --check` all pass inside the fork (each resolves its
+  own root via `__file__`, so no cwd gymnastics; a missing generator script is
+  itself a finding). It never deletes or rewrites — `_check_generated_output`
+  only shells out to each generator's own read-only `--check` mode.
+  `--self-test` builds 5 real forks under `_build_clean_fork()` (copies this
+  repo's own generator scripts + `microsite/template.html`, renaming the
+  literal `"Agentic Light"` baked into their *source* — a naive white-label
+  pass that only swept generated output would always fail the old-name check
+  — then actually runs all 3 generators): two clean presets (`wcag-harness`
+  with `["coder"]` only, `design-harness` with its full live roster — both
+  read from the live `presets.json` entry, not a hand-copied paraphrase, so
+  the new `role_capabilities`/`role_handoff` overlay is exercised too), a
+  deliberately-stale-old-name-text failure, a roster/preset-mismatch failure,
+  and a generated-output-staleness failure (an agent's `description:` edited
+  post-generation so `gen_site.py --check` disagrees with the already-
+  rendered `index.html`).
 - **`daily_ingest.sh`** — self-heals the current week's `brain/raw/` folder
   via `ensure_current_week_raw_folder()` before scanning (so a manual run
   works even if `monday_init.sh` hasn't run yet this week), then scans
@@ -205,7 +245,11 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   role, harness-specific, additive to that role's generic scope in
   `agents/*.md`), renders an extra "Harness-Specific Role Notes" section;
   presets without `role_notes` render byte-identical to before this field
-  existed. Same rule for the optional `requires` list (currently
+  existed. When a preset also carries the optional `role_capabilities`/
+  `role_handoff` maps (currently `design-harness`/`wcag-harness` only), each
+  role's note line grows an inline `(capabilities: ...)` / `(hands off to:
+  ...)` suffix; a preset lacking either field renders that role's line
+  unchanged. Same rule for the optional `requires` list (currently
   `design-harness` only): rendered html-escaped as a "Requires:" line under
   Skills only when present.
 - **`gen_governance.py`** — regenerates root `GOVERNANCE.md`: per-role scope
@@ -225,7 +269,11 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   specialized interactively/via env-override rather than by preset name) or
   a preset with no `role_notes` → no overlay, table unchanged. Notes render
   only for roles `active: true` in `agent-roster.json` (roster absent → no
-  notes); newlines in a note are collapsed to spaces.
+  notes); newlines in a note are collapsed to spaces. When the active
+  preset also carries `role_capabilities`/`role_handoff`, each overlay row
+  grows an inline `_(capabilities: ...)_` / `_(hands off to: ...)_` suffix;
+  a preset without either field renders that row unchanged (no-op guard, so
+  output stays byte-identical for any preset lacking the new fields).
 - **`healthcheck.sh`** — layered PASS/WARN/FAIL check: directory layout,
   agent/skill roster frontmatter completeness, brain scaffolding
   (`wiki/index.md`, current weekly note, Master Note sentinel), read-only
@@ -270,10 +318,11 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
 - **`specialize.sh`** — one-time fork specialization, run after
   `bootstrap.sh`. Prompts (same checkbox UX as `bootstrap.sh`) for which of
   the 6 roles (read from `agent-roster.schema.json`, never hardcoded), which
-  gates (`eslint`/`playwright`/`axe`/one `custom`, read from
+  gates (`eslint`/`playwright`/`axe`/`vpat-lint`/one `custom`, read from
   `gate-config.schema.json`), and which `skills/*` dirs (scanned live) to
-  keep. Gate prompts default to yes, except `axe`, which defaults to no:
-  it's accessibility-specific, and `wcag-harness` turns it on explicitly. Also writes (`--preset` path only) `System_Config/.active-preset`,
+  keep. Gate prompts default to yes, except `axe` and `vpat-lint`, which
+  default to no: they're accessibility-specific, and `wcag-harness` turns
+  them on explicitly. Also writes (`--preset` path only) `System_Config/.active-preset`,
   a plain-text file naming the preset — `gen_governance.py` reads it to look
   up that preset's optional `role_notes` overlay in `presets.json`. It is
   removed at the start of every run and written (mktemp + `mv`) only after
@@ -290,14 +339,17 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   philosophy; missing selection file = scan everything). `--preset
   web-app|cli-tool|data-pipeline|design-harness|server-harness|wcag-harness`
   expands a named entry from `System_Config/presets.json` non-interactively
-  (`web-app`: full team + eslint/playwright + all skills; `cli-tool`:
-  coder+qa, no gates, all skills; `data-pipeline`: architect+coder+qa,
-  placeholder custom gate, all skills; `design-harness`:
+  (`web-app`: full team + eslint/playwright + `react-doctor`/`shadcn` skills;
+  `cli-tool`: coder+qa, no gates, `systematic-debugging`/
+  `managing-python-dependencies` skills; `data-pipeline`: architect+coder+qa,
+  placeholder custom gate, `gcp-data-pipelines`/`dbt-bigquery`/
+  `discovering-gcp-data-assets` skills; `design-harness`:
   architect+coder+creative-director+qa, playwright gate only, all skills,
   plus `"requires": ["figma-mcp"]`;
   `server-harness`: architect+coder+qa, no default gates, `server-review`
   skill; `wcag-harness`: architect+coder+creative-director+qa, playwright
-  + axe gates, `wcag-audit` skill — `design-harness` and `wcag-harness` also
+  + axe + vpat-lint gates, `wcag-audit`/`vpat-authoring` skills —
+  `design-harness` and `wcag-harness` also
   carry a `role_notes` field in `presets.json`, giving `architect`/
   `creative-director`/`qa` harness-specific scope text additive to their
   generic `agents/*.md` description, rendered by `gen_governance.py` and
@@ -315,7 +367,7 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   and an always-failing placeholder preset would be less honest than an
   explicit "no default gates" preset a human fills in later. `server-harness`
   ships `"skills": ["server-review"]` (see `skills/server-review/SKILL.md`) and
-  `wcag-harness` ships `"skills": ["wcag-audit"]`; a preset only carries a
+  `wcag-harness` ships `["wcag-audit", "vpat-authoring"]`; a preset only carries a
   `skills_gap_note` field when its listed skill selection is a genuinely
   known content gap, not by default — neither preset sets one now that both
   have a shipped skill dir. A preset may also carry an optional `requires`
@@ -324,12 +376,28 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   (not a warning, never a failure, no detection of whether it's installed)
   and `gen_preset_pages.py` renders it on the preset page. `wcag-harness`
   shares `design-harness`'s exact roster; its gates are `["playwright",
-  "axe"]` — the `axe` gate (`pipeline/lib/axe_gate.sh`) runs the target
-  repo's `test:a11y`/`a11y` script and WARN-skips when there is none (see
-  `pipeline/README.md`'s "Accessibility (axe) gate"). Beyond that the
-  differentiator is scope: the architect reviews semantic HTML structure,
-  creative-director reviews contrast/visual hierarchy, and `wcag-audit`
-  drives the 4-pass audit/checklist method.
+  "axe", "vpat-lint"]` — the `axe` gate (`pipeline/lib/axe_gate.sh`) runs
+  the target repo's `test:a11y`/`a11y` script and WARN-skips when there is
+  none, and the `vpat-lint` gate (`pipeline/lib/vpat_lint_gate.sh`) checks
+  any `accessibility/vpat-draft.json` against 6 deterministic ITI-discipline
+  rules and WARN-skips when there is no draft (see `pipeline/README.md`'s
+  "Accessibility (axe) gate" and "VPAT draft lint (vpat-lint) gate").
+  Beyond that the differentiator is scope: the architect reviews semantic
+  HTML structure, creative-director reviews contrast/visual hierarchy,
+  `wcag-audit` drives the 4-pass audit/checklist method, and
+  `vpat-authoring` turns those findings into an ITI VPAT 2.5Rev conformance
+  report. Both harnesses also carry a
+  `role_capabilities`/`role_handoff` overlay in `presets.json`, alongside
+  `role_notes`: per-role tool capabilities and which role (or
+  `"orchestrator"`) receives that role's output. Written `agent-roster.json`
+  entries prefer a `--preset`'s own `role_capabilities` value over
+  `agent-roster.example.json`'s flat defaults —
+  `role_caps_overlay.get(role, default_caps.get(role))` per role, so a role
+  the overlay doesn't mention (e.g. `coder` on either harness preset) still
+  falls through to the same default it always got. Every other path
+  (interactive, `AGENTIC_LIGHT_*` env overrides) passes an empty `{}`
+  overlay, so behavior there is unchanged; `preset_audit.py` validates the
+  overlay's shape (see that script's entry above).
   Interactive
   custom-gate field values (script/cwd) are
   passed to the python3 subprocess via argv, never string-interpolated into

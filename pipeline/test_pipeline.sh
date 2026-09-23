@@ -96,6 +96,19 @@ exit 0
 EOF
 chmod +x "$APPROVE_STUB"
 
+# fake claude binary: logs its full argv (including the -p prompt) to
+# CALLS9 so fixture 9 can inspect what the real run_agent path actually
+# sent — PIPELINE_CODER_CMD bypasses $PROMPT entirely, so this is the only
+# way to exercise the context-packet prepend. Placed on $FAKE_HOME's
+# .local/bin, first on config.sh's PATH.
+CALLS9="$TMP_ROOT/claude_calls"
+cat > "$FAKE_HOME/.local/bin/claude" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$CALLS9"
+exit 0
+EOF
+chmod +x "$FAKE_HOME/.local/bin/claude"
+
 # new_target_repo <name> — git-init a fresh target repo with one commit.
 new_target_repo() {
   local dir="$TMP_ROOT/$1"
@@ -327,6 +340,225 @@ echo "$OUT8C" | grep -q "\[axe_gate\] PASS"
 echo "$OUT8C" | grep -q "human gate: APPROVED"
 grep -q "^gh pr create" "$CALLS"
 echo "fixture 8c (axe gate pass): PASS"
+
+# ---------------------------------------------------------------------------
+# Fixture 9: context-packet opt-in wiring, driven through the real
+# run_agent path (PIPELINE_CODER_CMD bypasses $PROMPT entirely, so this
+# must NOT be set — run_pipeline() above sets it, so it is deliberately not
+# used here). AGENTIC_LIGHT_PROVIDERS/PRIORITY pin the provider to claude so
+# resolve_agent_provider deterministically finds the fake claude binary on
+# $FAKE_HOME/.local/bin. `env -u AGENT_TYPE` so a real provider inherited
+# from this test's own environment can't override that pin.
+# ---------------------------------------------------------------------------
+REPO9="$(new_target_repo repo9)"
+# run.sh's own $TARGET_REPO is `cd ... && pwd`-normalized (e.g. collapses a
+# double slash some platforms' $TMPDIR ends with a trailing slash and
+# introduces via mktemp's template substitution), so the literal path
+# embedded in the coder prompt below won't byte-for-byte match $REPO9
+# unless normalized here the same way.
+REPO9_P="$(cd "$REPO9" && pwd)"
+
+# 9a: no AGENTIC_LIGHT_CONTEXT_PACKET set, target repo != this workspace
+# root -> packet absent from the coder prompt by default. MAX_SECONDS=3:
+# run_agent()'s watchdog subshell inherits this invocation's stdout fd
+# (the `$( )` below), so command substitution only returns once it exits —
+# capping it here bounds each fixture to a few seconds instead of the
+# real default 300s wait.
+: > "$CALLS9"
+set +e
+OUT9A="$(env -u AGENT_TYPE HOME="$FAKE_HOME" CALLS9="$CALLS9" MAX_SECONDS=3 \
+  AGENTIC_LIGHT_PROVIDERS=claude AGENTIC_LIGHT_PRIORITY=claude \
+  AGENTIC_LIGHT_TEST_MODE=1 PIPELINE_HUMAN_GATE_CMD="$APPROVE_STUB" \
+  bash "$RUN" "task" "$REPO9" 2>&1)"
+RC9A=$?
+set -e
+grep -q "Target repo: $REPO9_P" "$CALLS9"   # the stub really was invoked with the real prompt
+if grep -q "Resume context packet:" "$CALLS9"; then
+  echo "fixture 9a: context packet present by default (should be absent)" >&2
+  exit 1
+fi
+echo "fixture 9a (context packet absent by default): PASS"
+
+# 9b: AGENTIC_LIGHT_CONTEXT_PACKET=1 -> packet present in the coder prompt.
+: > "$CALLS9"
+set +e
+OUT9B="$(env -u AGENT_TYPE HOME="$FAKE_HOME" CALLS9="$CALLS9" MAX_SECONDS=3 \
+  AGENTIC_LIGHT_PROVIDERS=claude AGENTIC_LIGHT_PRIORITY=claude \
+  AGENTIC_LIGHT_CONTEXT_PACKET=1 \
+  AGENTIC_LIGHT_TEST_MODE=1 PIPELINE_HUMAN_GATE_CMD="$APPROVE_STUB" \
+  bash "$RUN" "task" "$REPO9" 2>&1)"
+RC9B=$?
+set -e
+grep -q "Target repo: $REPO9_P" "$CALLS9"
+grep -q "Resume context packet:" "$CALLS9"
+grep -q "# Agentic Light Context Packet" "$CALLS9"
+echo "fixture 9b (context packet present with opt-in flag): PASS"
+
+# ---------------------------------------------------------------------------
+# Fixtures 10a-10g: VPAT draft lint (vpat-lint) gate.
+# ---------------------------------------------------------------------------
+printf '{"gates":["vpat-lint"]}\n' > "$REAL_GATE_CONFIG"
+
+COMPLIANT_DRAFT='{
+  "schema_version": "1.0",
+  "product": {"name": "Example App", "version": "1.0.0"},
+  "report": {"title": "Example App Accessibility Conformance Report", "version": "2.5Rev", "date": "2026-09-22"},
+  "evaluation_methods": ["axe-core automated scan", "manual keyboard pass"],
+  "criteria": [
+    {
+      "id": "1.4.3", "name": "Contrast (Minimum)", "level": "AA",
+      "rating": "Partially Supports",
+      "remarks": "Most text meets the required ratio. What: placeholder text renders at 3.2:1 contrast, below the 4.5:1 minimum. Who: low-vision users reading affected paragraphs. Where: article body text on the blog pages.",
+      "evidence": "automated"
+    },
+    {
+      "id": "4.1.2", "name": "Name, Role, Value", "level": "A",
+      "rating": "Supports",
+      "remarks": "Evidence: manual screen-reader pass (NVDA + Chrome) confirmed every interactive control exposes an accessible name, role, and state. Evaluated scope: all interactive components across the app."
+    },
+    {
+      "id": "2.1.1", "name": "Keyboard", "level": "A",
+      "rating": "Not Applicable",
+      "remarks": "Why: this build ships no interactive controls beyond native form elements already covered by 4.1.2."
+    }
+  ],
+  "limitations": ["This document is not an automated accessibility audit, certification, legal opinion, or guarantee of conformance to WCAG, Section 508, EN 301 549, or any other standard. It does not replace manual testing, qualified accessibility review, current ITI VPAT instructions, or legal advice."]
+}'
+
+# 10a: no draft file -> WARN+skip, PR created.
+REPO10A="$(new_target_repo repo10a)"
+: > "$CALLS"
+set +e
+OUT10A="$(run_pipeline env PIPELINE_HUMAN_GATE_CMD="$APPROVE_STUB" bash "$RUN" "task" "$REPO10A" 2>&1)"
+RC10A=$?
+set -e
+[[ "$RC10A" -eq 0 ]]
+echo "$OUT10A" | grep -q "\[vpat_lint_gate\] WARN — no VPAT draft found"
+grep -q "^gh pr create" "$CALLS"
+echo "fixture 10a (vpat-lint, no draft -> WARN+skip): PASS"
+
+# 10b: compliant draft -> PASS, PR created.
+REPO10B="$(new_target_repo repo10b)"
+mkdir -p "$REPO10B/accessibility"
+printf '%s' "$COMPLIANT_DRAFT" > "$REPO10B/accessibility/vpat-draft.json"
+git -C "$REPO10B" add accessibility/vpat-draft.json
+git -C "$REPO10B" commit -q -m "add compliant vpat draft"
+: > "$CALLS"
+set +e
+OUT10B="$(run_pipeline env PIPELINE_HUMAN_GATE_CMD="$APPROVE_STUB" bash "$RUN" "task" "$REPO10B" 2>&1)"
+RC10B=$?
+set -e
+[[ "$RC10B" -eq 0 ]]
+echo "$OUT10B" | grep -q "\[vpat_lint_gate\] PASS"
+grep -q "^gh pr create" "$CALLS"
+echo "fixture 10b (vpat-lint, compliant draft -> PASS): PASS"
+
+# 10c: non-ITI rating term -> FAIL.
+REPO10C="$(new_target_repo repo10c)"
+mkdir -p "$REPO10C/accessibility"
+printf '%s' "$COMPLIANT_DRAFT" | python3 -c "import json,sys; d=json.load(sys.stdin); d['criteria'][0]['rating']='Compliant'; print(json.dumps(d))" > "$REPO10C/accessibility/vpat-draft.json"
+git -C "$REPO10C" add accessibility/vpat-draft.json
+git -C "$REPO10C" commit -q -m "add draft with non-ITI rating"
+: > "$CALLS"
+set +e
+OUT10C="$(run_pipeline env PIPELINE_HUMAN_GATE_CMD="$APPROVE_STUB" bash "$RUN" "task" "$REPO10C" 2>&1)"
+RC10C=$?
+set -e
+[[ "$RC10C" -eq 1 ]]
+echo "$OUT10C" | grep -q "rule iti_terms_only"
+echo "$OUT10C" | grep -q "FAILED: gate 1 (vpat-lint)"
+[[ ! -s "$CALLS" ]]
+echo "fixture 10c (vpat-lint, non-ITI rating -> FAIL): PASS"
+
+# 10d: Supports contradicted by remarks -> FAIL.
+REPO10D="$(new_target_repo repo10d)"
+mkdir -p "$REPO10D/accessibility"
+printf '%s' "$COMPLIANT_DRAFT" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+d['criteria'][0]['rating']='Supports'
+d['criteria'][0]['remarks']='Evidence: this does not fail in any evaluated scenario.'
+print(json.dumps(d))
+" > "$REPO10D/accessibility/vpat-draft.json"
+git -C "$REPO10D" add accessibility/vpat-draft.json
+git -C "$REPO10D" commit -q -m "add draft with Supports contradiction"
+: > "$CALLS"
+set +e
+OUT10D="$(run_pipeline env PIPELINE_HUMAN_GATE_CMD="$APPROVE_STUB" bash "$RUN" "task" "$REPO10D" 2>&1)"
+RC10D=$?
+set -e
+[[ "$RC10D" -eq 1 ]]
+echo "$OUT10D" | grep -q "rule no_supports_contradiction"
+[[ ! -s "$CALLS" ]]
+echo "fixture 10d (vpat-lint, Supports contradiction -> FAIL): PASS"
+
+# 10e: Supports from automated-only evidence -> FAIL (automated_evidence_cap).
+REPO10E="$(new_target_repo repo10e)"
+mkdir -p "$REPO10E/accessibility"
+printf '%s' "$COMPLIANT_DRAFT" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+d['criteria'][0]['rating']='Supports'
+d['criteria'][0]['evidence']='automated'
+d['criteria'][0]['remarks']='Evidence: contrast meets the minimum across all evaluated pages.'
+print(json.dumps(d))
+" > "$REPO10E/accessibility/vpat-draft.json"
+git -C "$REPO10E" add accessibility/vpat-draft.json
+git -C "$REPO10E" commit -q -m "add draft with automated-only Supports"
+: > "$CALLS"
+set +e
+OUT10E="$(run_pipeline env PIPELINE_HUMAN_GATE_CMD="$APPROVE_STUB" bash "$RUN" "task" "$REPO10E" 2>&1)"
+RC10E=$?
+set -e
+[[ "$RC10E" -eq 1 ]]
+echo "$OUT10E" | grep -q "rule automated_evidence_cap"
+[[ ! -s "$CALLS" ]]
+echo "fixture 10e (vpat-lint, automated-only Supports -> FAIL): PASS"
+
+# 10f: Supports row missing the Evidence: marker -> FAIL (structured_remarks).
+REPO10F="$(new_target_repo repo10f)"
+mkdir -p "$REPO10F/accessibility"
+printf '%s' "$COMPLIANT_DRAFT" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+d['criteria'][1]['remarks']='This works well for all users across the app.'
+print(json.dumps(d))
+" > "$REPO10F/accessibility/vpat-draft.json"
+git -C "$REPO10F" add accessibility/vpat-draft.json
+git -C "$REPO10F" commit -q -m "add draft with Supports row missing Evidence marker"
+: > "$CALLS"
+set +e
+OUT10F="$(run_pipeline env PIPELINE_HUMAN_GATE_CMD="$APPROVE_STUB" bash "$RUN" "task" "$REPO10F" 2>&1)"
+RC10F=$?
+set -e
+[[ "$RC10F" -eq 1 ]]
+echo "$OUT10F" | grep -q "rule structured_remarks"
+[[ ! -s "$CALLS" ]]
+echo "fixture 10f (vpat-lint, Supports missing Evidence marker -> FAIL): PASS"
+
+# 10g: Supports row using legitimate compliant language containing "does not"
+# -> PASS (regression test for the no_supports_contradiction false-positive:
+# generic terms like "does not"/"cannot"/"error" are not in the narrowed
+# DEFECT_WORDS list because they appear in genuine compliant WCAG remarks).
+REPO10G="$(new_target_repo repo10g)"
+mkdir -p "$REPO10G/accessibility"
+printf '%s' "$COMPLIANT_DRAFT" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+d['criteria'][1]['remarks']='Evidence: manual review confirmed color does not rely on color alone to convey information; all status indicators pair color with text or icons. Evaluated scope: all interactive components across the app.'
+print(json.dumps(d))
+" > "$REPO10G/accessibility/vpat-draft.json"
+git -C "$REPO10G" add accessibility/vpat-draft.json
+git -C "$REPO10G" commit -q -m "add draft with legitimate does-not-contain-defect Supports remarks"
+: > "$CALLS"
+set +e
+OUT10G="$(run_pipeline env PIPELINE_HUMAN_GATE_CMD="$APPROVE_STUB" bash "$RUN" "task" "$REPO10G" 2>&1)"
+RC10G=$?
+set -e
+[[ "$RC10G" -eq 0 ]]
+echo "$OUT10G" | grep -q "\[vpat_lint_gate\] PASS"
+grep -q "^gh pr create" "$CALLS"
+echo "fixture 10g (vpat-lint, Supports with legitimate 'does not' language -> PASS): PASS"
 
 restore_gate_config
 

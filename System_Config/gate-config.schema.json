@@ -15,7 +15,7 @@
   "definitions": {
     "gate": {
       "oneOf": [
-        { "enum": ["eslint", "playwright", "axe"] },
+        { "enum": ["eslint", "playwright", "axe", "vpat-lint"] },
         {
           "type": "object",
           "additionalProperties": false,

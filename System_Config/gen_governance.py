@@ -108,21 +108,23 @@ def get_active_preset_role_notes():
     """Look up the current fork's harness-specific role_notes overlay, if any.
 
     Additive to the generic per-role scope in agents/*.md, never a
-    replacement -- see presets.json's role_notes field. Returns (None, {})
-    when unspecialized, when specialized via interactive/env-override (no
-    single named preset), or when the active preset has no role_notes.
+    replacement -- see presets.json's role_notes field. Returns
+    (None, {}, {}, {}) when unspecialized, when specialized via
+    interactive/env-override (no single named preset), or when the active
+    preset has no role_notes.
     """
     if not os.path.exists(ACTIVE_PRESET_PATH):
-        return None, {}
+        return None, {}, {}, {}
     with open(ACTIVE_PRESET_PATH) as f:
         preset_name = f.read().strip()
     presets = load_json_or_none(PRESETS_PATH) or {}
     preset = presets.get(preset_name) or {}
-    return preset_name, preset.get('role_notes', {})
+    return (preset_name, preset.get('role_notes', {}),
+            preset.get('role_capabilities', {}), preset.get('role_handoff', {}))
 
 
 def build_roles_block(agents):
-    preset_name, role_notes = get_active_preset_role_notes()
+    preset_name, role_notes, role_capabilities, role_handoff = get_active_preset_role_notes()
     rows = []
     for a in agents:
         rows.append(
@@ -144,7 +146,14 @@ def build_roles_block(agents):
         note = role_notes.get(a['name'])
         if note:
             note = ' '.join(str(note).split())
-            overlay_rows.append('- **`' + a['name'] + '`**: ' + note)
+            extra = ''
+            caps = role_capabilities.get(a['name'])
+            if caps:
+                extra += ' _(capabilities: ' + ', '.join('`' + c + '`' for c in caps) + ')_'
+            target = role_handoff.get(a['name'])
+            if target:
+                extra += ' _(hands off to: `' + target + '`)_'
+            overlay_rows.append('- **`' + a['name'] + '`**: ' + note + extra)
     if not overlay_rows:
         return table
     overlay = (

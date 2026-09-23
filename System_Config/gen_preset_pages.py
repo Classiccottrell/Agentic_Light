@@ -103,10 +103,18 @@ def build_role_notes_block(preset):
     role_notes = preset.get('role_notes')
     if not role_notes:
         return ''
-    items = ''.join(
-        '<li><code>' + html_mod.escape(role) + '</code>: ' + html_mod.escape(note) + '</li>'
-        for role, note in role_notes.items()
-    )
+    role_capabilities = preset.get('role_capabilities', {})
+    role_handoff = preset.get('role_handoff', {})
+    items = ''
+    for role, note in role_notes.items():
+        extra = ''
+        caps = role_capabilities.get(role)
+        if caps:
+            extra += ' <em>(capabilities: ' + ', '.join('<code>' + html_mod.escape(c) + '</code>' for c in caps) + ')</em>'
+        target = role_handoff.get(role)
+        if target:
+            extra += ' <em>(hands off to: <code>' + html_mod.escape(target) + '</code>)</em>'
+        items += '<li><code>' + html_mod.escape(role) + '</code>: ' + html_mod.escape(note) + extra + '</li>'
     return (
         '\n\n        <h2>Harness-Specific Role Notes</h2>\n'
         '        <p>Additive to each role\'s generic scope in <code>agents/*.md</code> — not a replacement.</p>\n'

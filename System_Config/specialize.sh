@@ -29,17 +29,17 @@ case "${1:-}" in
     echo "Usage: ./System_Config/specialize.sh [--preset web-app|cli-tool|data-pipeline|design-harness|server-harness|wcag-harness]"
     echo "  (no args)        interactive checkbox prompts"
     echo "  --preset <name>  non-interactive, expand a named preset from System_Config/presets.json"
-    echo "                   web-app: full team + eslint/playwright gates + all skills"
-    echo "                   cli-tool: coder+qa, no gates, all skills"
-    echo "                   data-pipeline: architect+coder+qa, placeholder custom gate (needs a script), all skills"
+    echo "                   web-app: full team + eslint/playwright gates + react-doctor/shadcn skills"
+    echo "                   cli-tool: coder+qa, no gates, systematic-debugging/managing-python-dependencies skills"
+    echo "                   data-pipeline: architect+coder+qa, placeholder custom gate (needs a script), gcp-data-pipelines/dbt-bigquery/discovering-gcp-data-assets skills"
     echo "                   design-harness: architect+coder+creative-director+qa, playwright gate, all skills"
     echo "                   server-harness: architect+coder+qa, no default gates, server-review skill"
-    echo "                   wcag-harness: architect+coder+creative-director+qa, playwright+axe gates, wcag-audit skill"
+    echo "                   wcag-harness: architect+coder+creative-director+qa, playwright+axe+vpat-lint gates, wcag-audit+vpat-authoring skills"
     echo "  --help           this message"
     echo
     echo "Env overrides (non-interactive): AGENTIC_LIGHT_ROLES, AGENTIC_LIGHT_GATES,"
     echo "AGENTIC_LIGHT_SKILLS — comma-separated. AGENTIC_LIGHT_GATES entries are gate"
-    echo "names (eslint, playwright, axe); a custom gate cannot be expressed via env override."
+    echo "names (eslint, playwright, axe, vpat-lint); a custom gate cannot be expressed via env override."
     exit 0
     ;;
   --preset)
@@ -113,12 +113,14 @@ print(json.dumps(p.get('gates', [])))
 print('*' if skills == '*' else ','.join(skills))
 print(p.get('skills_gap_note', ''))
 print(','.join(p.get('requires', [])))
+print(json.dumps(p.get('role_capabilities', {})))
 ")" || exit 1
   SEL_ROLES="$(printf '%s\n' "$PRESET_DATA" | sed -n '1p' | tr ',' ' ')"
   SEL_GATES_JSON="$(printf '%s\n' "$PRESET_DATA" | sed -n '2p')"
   SEL_SKILLS_RAW="$(printf '%s\n' "$PRESET_DATA" | sed -n '3p')"
   SKILLS_GAP_NOTE="$(printf '%s\n' "$PRESET_DATA" | sed -n '4p')"
   PRESET_REQUIRES="$(printf '%s\n' "$PRESET_DATA" | sed -n '5p')"
+  PRESET_ROLE_CAPS_JSON="$(printf '%s\n' "$PRESET_DATA" | sed -n '6p')"
   if [ "$SEL_SKILLS_RAW" = "*" ]; then
     SEL_SKILLS="$SKILL_DIRS"
   else
@@ -154,8 +156,8 @@ elif [ -t 0 ]; then
   echo "→ Gates — which apply after the coder step?"
   GATE_ENTRIES=""
   for gate in $KNOWN_GATES; do
-    # axe is accessibility-specific: off unless asked for (wcag-harness enables it).
-    if [ "$gate" = "axe" ]; then
+    # axe/vpat-lint are accessibility-specific: off unless asked for (wcag-harness enables them).
+    if [ "$gate" = "axe" ] || [ "$gate" = "vpat-lint" ]; then
       printf "  [ ] Enable %s gate? [y/N]: " "$gate"
       read -r reply || reply=""
       case "$reply" in
@@ -214,6 +216,10 @@ else
 fi
 
 [ -n "$SEL_GATES_JSON" ] || SEL_GATES_JSON="[]"
+# Empty overlay on every non-preset path (env override, interactive) —
+# the roster loop below falls through to today's flat default-capabilities
+# behavior unchanged whenever this is "{}".
+[ -n "${PRESET_ROLE_CAPS_JSON:-}" ] || PRESET_ROLE_CAPS_JSON="{}"
 
 # ---------------------------------------------------------------------------
 # Refuse to write a custom gate with a known-empty "script" — it passes
@@ -250,11 +256,12 @@ done
 # duplicated here) and validate before writing.
 # ---------------------------------------------------------------------------
 ROSTER_TMP="$(mktemp "${TMPDIR:-/tmp}/agent-roster.XXXXXX")"
-python3 - "$ROOT" "$SEL_ROLES" "$ROSTER_TMP" "$ROSTER_SCHEMA" <<'PYEOF'
+python3 - "$ROOT" "$SEL_ROLES" "$ROSTER_TMP" "$ROSTER_SCHEMA" "$PRESET_ROLE_CAPS_JSON" <<'PYEOF'
 import json, sys
 
-root, sel_roles_str, out_path, schema_path = sys.argv[1:5]
+root, sel_roles_str, out_path, schema_path, role_caps_json = sys.argv[1:6]
 sel_roles = set(sel_roles_str.split())
+role_caps_overlay = json.loads(role_caps_json) if role_caps_json else {}
 
 with open(schema_path) as f:
     schema = json.load(f)
@@ -273,8 +280,9 @@ except FileNotFoundError:
 roster = {"roles": {}}
 for role in all_roles:
     entry = {"active": role in sel_roles}
-    if role in default_caps:
-        entry["capabilities"] = default_caps[role]
+    caps = role_caps_overlay.get(role, default_caps.get(role))
+    if caps is not None:
+        entry["capabilities"] = caps
     roster["roles"][role] = entry
 
 with open(out_path, "w") as f:

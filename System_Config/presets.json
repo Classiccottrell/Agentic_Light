@@ -1,21 +1,21 @@
 {
   "web-app": {
-    "description": "full team + eslint/playwright gates + all skills",
+    "description": "full team + eslint/playwright gates + react-doctor/shadcn skills",
     "roles": ["architect", "coder", "creative-director", "curator", "eng-manager", "qa"],
     "gates": ["eslint", "playwright"],
-    "skills": "*"
+    "skills": ["react-doctor", "shadcn"]
   },
   "cli-tool": {
-    "description": "coder+qa, no gates, all skills",
+    "description": "coder+qa, no gates, systematic-debugging/managing-python-dependencies skills",
     "roles": ["coder", "qa"],
     "gates": [],
-    "skills": "*"
+    "skills": ["systematic-debugging", "managing-python-dependencies"]
   },
   "data-pipeline": {
-    "description": "architect+coder+qa, placeholder custom gate (needs a script), all skills",
+    "description": "architect+coder+qa, placeholder custom gate (needs a script), gcp-data-pipelines/dbt-bigquery/discovering-gcp-data-assets skills",
     "roles": ["architect", "coder", "qa"],
     "gates": [{"name": "custom", "script": "", "cwd": ".", "args": []}],
-    "skills": "*"
+    "skills": ["gcp-data-pipelines", "dbt-bigquery", "discovering-gcp-data-assets"]
   },
   "design-harness": {
     "description": "architect+coder+creative-director+qa, playwright gate, all skills",
@@ -27,6 +27,16 @@
       "architect": "Review design-system/component structure — token hierarchy, reusable component boundaries, Figma-to-code mapping — per `figma-generate-library` (variables/variants/theming foundations) and `figma-code-connect` (component-to-snippet mapping), not general system architecture.",
       "creative-director": "Critique visual/brand direction on screens generated via `figma-generate-design` (section-by-section assembly from design-system tokens, not hardcoded values) — apply the Impact/Clarity/Disruption framework to this harness's own Figma output.",
       "qa": "Visual regression — Playwright screenshot diffs against the design-harness's own `playwright` gate, not accessibility auditing."
+    },
+    "role_capabilities": {
+      "architect": ["read", "write"],
+      "creative-director": ["read"],
+      "qa": ["read", "write", "shell"]
+    },
+    "role_handoff": {
+      "architect": "coder",
+      "creative-director": "qa",
+      "qa": "orchestrator"
     }
   },
   "server-harness": {
@@ -36,14 +46,24 @@
     "skills": ["server-review"]
   },
   "wcag-harness": {
-    "description": "architect+coder+creative-director+qa, playwright+axe gates, wcag-audit skill",
+    "description": "architect+coder+creative-director+qa, playwright+axe+vpat-lint gates, wcag-audit+vpat-authoring skills",
     "roles": ["architect", "coder", "creative-director", "qa"],
-    "gates": ["playwright", "axe"],
-    "skills": ["wcag-audit"],
+    "gates": ["playwright", "axe", "vpat-lint"],
+    "skills": ["wcag-audit", "vpat-authoring"],
     "role_notes": {
-      "architect": "Audit semantic HTML/ARIA structure per `wcag-audit`'s pass 4 (screen-reader/semantics): heading order, landmarks, native elements before ARIA, programmatic name/role/value (4.1.2) — before any visual sign-off.",
-      "creative-director": "Contrast ratios and visual hierarchy for low-vision/cognitive accessibility — 1.4.3/1.4.11 contrast, 1.4.1 color-alone-signals-state, 2.4.7 focus visible, 2.4.11 focus not obscured (minimum) — per `wcag-audit` pass 3, not general brand critique.",
-      "qa": "axe-core-informed accessibility checks living in the target repo's own specs (`@axe-core/playwright`), covering the machine-detectable third per `wcag-audit` — plus the required manual keyboard-only pass; axe passing alone is not a compliance claim."
+      "architect": "Audit semantic HTML/ARIA structure per `wcag-audit`'s pass 4 (screen-reader/semantics): heading order, landmarks, native elements before ARIA, programmatic name/role/value (4.1.2) — before any visual sign-off. Confirm `accessibility/vpat-draft.json` (per `vpat-authoring`) reflects this pass before handing off to creative-director.",
+      "creative-director": "Contrast ratios and visual hierarchy for low-vision/cognitive accessibility — 1.4.3/1.4.11 contrast, 1.4.1 color-alone-signals-state, 2.4.7 focus visible, 2.4.11 focus not obscured (minimum) — per `wcag-audit` pass 3, not general brand critique. Confirm these findings land in the VPAT draft's per-criterion remarks per `vpat-authoring`.",
+      "qa": "axe-core-informed accessibility checks living in the target repo's own specs (`@axe-core/playwright`), covering the machine-detectable third per `wcag-audit` — plus the required manual keyboard-only pass; axe passing alone is not a compliance claim. Also the only wcag-harness role with `shell` capability: normalize the axe scan output to `accessibility/axe-scan.json` (per `vpat-authoring`'s scan-evidence shape) so the coder's VPAT draft has real evidence to cite, and confirm `accessibility/vpat-draft.json` clears the `vpat-lint` gate before hand-off to orchestrator."
+    },
+    "role_capabilities": {
+      "architect": ["read", "write"],
+      "creative-director": ["read"],
+      "qa": ["read", "write", "shell"]
+    },
+    "role_handoff": {
+      "architect": "creative-director",
+      "creative-director": "qa",
+      "qa": "orchestrator"
     }
   }
 }
