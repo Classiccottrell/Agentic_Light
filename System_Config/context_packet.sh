@@ -33,13 +33,13 @@ if [[ -f "$PROFILE_PATH" ]]; then
   PROFILE_DATA="$(python3 - "$PROFILE_PATH" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1], encoding='utf-8'))
-print('\t'.join([data.get('name', 'unnamed'), data.get('context_root', 'brain'), data.get('roadmap', ''), '\x1f'.join(data.get('include_paths', []))]))
+print('\t'.join([data.get('name') or 'unnamed', data.get('context_root') or 'brain', '\x1f'.join(data.get('include_paths', []))]))
 PY
   )"
 else
-  PROFILE_DATA=$'agentic-light\tbrain\tROADMAP.md\tROADMAP.md'
+  PROFILE_DATA=$'agentic-light\tbrain\tROADMAP.md'
 fi
-IFS=$'\t' read -r NAME CONTEXT_ROOT ROADMAP INCLUDE_PATHS <<< "$PROFILE_DATA"
+IFS=$'\t' read -r NAME CONTEXT_ROOT INCLUDE_PATHS <<< "$PROFILE_DATA"
 INCLUDE_PATHS="${INCLUDE_PATHS//$'\x1f'/$'\n'}"
 CONTEXT_DIR="$ROOT/$CONTEXT_ROOT"
 [[ -d "$CONTEXT_DIR" ]] || { echo "context_packet: context root not found: $CONTEXT_DIR" >&2; exit 1; }

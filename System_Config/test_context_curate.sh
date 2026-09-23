@@ -75,6 +75,11 @@ test "$SOURCE_HASH" = "$(shasum -a 256 "$TMP/brain/records/learnings/human.md" |
 
 bash "$ROOT/System_Config/context.sh" --root "$TMP" curate "$TMP/brain/records/learnings/human.md" --apply >/dev/null
 grep -q '\[\[deployment-pipeline\]\]' "$TMP/brain/records/learnings/human.md"
+SUGGEST_AFTER="$(bash "$ROOT/System_Config/context.sh" --root "$TMP" curate "$TMP/brain/records/learnings/human.md" --suggest)"
+if echo "$SUGGEST_AFTER" | grep -q 'curation-'; then
+  echo 'curation session appeared as a candidate' >&2
+  exit 1
+fi
 if grep -q '\[\[archive-project\]\]' "$TMP/brain/records/learnings/human.md"; then
   echo 'low-confidence link was applied' >&2
   exit 1

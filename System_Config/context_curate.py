@@ -24,6 +24,8 @@ def candidates(root, source):
     for item in documents(root):
         if str(root / item["path"]) == str(source):
             continue
+        if item["path"].startswith("brain/records/sessions/curation-"):
+            continue
         target_text = f"{item['title']} {item['excerpt']}"
         overlap = source_tokens & tokens(target_text)
         title_overlap = tokens(item["title"]) & source_tokens
