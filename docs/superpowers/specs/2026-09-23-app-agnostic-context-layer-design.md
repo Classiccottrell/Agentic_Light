@@ -1,7 +1,7 @@
 # App-Agnostic Context Layer
 
-**Status:** Design proposed for review  
-**Date:** 2026-09-23  
+**Status:** Design proposed for review
+**Date:** 2026-09-23
 **Scope:** Agentic Light harness template context, memory, records, linking, and retrieval
 
 ## Intent
