@@ -5,16 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f9f5f1" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#1c1e1c" media="(prefers-color-scheme: dark)">
+    <link rel="icon" href="../favicon.svg" type="image/svg+xml">
     <title>server-harness — Agentic Light</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:ital,wght@0,400..700;1,400..700&amp;family=Rosarivo:ital@0;1&amp;display=swap" rel="stylesheet">
 <style>
-/* ClassicCottrell design system — 2026-07-10 */
+/* ClassicCottrell design system — 2026-09-22 */
 /* DO NOT EDIT THIS BLOCK — copy it verbatim when creating new HTML pages. */
 :root{
   --bg:#f9f5f1;--surface:#fffdfb;
-  --ink:#2c2c2c;--ink-2:#4a463f;--muted:#77726a;--rule:#e4ddd2;
+  --ink:#2c2c2c;--ink-2:#4a463f;--muted:#625e57;--rule:#e4ddd2;
   --accent:#437057;--accent-hover:#2f4f3e;--accent-ink:#f9f5f1;
   --accent-soft:#e2ebe4;--accent-soft-ink:#2f4f3e;
   --ok:#437057;--warn:#a07d33;--fail:#b4462f;
@@ -27,7 +28,7 @@
   :root{
     --bg:#1c1e1c;--surface:#262825;
     --ink:#f2ede5;--ink-2:#cfcac0;--muted:#a7a297;--rule:rgba(255,255,255,.12);
-    --accent:#7fa88c;--accent-hover:#a9c4b3;--accent-ink:#16211a;
+    --accent:#9bc2a8;--accent-hover:#c0d7c8;--accent-ink:#16211a;
     --accent-soft:#33413a;--accent-soft-ink:#cfe0d5;
     --ok:#7fa88c;--warn:#c2a878;--fail:#d9694f;--shadow:none;
   }
@@ -116,25 +117,7 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
         <ul><li><code>server-review</code></li></ul>
 
         <h2>Task Flow</h2>
-        <pre><code>Task in
-  |
-  v
-architect
-  |
-  v
-coder
-  |
-  v
-qa
-  |
-  v
-No automated gate
-  |
-  v
-Human gate
-  |
-  v
-PR</code></pre>
+        <ol class="task-flow"><li>Task in</li><li>architect</li><li>coder</li><li>qa</li><li>No automated gate</li><li>Human gate</li><li>PR</li></ol>
 
         <p>Run <code>System_Config/specialize.sh --preset server-harness</code> to apply this preset.</p>
     </div>

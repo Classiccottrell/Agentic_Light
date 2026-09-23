@@ -122,10 +122,11 @@ def build_role_notes_block(preset):
     )
 
 
-def build_flowchart(active_roles, gates):
+def build_flow_list(active_roles, gates):
     steps = ['Task in'] + list(active_roles) + (['Gate: ' + ', '.join(gate_label(g) for g in gates)] if gates else ['No automated gate']) + ['Human gate', 'PR']
-    escaped = [html_mod.escape(s) for s in steps]
-    return '\n'.join(escaped[i] + '\n  |\n  v' if i < len(escaped) - 1 else escaped[i] for i, _ in enumerate(escaped))
+    return '<ol class="task-flow">' + ''.join(
+        '<li>' + html_mod.escape(step) + '</li>' for step in steps
+    ) + '</ol>'
 
 
 def render_page(name, preset, all_roles, template):
@@ -136,6 +137,7 @@ def render_page(name, preset, all_roles, template):
 
     html = template.replace('href="index.html"', 'href="../index.html"')
     html = html.replace('href="health.html"', 'href="../health.html"')
+    html = html.replace('href="favicon.svg"', 'href="../favicon.svg"')
     html = html.replace(
         '<!-- HEADER: wordmark always points at microsite/index.html — every page in this microsite is a sibling. -->',
         '<!-- HEADER: wordmark points at ../index.html — preset pages live one level down in microsite/presets/. -->'
@@ -157,7 +159,7 @@ def render_page(name, preset, all_roles, template):
         + build_role_notes_block(preset) + '\n'
         '\n'
         '        <h2>Task Flow</h2>\n'
-        '        <pre><code>' + build_flowchart(active_roles, gates) + '</code></pre>\n'
+        '        ' + build_flow_list(active_roles, gates) + '\n'
         '\n'
         '        <p>Run <code>System_Config/specialize.sh --preset ' + name_esc + '</code> to apply this preset.</p>'
     )

@@ -51,7 +51,7 @@ Presets (from `System_Config/presets.json`):
 |---|---|
 | `web-app` | full team + eslint/playwright gates + react-doctor/shadcn skills |
 | `cli-tool` | coder+qa, no gates, systematic-debugging/managing-python-dependencies skills |
-| `data-pipeline` | architect+coder+qa, placeholder custom gate (needs a script), gcp-data-pipelines/dbt-bigquery/discovering-gcp-data-assets skills |
+| `data-pipeline` | architect+coder+qa, no default gate, gcp-data-pipelines/dbt-bigquery/discovering-gcp-data-assets skills |
 | `design-harness` | architect+coder+creative-director+qa, playwright gate, all skills (requires Figma MCP) |
 | `server-harness` | architect+coder+qa, no default gates, server-review skill |
 | `wcag-harness` | architect+coder+creative-director+qa, playwright+axe+vpat-lint gates, wcag-audit+vpat-authoring skills |
@@ -66,8 +66,8 @@ Re-running overwrites cleanly — it's idempotent, not additive. None of these
 are gitignored: in a fork you commit them (see `microsite/whitelabel.html`). A
 fresh, unspecialized clone has none of these files and runs with the full
 default roster and the legacy eslint+playwright gate pair. See
-`System_Config/README.md` for the full mechanics (env-var overrides,
-validation rules, the `data-pipeline` custom-gate guard, etc.).
+`System_Config/README.md` for the full mechanics (env-var overrides and
+validation rules).
 
 ## Run
 
