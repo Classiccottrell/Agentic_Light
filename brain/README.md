@@ -29,15 +29,12 @@ and turns new clips into wiki pages under `brain/wiki/`. See
 `brain/CLAUDE.md` for the full schema.
 
 ## Semantic search
-`System_Config/memory_index.py` embeds `brain/wiki/*.md` pages via a local
-Ollama call (`nomic-embed-text`) into `brain/wiki/.memoryfield.sqlite3` — a
-gitignored, rebuildable cache (not source of truth). Run it after editing
-wiki pages; it's incremental (content-hash based). `System_Config/memory_search.py
-"<query>"` then ranks pages by cosine similarity. Neither script falls back
-on its own: both just exit non-zero with a clear stderr message if Ollama
-isn't running or the index doesn't exist yet. It's `curator`'s documented
-Query method that owns the fallback decision, dropping to `rg -l` in that
-case. See `brain/CLAUDE.md`'s Query section.
+`System_Config/memory_index.py --root <workspace>` builds a gitignored,
+rebuildable SQLite cache over records, wiki pages, and weekly logs. FTS5 works
+offline; add `--semantic` to request local Ollama embeddings. Use
+`System_Config/memory_search.py "<query>" --root <workspace> --json` for
+typed results with excerpts. Markdown remains the source of truth and the
+cache can be deleted and rebuilt at any time.
 
 ## Weekly cycle
 - `System_Config/monday_init.sh` — starts the week's note + raw folder. Also runs automatically the first time `log_session.sh` logs a session in a week with no note yet; sessions are appended after initialization succeeds, while initialization failure emits a warning and skips the append.

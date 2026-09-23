@@ -192,8 +192,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `MAX_CLIPS_PER_RUN × (MAX_SECONDS + 30s)` so a legitimately long ingest is
   never reclaimed from under itself; `DRY_RUN=1` preview.
 
-- **`memory_index.py`** — `memory_index.py [--force]`. Embeds
-  `brain/wiki/*.md` pages via a local Ollama call
+- **`memory_index.py`** — `memory_index.py [--root ROOT] [--force]`. Builds
+  SQLite FTS5 over the unified context catalog; `--semantic` additionally
+  embeds records, wiki pages, and weekly logs via a local Ollama call
   (`POST /api/embeddings`, model `nomic-embed-text`, stdlib `urllib`) into
   `brain/wiki/.memoryfield.sqlite3` (gitignored cache, not source of
   truth — `brain/wiki/*.md` stays canonical). Incremental: re-embeds only

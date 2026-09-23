@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""memory_index.py — build/refresh the SQLite semantic-search cache over
-brain/wiki/*.md. Embeddings come from a local Ollama call (nomic-embed-text);
-stdlib only (urllib, sqlite3, hashlib, array) — no new dependency.
+"""Build/refresh the SQLite lexical and semantic context-search cache.
+
+Embeddings are optional and come from local Ollama; lexical FTS works offline.
 
 The SQLite DB at brain/wiki/.memoryfield.sqlite3 is a rebuildable cache, not
 the source of truth. brain/wiki/*.md remains canonical (git-tracked); delete
 the DB any time and re-run this script to rebuild it.
 
 Usage:
-    memory_index.py [--force]
+    memory_index.py [--root ROOT] [--force] [--semantic]
     memory_index.py --self-test
 """
 import argparse
@@ -125,6 +125,21 @@ def open_db(db_path):
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS documents (
+            path TEXT PRIMARY KEY,
+            content_hash TEXT NOT NULL,
+            title TEXT NOT NULL,
+            type TEXT NOT NULL,
+            excerpt TEXT NOT NULL,
+            body TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(path UNINDEXED, title, type, body)"
+    )
     # Migration for DBs created before the `model` column existed. NULL rows
     # are treated as unknown-model, which index_wiki() invalidates below.
     cols = {row[1] for row in conn.execute("PRAGMA table_info(pages)")}
@@ -204,6 +219,47 @@ def fake_embed(text):
     return [b / 255.0 for b in h]  # 32-dim fixed vector
 
 
+def index_catalog(root, conn, embed_fn=None, force=False, model=MODEL):
+    from context_catalog import documents
+
+    docs = documents(root)
+    existing = {row[0]: (row[1], row[2]) for row in conn.execute("SELECT path, content_hash, model FROM pages")}
+    seen = set()
+    embedded = 0
+    for item in docs:
+        path = root / item["path"]
+        text = path.read_text(encoding="utf-8")
+        digest = content_hash(text)
+        seen.add(item["path"])
+        conn.execute(
+            "INSERT INTO documents(path, content_hash, title, type, excerpt, body) VALUES (?, ?, ?, ?, ?, ?)"
+            " ON CONFLICT(path) DO UPDATE SET content_hash=excluded.content_hash, title=excluded.title,"
+            " type=excluded.type, excerpt=excluded.excerpt, body=excluded.body",
+            (item["path"], digest, item["title"], item["type"], item["excerpt"], text),
+        )
+        conn.execute("DELETE FROM documents_fts WHERE path = ?", (item["path"],))
+        conn.execute("INSERT INTO documents_fts(path, title, type, body) VALUES (?, ?, ?, ?)",
+                     (item["path"], item["title"], item["type"], text))
+        if embed_fn:
+            previous_hash, previous_model = existing.get(item["path"], (None, None))
+            if force or previous_hash != digest or previous_model != model:
+                vec = embed_fn(text)
+                conn.execute(
+                    "INSERT INTO pages(path, content_hash, dim, embedding, model) VALUES (?, ?, ?, ?, ?)"
+                    " ON CONFLICT(path) DO UPDATE SET content_hash=excluded.content_hash, dim=excluded.dim,"
+                    " embedding=excluded.embedding, model=excluded.model",
+                    (item["path"], digest, len(vec), vec_to_blob(vec), model),
+                )
+                embedded += 1
+    for row in conn.execute("SELECT path FROM documents").fetchall():
+        if row[0] not in seen:
+            conn.execute("DELETE FROM documents WHERE path = ?", row)
+            conn.execute("DELETE FROM documents_fts WHERE path = ?", row)
+            conn.execute("DELETE FROM pages WHERE path = ?", row)
+    conn.commit()
+    return len(docs), embedded
+
+
 def self_test():
     import shutil
     import tempfile
@@ -266,8 +322,10 @@ def self_test():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Index brain/wiki/*.md for semantic search.")
+    parser = argparse.ArgumentParser(description="Index the unified context catalog.")
+    parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--force", action="store_true", help="re-embed every page")
+    parser.add_argument("--semantic", action="store_true", help="also request local Ollama embeddings")
     parser.add_argument("--self-test", action="store_true", help="run offline self-test and exit")
     args = parser.parse_args()
 
@@ -275,20 +333,22 @@ def main():
         self_test()
         return 0
 
-    if not WIKI_DIR.exists():
-        print(f"memory_index: wiki dir not found: {WIKI_DIR}", file=sys.stderr)
+    root = args.root.resolve()
+    if not (root / "brain").exists():
+        print(f"memory_index: brain dir not found: {root / 'brain'}", file=sys.stderr)
         return 1
 
-    conn = open_db(DB_PATH)
+    db_path = root / "brain" / "index" / "memory.sqlite3"
+    conn = open_db(db_path)
     try:
-        indexed, skipped, pruned = index_wiki(WIKI_DIR, conn, embed_ollama, force=args.force)
+        count, embedded = index_catalog(root, conn, embed_ollama if args.semantic else None, force=args.force)
     except RuntimeError as e:
-        print(str(e), file=sys.stderr)
-        return 1
+        print(f"memory_index: lexical index ready; semantic indexing skipped: {e}", file=sys.stderr)
+        count, embedded = index_catalog(root, conn, None, force=args.force)
     finally:
         conn.close()
 
-    print(f"memory_index: indexed={indexed} skipped={skipped} pruned={pruned} db={DB_PATH}")
+    print(f"memory_index: documents={count} embedded={embedded} db={db_path}")
     return 0
 
 

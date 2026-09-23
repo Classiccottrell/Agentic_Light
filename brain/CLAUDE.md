@@ -133,15 +133,13 @@ session that touches `brain/`.
 5. If the answer is novel → file it back into the wiki as a new page or update.
 
 ### Semantic search index (cache, not source of truth)
-`System_Config/memory_index.py` embeds each `brain/wiki/*.md` page via a
-local Ollama call (`nomic-embed-text`) and stores the vectors in
-`brain/wiki/.memoryfield.sqlite3`. Re-run it (no args) after editing wiki
-pages to keep the index current — it's incremental (re-embeds only changed
-pages, by content hash) and gitignored. **There is a vector index, but it's
-a deletable cache, not the system** — `brain/wiki/*.md` remains the durable,
-git-tracked source of truth; delete the `.sqlite3` file any time and
-`memory_index.py` rebuilds it from the markdown. `memory_search.py` reads
-that cache to answer queries; see Query above.
+`System_Config/memory_index.py --root <workspace>` indexes records, wiki
+pages, and weekly logs into SQLite FTS5 at `brain/index/memory.sqlite3`.
+`--semantic` additionally stores local Ollama embeddings. Re-run it after
+editing Markdown; the cache is disposable and rebuildable. `memory_search.py`
+returns paths by default and structured excerpts with `--json`; `--semantic`
+merges embedding scores when Ollama is available, while FTS remains usable
+offline. Markdown remains the durable source of truth.
 
 ---
 

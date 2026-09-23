@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""memory_search.py — cosine semantic search over the memory_index.py SQLite
-cache. Prints top-N matching brain/wiki/ page paths, one per line, to
-stdout — pipe into `xargs cat` (or similar) to read all matches in one shot.
+"""Search the unified context cache with offline FTS and optional embeddings.
 
 Usage:
-    memory_search.py "<query>" [--top N]
+    memory_search.py "<query>" [--root ROOT] [--top N] [--json] [--semantic]
     echo "<query>" | memory_search.py [--top N]
     memory_search.py --self-test
 
@@ -21,6 +19,22 @@ from pathlib import Path
 from memory_index import DB_PATH, embed_ollama, fake_embed, open_db, vec_to_blob, index_wiki
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def fts_search(conn, query, top_n):
+    terms = [term for term in query.replace('"', ' ').split() if term]
+    if not terms:
+        return []
+    match = " OR ".join('"' + term.replace('"', '') + '"' for term in terms)
+    rows = conn.execute(
+        "SELECT path, title, type, snippet(documents_fts, 3, '', '', ' … ', 36), bm25(documents_fts) "
+        "FROM documents_fts WHERE documents_fts MATCH ? ORDER BY bm25(documents_fts) LIMIT ?",
+        (match, top_n),
+    ).fetchall()
+    return [
+        {"path": path, "title": title, "type": kind, "score": round(-score, 6), "excerpt": excerpt}
+        for path, title, kind, excerpt, score in rows
+    ]
 
 
 def blob_to_vec(blob):
@@ -113,9 +127,12 @@ def self_test():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Semantic search over brain/wiki/*.md")
+    parser = argparse.ArgumentParser(description="Search the unified context catalog")
     parser.add_argument("query", nargs="?", default=None)
+    parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--top", type=int, default=5)
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument("--semantic", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
 
@@ -133,23 +150,24 @@ def main():
         print("memory_search: no query given", file=sys.stderr)
         return 1
 
-    if not DB_PATH.exists():
-        print(
-            f"memory_search: no index found at {DB_PATH}. Run: "
-            f"System_Config/memory_index.py",
-            file=sys.stderr,
-        )
+    db_path = args.root.resolve() / "brain" / "index" / "memory.sqlite3"
+    if not db_path.exists():
+        print(f"memory_search: no index found at {db_path}. Run: System_Config/memory_index.py --root {args.root}", file=sys.stderr)
         return 1
 
+    conn = open_db(db_path)
     try:
-        query_vec = embed_ollama(query)
-    except RuntimeError as e:
-        print(str(e), file=sys.stderr)
-        return 1
-
-    conn = open_db(DB_PATH)
-    try:
-        results = search(conn, query_vec, args.top)
+        results = fts_search(conn, query, args.top)
+        if args.semantic:
+            try:
+                query_vec = embed_ollama(query)
+                semantic = search(conn, query_vec, args.top)
+                semantic_scores = {path: score for path, score in semantic}
+                for result in results:
+                    result["score"] += semantic_scores.get(result["path"], 0.0)
+                results.sort(key=lambda item: item["score"], reverse=True)
+            except RuntimeError as e:
+                print(f"memory_search: semantic search unavailable; using FTS: {e}", file=sys.stderr)
     finally:
         conn.close()
 
@@ -157,8 +175,12 @@ def main():
         print("memory_search: index is empty", file=sys.stderr)
         return 1
 
-    for path, _score in results:
-        print(path)
+    if args.json:
+        import json
+        print(json.dumps(results, ensure_ascii=False))
+    else:
+        for result in results:
+            print(result["path"])
     return 0
 
 
