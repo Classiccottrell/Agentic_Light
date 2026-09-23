@@ -260,7 +260,11 @@ TARGET_P="$(cd "$TARGET_REPO" && pwd -P)"
 if [ "${AGENTIC_LIGHT_CONTEXT_PACKET:-}" = "1" ] || [ "$TARGET_P" = "$ROOT_P" ]; then
   if [ -x "$CONTEXT_PACKET_SCRIPT" ]; then
     set +e
-    CONTEXT_PACKET="$("$CONTEXT_PACKET_SCRIPT" 2>/dev/null)"
+    if [ -n "${AGENTIC_LIGHT_CONTEXT_PROFILE:-}" ]; then
+      CONTEXT_PACKET="$("$ROOT/System_Config/context.sh" packet --profile "$AGENTIC_LIGHT_CONTEXT_PROFILE" 2>/dev/null)"
+    else
+      CONTEXT_PACKET="$("$CONTEXT_PACKET_SCRIPT" 2>/dev/null)"
+    fi
     set -e
   fi
 fi
