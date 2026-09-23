@@ -137,6 +137,11 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   (`AGENTIC_LIGHT_CONTEXT_PACKET=1`, or automatically when the pipeline's
   target repo resolves to this workspace's own root) — never injected into an
   unrelated external target repo by default.
+- **`context_validate.py`** / **`context_catalog.py`** — validate typed
+  `brain/records/` Markdown and build disposable `brain/index/catalog.json`
+  and `brain/index/links.json` projections. Markdown stays canonical; broken
+  links, duplicate IDs, missing provenance, and invalid record sections fail
+  validation.
 - **`test_context_packet.sh`** — fixture tests for `context_packet.sh`: a
   tiny `AGENTIC_LIGHT_CONTEXT_MAX_LINES`/`AGENTIC_LIGHT_CONTEXT_MAX_BYTES`
   budget against a synthetic `ROADMAP.md` with a dense multi-byte (em dash)
