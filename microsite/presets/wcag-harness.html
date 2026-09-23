@@ -5,16 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f9f5f1" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#1c1e1c" media="(prefers-color-scheme: dark)">
+    <link rel="icon" href="../favicon.svg" type="image/svg+xml">
     <title>wcag-harness — Agentic Light</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:ital,wght@0,400..700;1,400..700&amp;family=Rosarivo:ital@0;1&amp;display=swap" rel="stylesheet">
 <style>
-/* ClassicCottrell design system — 2026-07-10 */
+/* ClassicCottrell design system — 2026-09-23 */
 /* DO NOT EDIT THIS BLOCK — copy it verbatim when creating new HTML pages. */
 :root{
   --bg:#f9f5f1;--surface:#fffdfb;
-  --ink:#2c2c2c;--ink-2:#4a463f;--muted:#77726a;--rule:#e4ddd2;
+  --ink:#2c2c2c;--ink-2:#4a463f;--muted:#625e57;--rule:#e4ddd2;
   --accent:#437057;--accent-hover:#2f4f3e;--accent-ink:#f9f5f1;
   --accent-soft:#e2ebe4;--accent-soft-ink:#2f4f3e;
   --ok:#437057;--warn:#a07d33;--fail:#b4462f;
@@ -27,7 +28,7 @@
   :root{
     --bg:#1c1e1c;--surface:#262825;
     --ink:#f2ede5;--ink-2:#cfcac0;--muted:#a7a297;--rule:rgba(255,255,255,.12);
-    --accent:#7fa88c;--accent-hover:#a9c4b3;--accent-ink:#16211a;
+    --accent:#9bc2a8;--accent-hover:#c0d7c8;--accent-ink:#16211a;
     --accent-soft:#33413a;--accent-soft-ink:#cfe0d5;
     --ok:#7fa88c;--warn:#c2a878;--fail:#d9694f;--shadow:none;
   }
@@ -45,8 +46,8 @@ header.site .wrap{display:flex;align-items:center;justify-content:space-between;
 .back:hover{border-color:var(--accent);color:var(--accent)}
 main{padding:clamp(2.5rem,6vw,4rem) 0}
 .eyebrow{font-family:var(--mono);text-transform:uppercase;font-size:.72rem;letter-spacing:.1em;color:var(--muted);margin:0 0 .5rem}
-h1{color:var(--ink);font-weight:700;font-size:clamp(1.9rem,1.4rem + 2vw,2.6rem);letter-spacing:-.02em;line-height:1.1;margin:.3rem 0 1rem}
-h2{color:var(--ink);font-weight:600;font-size:1.375rem;line-height:1.25;margin:2rem 0 .75rem}
+h1{color:var(--ink);font-weight:700;font-size:clamp(2.1rem,1.5rem + 2.5vw,3.1rem);letter-spacing:-.02em;line-height:1.1;margin:.3rem 0 1rem}
+h2{color:var(--ink);font-weight:600;font-size:1.5rem;line-height:1.25;margin:2rem 0 .75rem}
 h3{color:var(--ink);font-weight:600;font-size:1.125rem;margin:1.5rem 0 .5rem}
 h4{color:var(--ink);font-weight:600;font-size:1rem;margin:1rem 0 .5rem}
 p{max-width:68ch;margin:0 0 1rem}
@@ -61,7 +62,7 @@ th{font-family:var(--mono);font-size:.72rem;text-transform:uppercase;letter-spac
 td{font-size:.92rem;padding:.6rem .8rem;border-bottom:1px solid var(--rule);vertical-align:top}
 tbody tr:hover{background:var(--accent-soft)}
 hr{border:none;border-top:1px solid var(--rule);margin:2rem 0}
-.card{border:1px solid var(--rule);border-left:3px solid var(--accent);border-radius:var(--radius);background:var(--surface);padding:1.1rem 1.375rem;margin:1.5rem 0;box-shadow:var(--shadow);max-width:68ch}
+.card{border:1px solid var(--rule);border-radius:var(--radius);background:var(--surface);padding:1.1rem 1.375rem;margin:1.5rem 0;box-shadow:var(--shadow);max-width:68ch}
 .btn{display:inline-flex;align-items:center;gap:.4rem;font-size:.875rem;font-weight:600;padding:0 1.1rem;min-height:2.5rem;border-radius:var(--radius);text-decoration:none;background:var(--accent);color:var(--accent-ink);border:1px solid transparent;transition:background .15s}
 .btn.alt{background:transparent;color:var(--accent);border-color:var(--rule)}
 .btn:hover{background:var(--accent-hover)}
@@ -127,28 +128,7 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
         <ul><li><code>architect</code>: Audit semantic HTML/ARIA structure per `wcag-audit`&#x27;s pass 4 (screen-reader/semantics): heading order, landmarks, native elements before ARIA, programmatic name/role/value (4.1.2) — before any visual sign-off. Confirm `accessibility/vpat-draft.json` (per `vpat-authoring`) reflects this pass before handing off to creative-director. <em>(capabilities: <code>read</code>, <code>write</code>)</em> <em>(hands off to: <code>creative-director</code>)</em></li><li><code>creative-director</code>: Contrast ratios and visual hierarchy for low-vision/cognitive accessibility — 1.4.3/1.4.11 contrast, 1.4.1 color-alone-signals-state, 2.4.7 focus visible, 2.4.11 focus not obscured (minimum) — per `wcag-audit` pass 3, not general brand critique. Confirm these findings land in the VPAT draft&#x27;s per-criterion remarks per `vpat-authoring`. <em>(capabilities: <code>read</code>)</em> <em>(hands off to: <code>qa</code>)</em></li><li><code>qa</code>: axe-core-informed accessibility checks living in the target repo&#x27;s own specs (`@axe-core/playwright`), covering the machine-detectable third per `wcag-audit` — plus the required manual keyboard-only pass; axe passing alone is not a compliance claim. Also the only wcag-harness role with `shell` capability: normalize the axe scan output to `accessibility/axe-scan.json` (per `vpat-authoring`&#x27;s scan-evidence shape) so the coder&#x27;s VPAT draft has real evidence to cite, and confirm `accessibility/vpat-draft.json` clears the `vpat-lint` gate before hand-off to orchestrator. <em>(capabilities: <code>read</code>, <code>write</code>, <code>shell</code>)</em> <em>(hands off to: <code>orchestrator</code>)</em></li></ul>
 
         <h2>Task Flow</h2>
-        <pre><code>Task in
-  |
-  v
-architect
-  |
-  v
-coder
-  |
-  v
-creative-director
-  |
-  v
-qa
-  |
-  v
-Gate: playwright, axe, vpat-lint
-  |
-  v
-Human gate
-  |
-  v
-PR</code></pre>
+        <ol class="task-flow"><li>Task in</li><li>architect</li><li>coder</li><li>creative-director</li><li>qa</li><li>Gate: playwright, axe, vpat-lint</li><li>Human gate</li><li>PR</li></ol>
 
         <p>Run <code>System_Config/specialize.sh --preset wcag-harness</code> to apply this preset.</p>
     </div>

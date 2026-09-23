@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """
-gen_site.py -- keep microsite/index.html in sync with the agent/skill roster.
+gen_site.py -- keep microsite/index.html and dashboard.html in sync with the
+agent/skill/preset roster.
 
 Managed sections:
   <!-- gen:agents-start --> ... <!-- gen:agents-end -->
   <!-- gen:skills-start --> ... <!-- gen:skills-end -->
   inline: <!-- gen:agent-count -->N<!-- /gen:agent-count -->
   inline: <!-- gen:skills-count -->N<!-- /gen:skills-count -->
+  dashboard.html: <!-- gen:dashboard-presets-start/end -->
+                  <!-- gen:dashboard-roster-head-start/end -->
+                  <!-- gen:dashboard-roster-body-start/end -->
 
 Sources:
   agents/*.md         -- core agents: name + description from YAML frontmatter
@@ -17,6 +21,8 @@ Usage:
   python3 System_Config/gen_site.py --check  # exit 1 if site is stale (healthcheck)
   python3 System_Config/gen_site.py --dry-run # print what would change, no write
 """
+import html
+import json
 import os, re, glob, sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -24,6 +30,9 @@ ROOT = os.path.dirname(SCRIPT_DIR)
 AGENTS_DIR = os.path.join(ROOT, 'agents')
 SKILLS_DIR = os.path.join(ROOT, 'skills')
 HTML_PATH = os.path.join(ROOT, 'microsite', 'index.html')
+DASHBOARD_PATH = os.path.join(ROOT, 'microsite', 'dashboard.html')
+PRESETS_PATH = os.path.join(SCRIPT_DIR, 'presets.json')
+ROSTER_SCHEMA_PATH = os.path.join(SCRIPT_DIR, 'agent-roster.schema.json')
 
 
 def read_frontmatter(path):
@@ -66,6 +75,17 @@ def get_skills():
     return skills
 
 
+def get_presets():
+    with open(PRESETS_PATH) as f:
+        return json.load(f)
+
+
+def get_roles():
+    with open(ROSTER_SCHEMA_PATH) as f:
+        schema = json.load(f)
+    return list(schema['properties']['roles']['properties'].keys())
+
+
 def build_roster_rows(rows):
     out = []
     for a in rows:
@@ -99,6 +119,39 @@ def build_skills_block(skills):
     )
 
 
+def build_dashboard_presets(presets):
+    cards = []
+    for name in sorted(presets):
+        safe_name = html.escape(name)
+        description = html.escape(presets[name].get('description', ''))
+        cards.append(
+            '            <a class="preset-card" href="presets/' + safe_name + '.html">\n'
+            '                <span class="pname">' + safe_name + '</span>\n'
+            '                <p class="pdesc">' + description + '</p>\n'
+            '            </a>'
+        )
+    return '\n'.join(cards)
+
+
+def build_dashboard_roster_head(presets):
+    return '              <th>Role</th>' + ''.join(
+        '<th>' + html.escape(name) + '</th>' for name in sorted(presets)
+    )
+
+
+def build_dashboard_roster_body(presets, roles):
+    rows = []
+    for role in roles:
+        cells = []
+        for name in sorted(presets):
+            active = role in presets[name].get('roles', [])
+            cells.append('<td class="' + ('on' if active else 'off') + '">' +
+                         ('&#10003;' if active else '&#8212;') + '</td>')
+        rows.append('              <tr><td>' + html.escape(role) + '</td>' +
+                    ''.join(cells) + '</tr>')
+    return '\n'.join(rows)
+
+
 def replace_block(html, marker, new_content):
     start = '<!-- gen:' + marker + '-start -->'
     end = '<!-- gen:' + marker + '-end -->'
@@ -117,6 +170,8 @@ def main():
 
     with open(HTML_PATH) as f:
         original = f.read()
+    with open(DASHBOARD_PATH) as f:
+        dashboard_original = f.read()
 
     html = original
     agents = get_agents()
@@ -128,7 +183,13 @@ def main():
     html = replace_inline(html, 'agent-count', str(roster_total))
     html = replace_inline(html, 'skills-count', str(len(skills)))
 
-    if html == original:
+    presets = get_presets()
+    roles = get_roles()
+    dashboard = replace_block(dashboard_original, 'dashboard-presets', build_dashboard_presets(presets))
+    dashboard = replace_block(dashboard, 'dashboard-roster-head', build_dashboard_roster_head(presets))
+    dashboard = replace_block(dashboard, 'dashboard-roster-body', build_dashboard_roster_body(presets, roles))
+
+    if html == original and dashboard == dashboard_original:
         print('gen_site: site is already up to date.')
         sys.exit(0)
 
@@ -138,13 +199,20 @@ def main():
 
     if dry_run:
         import difflib
-        diff = difflib.unified_diff(original.splitlines(), html.splitlines(), lineterm='', n=2)
-        print('\n'.join(list(diff)[:80]))
+        diffs = list(difflib.unified_diff(original.splitlines(), html.splitlines(), fromfile=HTML_PATH, tofile=HTML_PATH, lineterm='', n=2))
+        diffs += list(difflib.unified_diff(dashboard_original.splitlines(), dashboard.splitlines(), fromfile=DASHBOARD_PATH, tofile=DASHBOARD_PATH, lineterm='', n=2))
+        print('\n'.join(diffs[:120]))
         sys.exit(0)
 
-    with open(HTML_PATH, 'w') as f:
-        f.write(html)
-    print('gen_site: updated ' + HTML_PATH)
+    if html != original:
+        with open(HTML_PATH, 'w') as f:
+            f.write(html)
+    if dashboard != dashboard_original:
+        with open(DASHBOARD_PATH, 'w') as f:
+            f.write(dashboard)
+    print('gen_site: updated generated microsite pages')
+    print('  index: ' + HTML_PATH)
+    print('  dashboard: ' + DASHBOARD_PATH)
     print('  agents: ' + str(roster_total) + '  skills: ' + str(len(skills)))
 
 

@@ -10,11 +10,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:ital,wght@0,400..700;1,400..700&amp;family=Rosarivo:ital@0;1&amp;display=swap" rel="stylesheet">
 <style>
-/* ClassicCottrell design system — 2026-07-10 */
+/* ClassicCottrell design system — 2026-09-23 */
 /* DO NOT EDIT THIS BLOCK — copy it verbatim when creating new HTML pages. */
 :root{
   --bg:#f9f5f1;--surface:#fffdfb;
-  --ink:#2c2c2c;--ink-2:#4a463f;--muted:#77726a;--rule:#e4ddd2;
+  --ink:#2c2c2c;--ink-2:#4a463f;--muted:#625e57;--rule:#e4ddd2;
   --accent:#437057;--accent-hover:#2f4f3e;--accent-ink:#f9f5f1;
   --accent-soft:#e2ebe4;--accent-soft-ink:#2f4f3e;
   --ok:#437057;--warn:#a07d33;--fail:#b4462f;
@@ -27,7 +27,7 @@
   :root{
     --bg:#1c1e1c;--surface:#262825;
     --ink:#f2ede5;--ink-2:#cfcac0;--muted:#a7a297;--rule:rgba(255,255,255,.12);
-    --accent:#7fa88c;--accent-hover:#a9c4b3;--accent-ink:#16211a;
+    --accent:#9bc2a8;--accent-hover:#c0d7c8;--accent-ink:#16211a;
     --accent-soft:#33413a;--accent-soft-ink:#cfe0d5;
     --ok:#7fa88c;--warn:#c2a878;--fail:#d9694f;--shadow:none;
   }
@@ -45,8 +45,8 @@ header.site .wrap{display:flex;align-items:center;justify-content:space-between;
 .back:hover{border-color:var(--accent);color:var(--accent)}
 main{padding:clamp(2.5rem,6vw,4rem) 0}
 .eyebrow{font-family:var(--mono);text-transform:uppercase;font-size:.72rem;letter-spacing:.1em;color:var(--muted);margin:0 0 .5rem}
-h1{color:var(--ink);font-weight:700;font-size:clamp(1.9rem,1.4rem + 2vw,2.6rem);letter-spacing:-.02em;line-height:1.1;margin:.3rem 0 1rem}
-h2{color:var(--ink);font-weight:600;font-size:1.375rem;line-height:1.25;margin:2rem 0 .75rem}
+h1{color:var(--ink);font-weight:700;font-size:clamp(2.1rem,1.5rem + 2.5vw,3.1rem);letter-spacing:-.02em;line-height:1.1;margin:.3rem 0 1rem}
+h2{color:var(--ink);font-weight:600;font-size:1.5rem;line-height:1.25;margin:2rem 0 .75rem}
 h3{color:var(--ink);font-weight:600;font-size:1.125rem;margin:1.5rem 0 .5rem}
 h4{color:var(--ink);font-weight:600;font-size:1rem;margin:1rem 0 .5rem}
 p{max-width:68ch;margin:0 0 1rem}
@@ -61,7 +61,7 @@ th{font-family:var(--mono);font-size:.72rem;text-transform:uppercase;letter-spac
 td{font-size:.92rem;padding:.6rem .8rem;border-bottom:1px solid var(--rule);vertical-align:top}
 tbody tr:hover{background:var(--accent-soft)}
 hr{border:none;border-top:1px solid var(--rule);margin:2rem 0}
-.card{border:1px solid var(--rule);border-left:3px solid var(--accent);border-radius:var(--radius);background:var(--surface);padding:1.1rem 1.375rem;margin:1.5rem 0;box-shadow:var(--shadow);max-width:68ch}
+.card{border:1px solid var(--rule);border-radius:var(--radius);background:var(--surface);padding:1.1rem 1.375rem;margin:1.5rem 0;box-shadow:var(--shadow);max-width:68ch}
 .btn{display:inline-flex;align-items:center;gap:.4rem;font-size:.875rem;font-weight:600;padding:0 1.1rem;min-height:2.5rem;border-radius:var(--radius);text-decoration:none;background:var(--accent);color:var(--accent-ink);border:1px solid transparent;transition:background .15s}
 .btn.alt{background:transparent;color:var(--accent);border-color:var(--rule)}
 .btn:hover{background:var(--accent-hover)}
@@ -117,10 +117,10 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
             <li><strong>Delete the unused skill dirs.</strong> Keep <code>skills/wcag-audit/</code>. Delete the rest: <code>rm -rf skills/figma-* skills/server-review</code>. That matches what <code>skills-selected.json</code> already says, and saves carrying 13 dead dirs around. Keep <code>skills/wcag-audit/LICENSE</code> and <code>NOTICE</code> intact: the skill is vendored under MIT, and its reference file is under the W3C Document License, which requires that notice.</li>
             <li><strong>Extend the skill, don't replace it.</strong> <code>wcag-audit</code> covers the 55 WCAG 2.2 A/AA criteria. If the team has house rules on top (a stricter contrast floor, required screen readers, a component library's known issues), add them as a section in that <code>SKILL.md</code> or as a second skill dir next to it, so the upstream text stays diffable against its source.</li>
             <li><strong>Rewrite the role notes.</strong> Edit <code>wcag-harness</code>'s <code>role_notes</code> in <code>presets.json</code> to name the team's actual scope, for example which product surfaces <code>architect</code> reviews and which contrast floor <code>creative-director</code> enforces. Re-run <code>python3 System_Config/gen_governance.py</code> and <code>gen_preset_pages.py</code>; both render the notes.</li>
-            <li><strong>Prune <code>presets.json</code> down to one entry (or remove the concept entirely).</strong> Delete the other 5 preset objects, keep only the one this fork is. Re-run <code>python3 System_Config/gen_preset_pages.py</code>: its orphan sweep deletes the now-unlisted pages under <code>microsite/presets/</code> automatically (verified in the script: any <code>.html</code> under <code>presets/</code> not matching a current key is removed on a real run). <code>microsite/dashboard.html</code> is hand-maintained, not generated; its README says to update it by hand when <code>presets.json</code>'s shape changes, so edit its preset cards and roster table to match.</li>
+            <li><strong>Prune <code>presets.json</code> down to one entry (or remove the concept entirely).</strong> Delete the other 5 preset objects, keep only the one this fork is. Re-run <code>python3 System_Config/gen_preset_pages.py</code> and <code>python3 System_Config/gen_site.py</code>: the first removes orphaned preset pages and the second refreshes dashboard cards and the roster table from source.</li>
             <li><strong>Rename before regenerating.</strong> Edit <code>microsite/template.html</code>'s <code>&lt;title&gt;</code> and <code>.wordmark</code> text, and the title line of <code>STATIC_TEMPLATE</code> in <code>System_Config/gen_governance.py</code>. Every generated page (preset pages via <code>gen_preset_pages.py</code>, <code>index.html</code>'s marker blocks via <code>gen_site.py</code>) inherits from the HTML template, and <code>GOVERNANCE.md</code> from <code>STATIC_TEMPLATE</code>. Rename, <em>then</em> re-run all three generators. Re-running before the rename just bakes the old name back in.</li>
             <li><strong>Rewrite <code>CLAUDE.md</code>.</strong> Replace the generic "6 roles, pick a preset" framing with a description of the one thing this fork does: an internal accessibility-review bot for this team, not a template.</li>
-            <li><strong>Tighten what specialize.sh left generic.</strong> A single-purpose harness no longer needs the <code>custom</code> gate placeholder's escape hatch (see <code>data-pipeline</code>'s definition, a <code>{"name": "custom", "script": ""}</code> stub with no script wired in) or a configurable multi-preset gate list. Recommend fixing the pipeline to exactly <code>playwright</code> plus whatever accessibility-specific check the team standardizes on (for example <code>@axe-core/playwright</code> assertions in the target repo's own specs, which is where <code>wcag-harness</code>'s <code>qa</code> note says they belong), instead of leaving the gate list open-ended. <code>GOVERNANCE.md</code>'s gate-policy section regenerates from <code>gate-config.json</code>, so it follows automatically.</li>
+            <li><strong>Tighten what specialize.sh left generic.</strong> A single-purpose harness may still replace its preset's default gate list with an exact project-specific contract. Keep the human approval gate and other pipeline safety checks intact. <code>GOVERNANCE.md</code>'s gate-policy section regenerates from <code>gate-config.json</code>, so it follows automatically.</li>
         </ol>
 
         <h2>What NOT to touch</h2>
@@ -147,7 +147,7 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
               <tr><td><code>microsite/template.html</code>, <code>gen_governance.py</code>'s <code>STATIC_TEMPLATE</code></td><td>Rename <em>before</em> regenerating anything</td></tr>
               <tr><td><code>python3 System_Config/gen_preset_pages.py</code></td><td>Re-run after pruning presets.json, auto-removes orphaned preset pages</td></tr>
               <tr><td><code>python3 System_Config/gen_site.py</code></td><td>Re-run after renaming/role changes, refreshes roster/skill tables</td></tr>
-              <tr><td><code>microsite/dashboard.html</code></td><td>Hand-edit; not generated, hardcodes all 6 presets by default</td></tr>
+              <tr><td><code>microsite/dashboard.html</code></td><td>Regenerate preset cards and roster table with <code>gen_site.py</code></td></tr>
               <tr><td><code>CLAUDE.md</code> / <code>AGENTS.md</code></td><td>Rewrite for the one use case, not the generic 6-role menu</td></tr>
               <tr><td><code>GOVERNANCE.md</code></td><td>Don't hand-edit; it's generated. Narrow via <code>STATIC_TEMPLATE</code> and <code>role_notes</code>, then re-run <code>gen_governance.py</code></td></tr>
               <tr><td><code>pipeline/gate-config.json</code></td><td>Consider fully specifying it, drop the <code>custom</code>-gate placeholder pattern</td></tr>

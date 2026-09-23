@@ -342,7 +342,7 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   (`web-app`: full team + eslint/playwright + `react-doctor`/`shadcn` skills;
   `cli-tool`: coder+qa, no gates, `systematic-debugging`/
   `managing-python-dependencies` skills; `data-pipeline`: architect+coder+qa,
-  placeholder custom gate, `gcp-data-pipelines`/`dbt-bigquery`/
+  no default gate, `gcp-data-pipelines`/`dbt-bigquery`/
   `discovering-gcp-data-assets` skills; `design-harness`:
   architect+coder+creative-director+qa, playwright gate only, all skills,
   plus `"requires": ["figma-mcp"]`;
@@ -356,16 +356,10 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `gen_preset_pages.py`); so do the
   `AGENTIC_LIGHT_ROLES`/`AGENTIC_LIGHT_GATES`/`AGENTIC_LIGHT_SKILLS`
   comma-separated env overrides (mirrors `bootstrap.sh`'s
-  `AGENTIC_LIGHT_*` convention). `data-pipeline`'s custom gate ships with an
-  intentionally empty `"script"` placeholder — `specialize.sh` refuses to
-  write a config with a known-empty required custom-gate `"script"` (preset
-  or interactive path alike) and exits non-zero with a clear fix message,
-  rather than writing a config that `pipeline/run.sh` would only fail at
-  execution time. `server-harness` sidesteps this entirely by shipping an
-  empty gate list (`[]`, same shape as `cli-tool`) rather than a placeholder
-  custom gate — a server project's test command varies too much to guess,
-  and an always-failing placeholder preset would be less honest than an
-  explicit "no default gates" preset a human fills in later. `server-harness`
+  `AGENTIC_LIGHT_*` convention). `data-pipeline` and `server-harness` ship
+  empty gate lists because a project's test command varies too much to guess;
+  add a repo-root-relative custom gate only when the target project defines
+  one. `server-harness`
   ships `"skills": ["server-review"]` (see `skills/server-review/SKILL.md`) and
   `wcag-harness` ships `["wcag-audit", "vpat-authoring"]`; a preset only carries a
   `skills_gap_note` field when its listed skill selection is a genuinely

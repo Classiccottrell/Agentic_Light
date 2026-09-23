@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f9f5f1" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#1c1e1c" media="(prefers-color-scheme: dark)">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <!-- Auto-refresh: pick up a fresh status.js snapshot every 5 minutes, same as health.html -->
     <meta http-equiv="refresh" content="300">
     <title>Dashboard — Agentic Light</title>
@@ -16,7 +17,7 @@
 /* DO NOT EDIT THIS BLOCK — copy it verbatim when creating new HTML pages. */
 :root{
   --bg:#f9f5f1;--surface:#fffdfb;
-  --ink:#2c2c2c;--ink-2:#4a463f;--muted:#77726a;--rule:#e4ddd2;
+  --ink:#2c2c2c;--ink-2:#4a463f;--muted:#625e57;--rule:#e4ddd2;
   --accent:#437057;--accent-hover:#2f4f3e;--accent-ink:#f9f5f1;
   --accent-soft:#e2ebe4;--accent-soft-ink:#2f4f3e;
   --ok:#437057;--warn:#a07d33;--fail:#b4462f;
@@ -29,7 +30,7 @@
   :root{
     --bg:#1c1e1c;--surface:#262825;
     --ink:#f2ede5;--ink-2:#cfcac0;--muted:#a7a297;--rule:rgba(255,255,255,.12);
-    --accent:#7fa88c;--accent-hover:#a9c4b3;--accent-ink:#16211a;
+    --accent:#9bc2a8;--accent-hover:#c0d7c8;--accent-ink:#16211a;
     --accent-soft:#33413a;--accent-soft-ink:#cfe0d5;
     --ok:#7fa88c;--warn:#c2a878;--fail:#d9694f;--shadow:none;
   }
@@ -63,7 +64,7 @@ th{font-family:var(--mono);font-size:.72rem;text-transform:uppercase;letter-spac
 td{font-size:.92rem;padding:.6rem .8rem;border-bottom:1px solid var(--rule);vertical-align:top}
 tbody tr:hover{background:var(--accent-soft)}
 hr{border:none;border-top:1px solid var(--rule);margin:2rem 0}
-.card{border:1px solid var(--rule);border-left:3px solid var(--accent);border-radius:var(--radius);background:var(--surface);padding:1.1rem 1.375rem;margin:1.5rem 0;box-shadow:var(--shadow);max-width:68ch}
+.card{border:1px solid var(--rule);border-radius:var(--radius);background:var(--surface);padding:1.1rem 1.375rem;margin:1.5rem 0;box-shadow:var(--shadow);max-width:68ch}
 .btn{display:inline-flex;align-items:center;gap:.4rem;font-size:.875rem;font-weight:600;padding:0 1.1rem;min-height:2.5rem;border-radius:var(--radius);text-decoration:none;background:var(--accent);color:var(--accent-ink);border:1px solid transparent;transition:background .15s}
 .btn.alt{background:transparent;color:var(--accent);border-color:var(--rule)}
 .btn:hover{background:var(--accent-hover)}
@@ -148,13 +149,14 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
         <h2>Presets</h2>
         <p>All specialization presets declared in <code>System_Config/presets.json</code>. Apply one with <code>System_Config/specialize.sh --preset &lt;name&gt;</code>.</p>
         <div class="preset-grid">
+            <!-- gen:dashboard-presets-start -->
             <a class="preset-card" href="presets/cli-tool.html">
                 <span class="pname">cli-tool</span>
                 <p class="pdesc">coder+qa, no gates, systematic-debugging/managing-python-dependencies skills</p>
             </a>
             <a class="preset-card" href="presets/data-pipeline.html">
                 <span class="pname">data-pipeline</span>
-                <p class="pdesc">architect+coder+qa, placeholder custom gate (needs a script), gcp-data-pipelines/dbt-bigquery/discovering-gcp-data-assets skills</p>
+                <p class="pdesc">architect+coder+qa, no default gate, gcp-data-pipelines/dbt-bigquery/discovering-gcp-data-assets skills</p>
             </a>
             <a class="preset-card" href="presets/design-harness.html">
                 <span class="pname">design-harness</span>
@@ -166,12 +168,13 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
             </a>
             <a class="preset-card" href="presets/wcag-harness.html">
                 <span class="pname">wcag-harness</span>
-                <p class="pdesc">architect+coder+creative-director+qa, playwright gate, wcag-audit skill</p>
+                <p class="pdesc">architect+coder+creative-director+qa, playwright+axe+vpat-lint gates, wcag-audit+vpat-authoring skills</p>
             </a>
             <a class="preset-card" href="presets/web-app.html">
                 <span class="pname">web-app</span>
                 <p class="pdesc">full team + eslint/playwright gates + react-doctor/shadcn skills</p>
             </a>
+<!-- gen:dashboard-presets-end -->
         </div>
 
         <h2>Roster by preset</h2>
@@ -179,16 +182,20 @@ h1,h2,.hero h1{font-family:var(--serif);font-weight:400;letter-spacing:0}
         <table class="roster-table">
           <thead>
             <tr>
+              <!-- gen:dashboard-roster-head-start -->
               <th>Role</th><th>cli-tool</th><th>data-pipeline</th><th>design-harness</th><th>server-harness</th><th>wcag-harness</th><th>web-app</th>
+<!-- gen:dashboard-roster-head-end -->
             </tr>
           </thead>
           <tbody>
+              <!-- gen:dashboard-roster-body-start -->
               <tr><td>architect</td><td class="off">&#8212;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td></tr>
               <tr><td>coder</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td></tr>
               <tr><td>creative-director</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="on">&#10003;</td><td class="off">&#8212;</td><td class="on">&#10003;</td><td class="on">&#10003;</td></tr>
               <tr><td>curator</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="on">&#10003;</td></tr>
               <tr><td>eng-manager</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="off">&#8212;</td><td class="on">&#10003;</td></tr>
               <tr><td>qa</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td><td class="on">&#10003;</td></tr>
+<!-- gen:dashboard-roster-body-end -->
           </tbody>
         </table>
     </div>

@@ -31,7 +31,7 @@ case "${1:-}" in
     echo "  --preset <name>  non-interactive, expand a named preset from System_Config/presets.json"
     echo "                   web-app: full team + eslint/playwright gates + react-doctor/shadcn skills"
     echo "                   cli-tool: coder+qa, no gates, systematic-debugging/managing-python-dependencies skills"
-    echo "                   data-pipeline: architect+coder+qa, placeholder custom gate (needs a script), gcp-data-pipelines/dbt-bigquery/discovering-gcp-data-assets skills"
+    echo "                   data-pipeline: architect+coder+qa, no default gate, curated data skills"
     echo "                   design-harness: architect+coder+creative-director+qa, playwright gate, all skills"
     echo "                   server-harness: architect+coder+qa, no default gates, server-review skill"
     echo "                   wcag-harness: architect+coder+creative-director+qa, playwright+axe+vpat-lint gates, wcag-audit+vpat-authoring skills"
