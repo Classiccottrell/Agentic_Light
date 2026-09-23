@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 gen_preset_pages.py -- generate one microsite page per fork-specialization
-preset, plus the index.html preset index table, from presets.json.
+preset from presets.json. The dashboard owns the preset index.
 
 Sources:
   System_Config/presets.json              -- roles/gates/skills/description per preset,
@@ -13,10 +13,9 @@ Sources:
 
 Outputs:
   microsite/presets/<name>.html   -- one page per preset (overwritten each run)
-  microsite/index.html            -- <!-- gen:presets-start/end --> table refreshed
 
 Usage:
-  python3 System_Config/gen_preset_pages.py          # write pages + index.html
+  python3 System_Config/gen_preset_pages.py          # write preset pages
   python3 System_Config/gen_preset_pages.py --check  # exit 1 if anything is stale
   python3 System_Config/gen_preset_pages.py --dry-run # preview, no write
 """
@@ -27,7 +26,6 @@ ROOT = os.path.dirname(SCRIPT_DIR)
 PRESETS_PATH = os.path.join(SCRIPT_DIR, 'presets.json')
 ROSTER_SCHEMA_PATH = os.path.join(SCRIPT_DIR, 'agent-roster.schema.json')
 TEMPLATE_PATH = os.path.join(ROOT, 'microsite', 'template.html')
-INDEX_PATH = os.path.join(ROOT, 'microsite', 'index.html')
 PRESETS_DIR = os.path.join(ROOT, 'microsite', 'presets')
 
 
@@ -138,6 +136,7 @@ def render_page(name, preset, all_roles, template):
     html = template.replace('href="index.html"', 'href="../index.html"')
     html = html.replace('href="health.html"', 'href="../health.html"')
     html = html.replace('href="favicon.svg"', 'href="../favicon.svg"')
+    html = html.replace('src="field.js"', 'src="../field.js"')
     html = html.replace(
         '<!-- HEADER: wordmark always points at microsite/index.html — every page in this microsite is a sibling. -->',
         '<!-- HEADER: wordmark points at ../index.html — preset pages live one level down in microsite/presets/. -->'
@@ -245,16 +244,6 @@ def main():
         if not check_mode and not dry_run:
             for p in removed:
                 os.remove(p)
-
-    with open(INDEX_PATH) as f:
-        index_html = f.read()
-    new_index_html = replace_block(index_html, 'presets', build_index_table(presets))
-    if new_index_html != index_html:
-        stale = True
-        written.append(INDEX_PATH)
-        if not check_mode and not dry_run:
-            with open(INDEX_PATH, 'w') as f:
-                f.write(new_index_html)
 
     if not stale:
         print('gen_preset_pages: all preset pages already up to date.')

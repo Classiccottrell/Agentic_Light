@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """
-gen_site.py -- keep microsite/index.html and dashboard.html in sync with the
-agent/skill/preset roster.
+gen_site.py -- keep the microsite dashboard in sync with the agent/skill/preset
+roster. microsite/index.html is a static compatibility redirect to it.
 
 Managed sections:
-  <!-- gen:agents-start --> ... <!-- gen:agents-end -->
-  <!-- gen:skills-start --> ... <!-- gen:skills-end -->
-  inline: <!-- gen:agent-count -->N<!-- /gen:agent-count -->
-  inline: <!-- gen:skills-count -->N<!-- /gen:skills-count -->
   dashboard.html: <!-- gen:dashboard-presets-start/end -->
                   <!-- gen:dashboard-roster-head-start/end -->
                   <!-- gen:dashboard-roster-body-start/end -->
@@ -17,7 +13,7 @@ Sources:
   skills/*/SKILL.md   -- name + description from YAML frontmatter
 
 Usage:
-  python3 System_Config/gen_site.py          # update microsite/index.html in place
+  python3 System_Config/gen_site.py          # update microsite/dashboard.html in place
   python3 System_Config/gen_site.py --check  # exit 1 if site is stale (healthcheck)
   python3 System_Config/gen_site.py --dry-run # print what would change, no write
 """
@@ -29,7 +25,6 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(SCRIPT_DIR)
 AGENTS_DIR = os.path.join(ROOT, 'agents')
 SKILLS_DIR = os.path.join(ROOT, 'skills')
-HTML_PATH = os.path.join(ROOT, 'microsite', 'index.html')
 DASHBOARD_PATH = os.path.join(ROOT, 'microsite', 'dashboard.html')
 PRESETS_PATH = os.path.join(SCRIPT_DIR, 'presets.json')
 ROSTER_SCHEMA_PATH = os.path.join(SCRIPT_DIR, 'agent-roster.schema.json')
@@ -168,20 +163,8 @@ def main():
     check_mode = '--check' in sys.argv
     dry_run = '--dry-run' in sys.argv
 
-    with open(HTML_PATH) as f:
-        original = f.read()
     with open(DASHBOARD_PATH) as f:
         dashboard_original = f.read()
-
-    html = original
-    agents = get_agents()
-    skills = get_skills()
-    roster_total = len(agents)
-
-    html = replace_block(html, 'agents', build_agents_block(agents))
-    html = replace_block(html, 'skills', build_skills_block(skills))
-    html = replace_inline(html, 'agent-count', str(roster_total))
-    html = replace_inline(html, 'skills-count', str(len(skills)))
 
     presets = get_presets()
     roles = get_roles()
@@ -189,7 +172,7 @@ def main():
     dashboard = replace_block(dashboard, 'dashboard-roster-head', build_dashboard_roster_head(presets))
     dashboard = replace_block(dashboard, 'dashboard-roster-body', build_dashboard_roster_body(presets, roles))
 
-    if html == original and dashboard == dashboard_original:
+    if dashboard == dashboard_original:
         print('gen_site: site is already up to date.')
         sys.exit(0)
 
@@ -199,21 +182,16 @@ def main():
 
     if dry_run:
         import difflib
-        diffs = list(difflib.unified_diff(original.splitlines(), html.splitlines(), fromfile=HTML_PATH, tofile=HTML_PATH, lineterm='', n=2))
-        diffs += list(difflib.unified_diff(dashboard_original.splitlines(), dashboard.splitlines(), fromfile=DASHBOARD_PATH, tofile=DASHBOARD_PATH, lineterm='', n=2))
+        diffs = list(difflib.unified_diff(dashboard_original.splitlines(), dashboard.splitlines(), fromfile=DASHBOARD_PATH, tofile=DASHBOARD_PATH, lineterm='', n=2))
         print('\n'.join(diffs[:120]))
         sys.exit(0)
 
-    if html != original:
-        with open(HTML_PATH, 'w') as f:
-            f.write(html)
     if dashboard != dashboard_original:
         with open(DASHBOARD_PATH, 'w') as f:
             f.write(dashboard)
     print('gen_site: updated generated microsite pages')
-    print('  index: ' + HTML_PATH)
     print('  dashboard: ' + DASHBOARD_PATH)
-    print('  agents: ' + str(roster_total) + '  skills: ' + str(len(skills)))
+    print('  presets: ' + str(len(presets)) + '  roles: ' + str(len(roles)))
 
 
 if __name__ == '__main__':

@@ -92,7 +92,7 @@ Two read-only dashboards, no server required:
 
 ```sh
 bash System_Config/dashboard.sh         # terminal: preset, provider, roster, gates, last session, recent runs
-open microsite/index.html               # browser: doc-site home, links to presets and the dashboard
+open microsite/index.html               # browser: dashboard entry point
 open microsite/dashboard.html           # browser: condensed health + preset cards + roster-by-preset table
 ```
 
