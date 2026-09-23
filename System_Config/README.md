@@ -223,17 +223,16 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   decides to fall back to `rg -l`. `--self-test` mirrors `memory_index.py`'s
   fake-embedder pattern and covers the dimension-mismatch case.
 
-- **`gen_site.py`** — regenerates `microsite/index.html`'s
-  `<!-- gen:agents-start/end -->` / `<!-- gen:skills-start/end -->` blocks and
-  `<!-- gen:agent-count -->` / `<!-- gen:skills-count -->` counters from
-  `agents/*.md` and `skills/*/SKILL.md` frontmatter.
+- **`gen_site.py`** — regenerates `microsite/dashboard.html`'s preset cards and
+  roster-by-preset table from `System_Config/presets.json` and
+  `agent-roster.schema.json`. `microsite/index.html` is a static compatibility
+  redirect to the dashboard.
   `--check` exits 1 if stale (used by `healthcheck.sh`); `--dry-run` prints
   the diff without writing. Stdlib-only Python 3.
 - **`gen_preset_pages.py`** — regenerates one page per fork-specialization
   preset at `microsite/presets/<name>.html` (purpose, roster table, gate
-  table, skills note, task-flow diagram), plus the
-  `<!-- gen:presets-start/end -->` index table in `microsite/index.html`,
-  from `System_Config/presets.json` and `agent-roster.schema.json`'s fixed
+  table, skills note, task-flow diagram) from `System_Config/presets.json` and
+  `agent-roster.schema.json`'s fixed
   6-role set. Copies `microsite/template.html` as the scaffold (rewriting its
   sibling-relative `index.html`/`health.html` links to `../` since preset
   pages live one level down). Same CLI shape as `gen_site.py`: bare (write),
@@ -281,7 +280,7 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   doc currency (including a WARN if `CLAUDE.md`'s Directory Map's
   `System_Config/*` listing drifts from actual `.sh`/`.py`/`.json` files on
   disk).
-  Self-heals a stale `microsite/index.html`, stale `microsite/presets/*.html`,
+  Self-heals a stale `microsite/dashboard.html`, stale `microsite/presets/*.html`,
   or stale `GOVERNANCE.md` by invoking `gen_site.py` / `gen_preset_pages.py` /
   `gen_governance.py` for
   real. Writes `microsite/status.json` + `microsite/status.js` (the payload
