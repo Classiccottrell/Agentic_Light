@@ -9,12 +9,20 @@ script design — this file has no logic of its own beyond argument shuffling.
 Usage: context.py [--root ROOT] packet|validate|catalog|curate ...
 """
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
+
+
+def _child_env():
+    """env for a spawned Python child — PYTHONUTF8=1 so its own default I/O
+    encoding is UTF-8 regardless of platform (Windows otherwise defaults a
+    piped child's stdio to the console codepage, e.g. cp1252)."""
+    return {**os.environ, "PYTHONUTF8": "1"}
 
 
 def main():
@@ -43,9 +51,11 @@ def main():
         print("usage: context.py [--root ROOT] packet|validate|catalog|curate", file=sys.stderr)
         return 2
 
-    proc = subprocess.run(argv)
+    proc = subprocess.run(argv, env=_child_env())
     return proc.returncode
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     sys.exit(main())

@@ -28,6 +28,9 @@ RUN = ROOT / "pipeline" / "run.py"
 LIB = ROOT / "pipeline" / "lib"
 GIT = shutil.which("git")
 
+sys.path.insert(0, str(ROOT / "System_Config"))
+from test_support import rmtree_force  # noqa: E402
+
 _FAILURES = []
 
 
@@ -63,22 +66,38 @@ def write_fake(path, body):
     path.chmod(path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 
 
+# gh and claude are resolved by BARE NAME via shutil.which() (pr_create.py,
+# config.provider_command()) — unlike the .py stubs above (always dispatched
+# as [sys.executable, path, ...], so their own shebang/executable bit is
+# irrelevant), these two must be genuinely PATH-discoverable: a POSIX
+# executable with a real shebang, plus a same-named .cmd wrapper so
+# shutil.which() finds it via PATHEXT on Windows too (blueprint §3). The
+# shebang embeds sys.executable directly rather than `#!/usr/bin/env
+# python3` — robust regardless of what "python3" resolves to (or whether it
+# exists at all) on PATH.
+def write_path_fake(name, body):
+    path = FAKE_BIN / name
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(f"#!{sys.executable}\n" + body)
+    path.chmod(path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    with open(FAKE_BIN / f"{name}.cmd", "w", encoding="utf-8", newline="") as f:
+        f.write(f'@echo off\r\n"{sys.executable}" "%~dp0{name}" %*\r\n')
+
+
 # Fake gh: logs its full argv to $CALLS, always exits 0.
-write_fake(FAKE_BIN / "gh", "#!/usr/bin/env python3\n"
-           "import os, sys\n"
-           "with open(os.environ['CALLS'], 'a', encoding='utf-8') as f:\n"
-           "    f.write('gh ' + ' '.join(sys.argv[1:]) + chr(10))\n"
-           "sys.exit(0)\n")
+write_path_fake("gh", "import os, sys\n"
+                 "with open(os.environ['CALLS'], 'a', encoding='utf-8') as f:\n"
+                 "    f.write('gh ' + ' '.join(sys.argv[1:]) + chr(10))\n"
+                 "sys.exit(0)\n")
 
 # Fake claude: logs its full argv (including -p prompt) to $CALLS9 — fixture
 # 9 inspects what the real run_agent path actually sent (PIPELINE_CODER_CMD
 # bypasses the prompt entirely, so this is the only way to exercise the
 # context-packet/skill prepend). Always exits 0.
-write_fake(FAKE_BIN / "claude", "#!/usr/bin/env python3\n"
-           "import os, sys\n"
-           "with open(os.environ['CALLS9'], 'a', encoding='utf-8') as f:\n"
-           "    f.write(' '.join(sys.argv[1:]) + chr(10))\n"
-           "sys.exit(0)\n")
+write_path_fake("claude", "import os, sys\n"
+                 "with open(os.environ['CALLS9'], 'a', encoding='utf-8') as f:\n"
+                 "    f.write(' '.join(sys.argv[1:]) + chr(10))\n"
+                 "sys.exit(0)\n")
 
 # coder stub: modifies a tracked file (seed.txt, exercises `git diff HEAD`)
 # and adds an untracked one (PATCHED.txt) so both halves of run.py's
@@ -102,14 +121,34 @@ write_fake(APPROVE_STUB, "import sys\n"
            "print('[approve_stub] auto-approving:', sys.argv[1] if len(sys.argv) > 1 else '')\n"
            "sys.exit(0)\n")
 
+# secret coder stub: adds a line shaped like a real credential (ghp_ + 20
+# chars) — must hard-stop the secret scan.
+SECRET_CODER_STUB = TMP_ROOT / "secret_coder_stub.py"
+write_fake(SECRET_CODER_STUB, "import sys\n"
+           "target = sys.argv[2]\n"
+           "with open(target + '/config.js', 'w', encoding='utf-8') as f:\n"
+           "    f.write('const token = \\'ghp_abcdefghijklmnopqrstuvwx\\';\\n')\n")
+
+# benign coder stub: adds ordinary KEY-named lines that are NOT secrets
+# (an object property name, an env-var reference) — must NOT trip the
+# secret scan (see config.looks_like_secret's shaped_only=True default and
+# its docstring on why the broader KEY/TOKEN/SECRET heuristic is unsafe on
+# an arbitrary external diff).
+BENIGN_CODER_STUB = TMP_ROOT / "benign_coder_stub.py"
+write_fake(BENIGN_CODER_STUB, "import sys\n"
+           "target = sys.argv[2]\n"
+           "with open(target + '/config.js', 'w', encoding='utf-8') as f:\n"
+           "    f.write('const query = { sortKey: \\'createdAt\\' };\\n')\n"
+           "    f.write('const apiKey = process.env.OPENAI_API_KEY;\\n')\n")
+
 
 def new_target_repo(name):
     d = TMP_ROOT / name
     d.mkdir(parents=True)
-    subprocess.run([GIT, "init", "-q", "-b", "main"], cwd=str(d), check=True, env=BASE_ENV)
+    subprocess.run([GIT, "init", "-q", "-b", "main"], cwd=str(d), check=True, env=BASE_ENV, encoding="utf-8")
     (d / "seed.txt").write_text("seed\n", encoding="utf-8")
-    subprocess.run([GIT, "-C", str(d), "add", "seed.txt"], check=True, env=BASE_ENV)
-    subprocess.run([GIT, "-C", str(d), "commit", "-q", "-m", "seed"], check=True, env=BASE_ENV)
+    subprocess.run([GIT, "-C", str(d), "add", "seed.txt"], check=True, env=BASE_ENV, encoding="utf-8")
+    subprocess.run([GIT, "-C", str(d), "commit", "-q", "-m", "seed"], check=True, env=BASE_ENV, encoding="utf-8")
     return d
 
 
@@ -129,6 +168,7 @@ def run_pipeline(task, target_repo, coder_cmd=CODER_STUB, human_gate_cmd=None, e
     env["CALLS"] = str(CALLS)
     env["AGENTIC_LIGHT_TEST_MODE"] = "1"
     env["LOG_SESSION_NOTE"] = str(LOG_SESSION_NOTE)
+    env["PYTHONUTF8"] = "1"
     if coder_cmd is not None:
         env["PIPELINE_CODER_CMD"] = str(coder_cmd)
     if human_gate_cmd is not None:
@@ -167,7 +207,10 @@ def restore_gate_config():
 
 def cleanup():
     restore_gate_config()
-    shutil.rmtree(TMP_ROOT, ignore_errors=True)
+    try:
+        rmtree_force(TMP_ROOT)
+    except OSError:
+        pass
     for f in (ROOT / "pipeline" / "logs").glob("*.log"):
         if f not in PRE_LOGS:
             f.unlink()
@@ -175,8 +218,8 @@ def cleanup():
 
 def add_package_json(repo, scripts):
     (repo / "package.json").write_text(json.dumps({"scripts": scripts}), encoding="utf-8")
-    subprocess.run([GIT, "-C", str(repo), "add", "package.json"], check=True, env=BASE_ENV)
-    subprocess.run([GIT, "-C", str(repo), "commit", "-q", "-m", "add package.json"], check=True, env=BASE_ENV)
+    subprocess.run([GIT, "-C", str(repo), "add", "package.json"], check=True, env=BASE_ENV, encoding="utf-8")
+    subprocess.run([GIT, "-C", str(repo), "commit", "-q", "-m", "add package.json"], check=True, env=BASE_ENV, encoding="utf-8")
 
 
 def write_vpat_draft(repo, mutate=None):
@@ -219,8 +262,8 @@ def write_vpat_draft(repo, mutate=None):
     a11y_dir = repo / "accessibility"
     a11y_dir.mkdir(exist_ok=True)
     (a11y_dir / "vpat-draft.json").write_text(json.dumps(draft), encoding="utf-8")
-    subprocess.run([GIT, "-C", str(repo), "add", "accessibility/vpat-draft.json"], check=True, env=BASE_ENV)
-    subprocess.run([GIT, "-C", str(repo), "commit", "-q", "-m", "add vpat draft"], check=True, env=BASE_ENV)
+    subprocess.run([GIT, "-C", str(repo), "add", "accessibility/vpat-draft.json"], check=True, env=BASE_ENV, encoding="utf-8")
+    subprocess.run([GIT, "-C", str(repo), "commit", "-q", "-m", "add vpat draft"], check=True, env=BASE_ENV, encoding="utf-8")
 
 
 def fixture_1():
@@ -251,6 +294,36 @@ def fixture_1b():
     check("fixture1b: produced no changes message", "produced no changes" in out, out)
     check("fixture1b: gh never called", not calls_nonempty())
     print("fixture 1b (coder produces no changes): PASS")
+
+
+def fixture_1c():
+    # Secret scan: a shaped credential (ghp_...) must hard-stop, index left
+    # clean, no PR. Regression coverage for the false-negative half of the
+    # secret-scan contract.
+    repo1c = new_target_repo("repo1c")
+    reset_calls()
+    proc = run_pipeline("add config", repo1c, coder_cmd=SECRET_CODER_STUB, human_gate_cmd=APPROVE_STUB)
+    out = proc.stdout + proc.stderr
+    check("fixture1c: rc == 1", proc.returncode == 1, proc.returncode)
+    check("fixture1c: secret detected message", "likely secret detected" in out, out)
+    check("fixture1c: gh never called", not calls_nonempty())
+    staged = subprocess.run([GIT, "-C", str(repo1c), "diff", "--cached", "--quiet"], encoding="utf-8")
+    check("fixture1c: index left clean after reset", staged.returncode == 0, staged.returncode)
+    print("fixture 1c (secret scan blocks a shaped credential): PASS")
+
+
+def fixture_1d():
+    # Secret scan: ordinary KEY-named lines with no real secret value must
+    # NOT be blocked — regression coverage for the false-positive half (see
+    # config.looks_like_secret's shaped_only=True default).
+    repo1d = new_target_repo("repo1d")
+    reset_calls()
+    proc = run_pipeline("add config", repo1d, coder_cmd=BENIGN_CODER_STUB, human_gate_cmd=APPROVE_STUB)
+    out = proc.stdout + proc.stderr
+    check("fixture1d: rc == 0", proc.returncode == 0, proc.returncode)
+    check("fixture1d: no false-positive secret block", "likely secret detected" not in out, out)
+    check("fixture1d: gh pr create called", any(l.startswith("gh pr create") for l in CALLS.read_text(encoding="utf-8").splitlines()))
+    print("fixture 1d (benign KEY-named lines are not blocked): PASS")
 
 
 def fixture_2():
@@ -289,14 +362,33 @@ def fixture_4():
 
 
 def fixture_5():
+    # 5a: human_gate.decide() called directly with fakes — no real pty
+    # needed for these branches (blueprint §2: the injectable is_tty flag +
+    # reader exist precisely so this coverage doesn't depend on a POSIX
+    # pty). Import via LIB on sys.path rather than a package-relative
+    # import — pipeline/lib has no __init__.py.
+    sys.path.insert(0, str(LIB))
+    import human_gate
+    check("fixture5a: non-tty -> 2 (no reader call)", human_gate.decide(False, lambda: (_ for _ in ()).throw(AssertionError("reader must not be called when is_tty is False"))) == 2)
+    check("fixture5a: tty + 'n' -> 1 (declined)", human_gate.decide(True, lambda: "n") == 1)
+    check("fixture5a: tty + 'y' -> 0 (approved)", human_gate.decide(True, lambda: "y") == 0)
+
+    def _raise_eof():
+        raise EOFError()
+    check("fixture5a: tty + EOFError reader -> 1 (declined)", human_gate.decide(True, _raise_eof) == 1)
+    print("fixture 5a (human_gate.decide() direct, injectable is_tty/reader): PASS")
+
+    # 5b: real pty end-to-end, POSIX-only fallback per blueprint §2's
+    # explicit-SKIP guidance for platforms without one.
     try:
         import pty
     except ImportError:
-        print("fixture 5 (declined human gate): SKIP (no pty on this platform)")
+        print("fixture 5b (declined human gate via pty): SKIP (no pty on this platform)")
         return
     master, slave = pty.openpty()
+    env = {**BASE_ENV, "PYTHONUTF8": "1"}
     proc = subprocess.Popen([sys.executable, str(LIB / "human_gate.py"), "declined-fixture summary"],
-                             stdin=slave, stdout=slave, stderr=slave)
+                             stdin=slave, stdout=slave, stderr=slave, env=env)
     os.close(slave)
     os.write(master, b"n\n")
     time.sleep(0.3)
@@ -312,9 +404,9 @@ def fixture_5():
     rc = proc.wait()
     os.close(master)
     out = data.decode("utf-8", errors="replace")
-    check("fixture5: rc == 1", rc == 1, rc)
-    check("fixture5: output shows Declined", "Declined" in out, out)
-    print("fixture 5 (declined human gate): PASS")
+    check("fixture5b: rc == 1", rc == 1, rc)
+    check("fixture5b: output shows Declined", "Declined" in out, out)
+    print("fixture 5b (declined human gate via pty): PASS")
 
 
 def fixture_6():
@@ -323,6 +415,7 @@ def fixture_6():
     env = dict(BASE_ENV)
     env["PATH"] = f"{FAKE_BIN}{os.pathsep}{env.get('PATH', '')}"
     env["CALLS"] = str(CALLS)
+    env["PYTHONUTF8"] = "1"
     proc = subprocess.run([sys.executable, str(LIB / "pr_create.py"), str(repo6)],
                            capture_output=True, encoding="utf-8", env=env)
     out = proc.stdout + proc.stderr
@@ -393,6 +486,7 @@ def fixture_9():
         env["AGENTIC_LIGHT_TEST_MODE"] = "1"
         env["PIPELINE_HUMAN_GATE_CMD"] = str(APPROVE_STUB)
         env["LOG_SESSION_NOTE"] = str(LOG_SESSION_NOTE)
+        env["PYTHONUTF8"] = "1"
         env.update(extra_env)
         return subprocess.run([sys.executable, str(RUN), "task", str(repo9)],
                                capture_output=True, encoding="utf-8", errors="replace", env=env)
@@ -508,6 +602,8 @@ def main():
     try:
         fixture_1()
         fixture_1b()
+        fixture_1c()
+        fixture_1d()
         fixture_2()
         fixture_3()
         fixture_4()
@@ -530,4 +626,6 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     sys.exit(main())

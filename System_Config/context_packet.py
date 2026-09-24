@@ -40,7 +40,20 @@ def build_packet(root, profile_name, profile_explicit, query, top, max_lines, ma
     calls this directly per the import-vs-subprocess convention) can catch
     it and degrade to "no packet" the same way bash's run.sh swallowed a
     nonzero context_packet.sh exit via `set +e`. main() below is the only
-    caller that turns this into a process exit."""
+    caller that turns this into a process exit.
+
+    Known, accepted deviation from context_packet.sh's --query path: bash
+    shells out to `rg -i -l --glob '*.md'` (a case-insensitive REGEX search
+    that also skips gitignored and hidden files by default); this port does
+    a plain case-insensitive substring search over every *.md file under
+    context_dir (hidden files/dirs are skipped — see the md_files filter
+    below — but .gitignore is NOT consulted). Re-implementing ripgrep's
+    regex engine and gitignore parser with stdlib only was judged out of
+    proportion to this fork's actual usage (queries here are plain
+    keywords, not regexes); flagged rather than silently matched, per the
+    porting brief. A query containing regex metacharacters (e.g. `.`, `*`)
+    will therefore behave differently between the two implementations.
+    """
     lines = []
 
     profile_path = root / "System_Config" / "context_profiles" / f"{profile_name}.json"
@@ -66,7 +79,11 @@ def build_packet(root, profile_name, profile_explicit, query, top, max_lines, ma
     else:
         lines.append("# Context Packet")
         lines.append(f"Profile: {name}")
-    lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    # .astimezone() attaches the local zone to an otherwise-naive
+    # datetime.now(), so %Z renders an abbreviation (e.g. "PDT") instead of
+    # an empty string — matches bash's `date '+... %Z'` byte-for-byte on a
+    # given machine (both derive the abbreviation from the same OS tzdata).
+    lines.append(f"Generated: {datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')}")
     lines.append("")
 
     if not profile_explicit:
@@ -86,7 +103,15 @@ def build_packet(root, profile_name, profile_explicit, query, top, max_lines, ma
         lines.append("")
         lines.append("## Recent Session Facts")
         weekly_dir = root / "brain" / "weekly_logs"
-        candidates = sorted(weekly_dir.rglob("*.md")) if weekly_dir.is_dir() else []
+        # key=str, not Path's own tuple-of-parts ordering: bash's `find |
+        # sort` compares the full path as one flat string (so
+        # ".../2026 Master Note.md" < ".../2026/2026-W30.md" — a space
+        # (0x20) sorts before a slash (0x2F)), whereas Path.__lt__ compares
+        # path-part tuples (where the bare "2026" directory component would
+        # instead be treated as a PREFIX of "2026 Master Note.md" and sort
+        # first) — a real, empirically-confirmed divergence in this repo's
+        # own brain/weekly_logs/, not a hypothetical.
+        candidates = sorted(weekly_dir.rglob("*.md"), key=str) if weekly_dir.is_dir() else []
         if candidates:
             lines.extend(_tail_lines(candidates[-1], 25))
         else:
@@ -103,7 +128,15 @@ def build_packet(root, profile_name, profile_explicit, query, top, max_lines, ma
             lines.append("")
 
     lines.append("## Context Matches")
-    md_files = sorted(p for p in context_dir.rglob("*.md") if p.is_file())
+    # key=str — see the "Recent Session Facts" sort above for why (matches
+    # bash's flat-string `sort`, not Path's part-tuple ordering). Hidden
+    # files/dirs (a leading '.') are skipped, matching `rg`'s default
+    # behavior on the --query path below (see build_packet's docstring on
+    # the query-match method's other, accepted differences from `rg`).
+    md_files = sorted(
+        (p for p in context_dir.rglob("*.md") if p.is_file() and not any(part.startswith(".") for part in p.relative_to(context_dir).parts)),
+        key=str,
+    )
     if query:
         query_lc = query.lower()
         matches = []
@@ -177,4 +210,6 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     sys.exit(main())

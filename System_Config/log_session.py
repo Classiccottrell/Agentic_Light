@@ -29,6 +29,13 @@ from pathlib import Path
 ROOT = Path(os.path.abspath(__file__)).parent.parent
 BRAIN = ROOT / "brain"
 
+
+def _child_env():
+    """env for a spawned Python child — PYTHONUTF8=1 so its own default I/O
+    encoding is UTF-8 regardless of platform."""
+    return {**os.environ, "PYTHONUTF8": "1"}
+
+
 HEADING_RE = re.compile(r'^## (Agent|Claude) Sessions\s*$')
 SEP_RE = re.compile(r'^---\s*$')
 VALID_REASONS = ("exit", "timeout", "signal", "refused")
@@ -143,7 +150,7 @@ def self_test():
     proc = subprocess.run(
         [sys.executable, str(ws / "System_Config" / "log_session.py"),
          "--provider", "claude", "--role", "coder", "--status", "0", "--reason", "exit"],
-        capture_output=True, encoding="utf-8",
+        capture_output=True, encoding="utf-8", env=_child_env(),
     )
     check("missing note auto-created via monday_init.sh", note.is_file())
     if note.is_file():
@@ -159,7 +166,7 @@ def self_test():
     proc2 = subprocess.run(
         [sys.executable, str(ws / "System_Config" / "log_session.py"),
          "--provider", "claude", "--role", "coder", "--status", "0", "--reason", "exit"],
-        capture_output=True, encoding="utf-8",
+        capture_output=True, encoding="utf-8", env=_child_env(),
     )
     check("non-zero exit when monday_init.sh fails should still be 0", proc2.returncode == 0, proc2.returncode)
     check("note not written despite monday_init.sh failure", not note.is_file())
@@ -169,7 +176,7 @@ def self_test():
         [sys.executable, str(ws / "System_Config" / "log_session.py"),
          "--provider", "claude", "--role", "coder", "--status", "0", "--reason", "exit",
          "--note", str(ws / "nope.md")],
-        capture_output=True, encoding="utf-8",
+        capture_output=True, encoding="utf-8", env=_child_env(),
     )
     check("explicit missing --note exits 0", proc3.returncode == 0, proc3.returncode)
     check("explicit --note does not trigger auto-create", not (ws / "nope.md").exists() and not (ws / "brain" / "weekly_logs" / f"{year}").is_dir())
@@ -237,4 +244,6 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     sys.exit(main())

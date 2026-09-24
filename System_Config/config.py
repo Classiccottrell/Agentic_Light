@@ -134,21 +134,37 @@ def resolve_agent_provider():
     return False
 
 
-def looks_like_secret(source):
+def looks_like_secret(source, shaped_only=True):
     """Scan `source` (a Path/str filename, or an iterable of text lines) for
     common credential shapes. Returns a list of "N:line" matches (1-indexed,
     mirrors `grep -n`). Tight, repo-specific pattern set — not a general
-    secret scanner. Shared by pipeline/run.py's pre-commit secret scan and
-    (once ported) healthcheck.py's Config Security Scan — one regex set, not
-    two.
+    secret scanner.
 
-    Deliberate improvement over config.sh's bash version: bash ran two
-    separate `grep ... "$1"` passes over the SAME "$1", which for a real
-    file works but silently drops the second pass's matches when "$1" is a
-    pipe/fifo (e.g. /dev/stdin, as pipeline/run.sh's secret scan uses) —
-    reading a pipe twice returns EOF the second time. This port evaluates
-    both pattern sets per line against a single materialized list, so no
-    matches are lost regardless of whether `source` is a file or a stream.
+    shaped_only=True (the default) checks only the high-confidence "shaped"
+    patterns (sk-/ghp_/AKIA/Bearer prefixes) — safe against an arbitrary
+    external target repo's ordinary source diff, where a generic
+    KEY/TOKEN/SECRET-name heuristic produces real false positives (e.g.
+    `apiKey: process.env.OPENAI_API_KEY` or `sortKey: "createdAt"` both
+    match a bare "<word ending in KEY> [:=] 8+ chars" pattern with nothing
+    resembling a real secret value). This is pipeline/run.py's pre-commit
+    diff scan's mode.
+
+    shaped_only=False additionally checks the broader KEY/TOKEN/SECRET-name
+    pattern (with the placeholder/schema-field exclusions below) — intended
+    for healthcheck.py's Config Security Scan (once ported, Tier 3), which
+    scans a narrow, known set of this repo's OWN config files rather than
+    an arbitrary external diff, where that broader heuristic's false-positive
+    risk is much lower and was config.sh's original intent for that caller.
+
+    Note on parity with config.sh: bash's version ran two separate
+    `grep ... "$1"` passes over the SAME "$1" — for a real file this works,
+    but silently drops the second pass's matches when "$1" is a pipe/fifo
+    (e.g. /dev/stdin, the form pipeline/run.sh's secret scan used) — reading
+    a pipe twice returns EOF the second time. That made the broader pattern
+    a dead branch on bash's diff-scan path specifically (never actually
+    evaluated), which is effectively shaped_only=True — this port makes that
+    the explicit, documented default instead of an accidental one, rather
+    than "fixing" it into a stricter gate with no fixture coverage.
     """
     if isinstance(source, (str, Path)):
         try:
@@ -159,10 +175,10 @@ def looks_like_secret(source):
     else:
         lines = list(source)
 
+    shaped_re = re.compile(r'(sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{12,}|Bearer\s+[A-Za-z0-9._-]{10,})')
     key_secret_re = re.compile(r'[A-Z0-9_]*(KEY|TOKEN|SECRET)\s*[:=]\s*"?[A-Za-z0-9_/+=.-]{8,}"?', re.IGNORECASE)
     placeholder_re = re.compile(r'=\s*"?(null|none|changeme|your_|xxx|<.*>|\$\{)', re.IGNORECASE)
     schema_field_re = re.compile(r'(KEY|TOKEN|SECRET)_(ENUM|SCHEMA|NAME|FIELD)', re.IGNORECASE)
-    shaped_re = re.compile(r'(sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{12,}|Bearer\s+[A-Za-z0-9._-]{10,})')
 
     hits = []
     for i, raw_line in enumerate(lines, start=1):
@@ -170,7 +186,7 @@ def looks_like_secret(source):
         if shaped_re.search(line):
             hits.append(f"{i}:{line}")
             continue
-        if key_secret_re.search(line) and not placeholder_re.search(line) and not schema_field_re.search(line):
+        if not shaped_only and key_secret_re.search(line) and not placeholder_re.search(line) and not schema_field_re.search(line):
             hits.append(f"{i}:{line}")
     return hits
 
@@ -229,6 +245,8 @@ def date_offset(base, days, fmt):
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     # Library module — smoke-test only.
     ok = resolve_agent_provider()
     print(f"resolve_agent_provider(): {ok} -> provider={AGENT_PROVIDER!r} command={AGENT_COMMAND!r}")

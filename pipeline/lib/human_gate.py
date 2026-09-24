@@ -4,18 +4,23 @@ Mirrors bootstrap's --uninstall TTY-check pattern: never auto-approves.
 Usage: human_gate.py "<summary text>"   (falls back to stdin if no arg)
 Exit codes: 0 approved | 1 declined | 2 pending (non-interactive)
 
-decide() holds the core y/N decision logic behind an injectable is_tty flag
-and an injectable line-reader, so it's callable directly from a test without
-a real pty (blueprint §2) — main() wires it to the real terminal.
+decide(is_tty, read_line) holds the core y/N decision logic behind an
+injectable is_tty flag and an injectable line-reader, so it's callable
+directly from a test without a real pty (blueprint §2) — main() wires it to
+the real terminal (sys.stdin.isatty(), input).
 """
 import argparse
 import sys
 
 
-def decide(read_line):
-    """Interactive-only decision (caller has already confirmed is_tty). Never
-    raises: read_line() raising EOFError is treated as an empty reply
-    (declined), matching bash's `read -r || REPLY=""`."""
+def decide(is_tty, read_line):
+    """Core y/N decision, fully injectable (is_tty flag + line-reader) so a
+    test can exercise every branch — including the non-interactive "2"
+    path — without a real pty or a subprocess. Never raises: read_line()
+    raising EOFError is treated as an empty reply (declined), matching
+    bash's `read -r || REPLY=""`."""
+    if not is_tty:
+        return 2
     print("Approve and create PR? [y/N]: ", end="")
     sys.stdout.flush()
     try:
@@ -49,10 +54,11 @@ def main():
 
     if not is_tty:
         print("Non-interactive session — cannot prompt for approval. Pending human review.")
-        return 2
 
-    return decide(input)
+    return decide(is_tty, input)
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     sys.exit(main())

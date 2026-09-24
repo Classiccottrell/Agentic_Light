@@ -24,7 +24,7 @@ BRAIN_DIR.mkdir(parents=True)
 
 CALLS = TMP_ROOT / "calls"
 os.environ["CALLS"] = str(CALLS)
-os.environ["PATH"] = f"{BIN_DIR}:/usr/bin:/bin"
+os.environ["PATH"] = os.pathsep.join([str(BIN_DIR), "/usr/bin", "/bin"])
 os.environ["AGENTIC_LIGHT_PROVIDERS"] = "gemini,codex,claude"
 os.environ["AGENTIC_LIGHT_PRIORITY"] = "gemini,codex,claude"
 os.environ["AGENTIC_LIGHT_MODEL_GEMINI"] = "gemini-test"
@@ -46,7 +46,11 @@ def check(label, cond, detail=""):
         print(f"FAIL: {label}: {detail}", file=sys.stderr)
 
 
-_FAKE_TEMPLATE = '''#!/usr/bin/env python3
+# Shebang embeds sys.executable directly (not `#!/usr/bin/env python3`) —
+# robust regardless of what "python3" resolves to, or whether it exists at
+# all, on PATH. The .cmd wrapper embeds the same interpreter path for the
+# same reason (blueprint §3).
+_FAKE_TEMPLATE = '''#!''' + sys.executable + '''
 import os, sys
 calls = os.environ.get("CALLS")
 if calls:
@@ -55,7 +59,7 @@ if calls:
 sys.exit(int(os.environ.get("FAKE_RC", "0")))
 '''
 
-_FAKE_CMD_TEMPLATE = '@echo off\r\npython "%~dp0{name}" %*\r\n'
+_FAKE_CMD_TEMPLATE = '@echo off\r\n"' + sys.executable + '" "%~dp0{name}" %*\r\n'
 
 
 def write_fake(name):
@@ -184,13 +188,19 @@ def main():
     for var in ("AGENT_TYPE", "AGENT_PROVIDER", "AGENT_COMMAND", "AGENT_MODEL", "CLAUDE"):
         os.environ.pop(var, None)
     import subprocess
-    proc = subprocess.run([sys.executable, str(ROOT / "System_Config" / "test_run_agent.py")])
+    proc = subprocess.run([sys.executable, str(ROOT / "System_Config" / "test_run_agent.py")],
+                           env={**os.environ, "PYTHONUTF8": "1"})
     return proc.returncode
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     try:
         sys.exit(main())
     finally:
-        import shutil as _shutil
-        _shutil.rmtree(TMP_ROOT, ignore_errors=True)
+        from test_support import rmtree_force
+        try:
+            rmtree_force(TMP_ROOT)
+        except OSError:
+            pass

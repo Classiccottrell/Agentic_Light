@@ -103,8 +103,25 @@ def route(task, skills_dir=None, verbose=False):
     task_lc = task.lower()
     selected = selected_skill_names()
 
+    # key=str, NOT Path's own default ordering (compares part-tuples) —
+    # verified, deterministic divergence, same class of bug as
+    # context_packet.py's sort fix: bash's `for smd in
+    # "$SKILLS_DIR"/*/SKILL.md` glob sorts the FULL PATH STRING, so
+    # "figma-use/SKILL.md" compares against "figma-use-figjam/SKILL.md" at
+    # the byte after the shared "figma-use" prefix: '/' (0x2F) vs '-'
+    # (0x2D) — hyphen sorts first, so "figma-use" lands AFTER "figma-use-
+    # figjam"/"-motion"/"-slides". Path's default ordering instead compares
+    # ("figma-use", "SKILL.md") against ("figma-use-figjam", "SKILL.md") as
+    # a tuple, where "figma-use" is simply a shorter prefix of the other
+    # component and sorts first — the separator is invisible in a tuple
+    # comparison but a real, sortable character (0x2F) in bash's flat-
+    # string one. key=str reproduces bash's actual glob order (confirmed
+    # against `route_skill.sh` on the real skills/ directory); matters
+    # whenever two+ matched candidates share a common prefix AND the
+    # caller's cap (run.py's AGENTIC_LIGHT_SKILL_MATCH_LIMIT) would
+    # otherwise drop one of them.
     matched = []
-    for smd in sorted(skills_dir.glob("*/SKILL.md")):
+    for smd in sorted(skills_dir.glob("*/SKILL.md"), key=str):
         skill_dir = smd.parent
         if selected is not None and skill_dir.name not in selected:
             continue
@@ -234,4 +251,6 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     sys.exit(main())

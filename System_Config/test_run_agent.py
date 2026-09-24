@@ -31,7 +31,7 @@ for d in (BRAIN_DIR, FAKE_SCRATCH, FIXTURE / "logs", BIN_DIR):
 # the FAKE_SCRATCH env var, not a relative one) because run_agent already
 # sets cwd=BRAIN before invoking this stub — a relative-path stub would
 # land inside BRAIN even without --add-dir and silently defeat the control.
-_AGY_STUB = '''#!/usr/bin/env python3
+_AGY_STUB = '''#!''' + sys.executable + '''
 import os, sys
 args = sys.argv[1:]
 target = None
@@ -52,12 +52,12 @@ with open(agy_path, "w", encoding="utf-8", newline="\n") as f:
     f.write(_AGY_STUB)
 agy_path.chmod(agy_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 with open(BIN_DIR / "agy.cmd", "w", encoding="utf-8", newline="") as f:
-    f.write('@echo off\r\npython "%~dp0agy" %*\r\n')
+    f.write('@echo off\r\n"' + sys.executable + '" "%~dp0agy" %*\r\n')
 
 # resolve_agent_provider() re-derives AGENT_COMMAND from PATH on every
 # run_agent call, so the stub must be discoverable as "agy" on PATH rather
 # than passed as an explicit bin path.
-os.environ["PATH"] = f"{BIN_DIR}:/usr/bin:/bin"
+os.environ["PATH"] = os.pathsep.join([str(BIN_DIR), "/usr/bin", "/bin"])
 os.environ["LOG"] = str(FIXTURE / "logs" / "run.log")
 os.environ["FAKE_SCRATCH"] = str(FAKE_SCRATCH)
 os.environ["MAX_SECONDS"] = "5"
@@ -113,7 +113,13 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     try:
         sys.exit(main())
     finally:
-        shutil.rmtree(FIXTURE, ignore_errors=True)
+        from test_support import rmtree_force
+        try:
+            rmtree_force(FIXTURE)
+        except OSError:
+            pass

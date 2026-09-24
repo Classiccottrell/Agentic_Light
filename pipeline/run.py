@@ -65,15 +65,56 @@ class Tee:
     def buffer(self):
         return self._real.buffer
 
+    @property
+    def log_f(self):
+        return self._log_f
+
+
+def _child_env():
+    """env for a spawned Python child — PYTHONUTF8=1 so its own default I/O
+    encoding is UTF-8 regardless of platform. Harmless (an unused env var)
+    for a non-Python child (a custom gate script, or a PIPELINE_*_CMD
+    override pointing at an arbitrary binary)."""
+    return {**os.environ, "PYTHONUTF8": "1"}
+
+
+def _spawn(argv, cwd=None):
+    """Spawn argv and return its exit code. When sys.stdout is a Tee (the
+    normal case inside _run_body — see main()/_run()), relays the child's
+    combined stdout+stderr into RUN_LOG in byte chunks (not line-oriented —
+    a line relay would swallow/delay human_gate.py's no-trailing-newline
+    prompt text) so gate verdicts, the human-gate diff, and pr_create's own
+    output all land in the log, matching bash's `exec > >(tee)` behavior for
+    every child (see the Tee docstring's note on why that isn't automatic
+    here). Stdin is left inherited throughout, so human_gate.py's
+    interactive TTY prompt still works. Falls back to a plain, fd-inherited
+    subprocess.run when sys.stdout isn't a Tee (e.g. a future caller outside
+    _run_body) — same observable behavior as before this relay existed."""
+    env = _child_env()
+    cwd_str = str(cwd) if cwd else None
+    if not isinstance(sys.stdout, Tee):
+        return subprocess.run(argv, cwd=cwd_str, encoding="utf-8", env=env).returncode
+    proc = subprocess.Popen(argv, cwd=cwd_str, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    real_buffer = sys.stdout.buffer
+    log_f = sys.stdout.log_f
+    for chunk in iter(lambda: proc.stdout.read(4096), b""):
+        real_buffer.write(chunk)
+        real_buffer.flush()
+        log_f.write(chunk)
+        log_f.flush()
+    proc.wait()
+    return proc.returncode
+
 
 def _dispatch(script_path, args, cwd=None):
     """Custom-gate / PIPELINE_CODER_CMD / PIPELINE_HUMAN_GATE_CMD dispatch:
     a .py path is run under this same interpreter; anything else is invoked
     directly. No shell tokenizing — a narrowed, documented contract (single
-    executable path only), matching blueprint §2."""
+    executable path only), matching blueprint §2. Returns the exit code
+    (int), not a CompletedProcess — see _spawn()."""
     script_path = Path(script_path)
     argv = [sys.executable, str(script_path), *args] if script_path.suffix == ".py" else [str(script_path), *args]
-    return subprocess.run(argv, cwd=str(cwd) if cwd else None, encoding="utf-8")
+    return _spawn(argv, cwd=cwd)
 
 
 def run_custom_gate(gate, target_repo):
@@ -98,8 +139,7 @@ def run_custom_gate(gate, target_repo):
         print(f"FAILED: custom gate script escapes target repo: {gate['script']} (resolved: {script_p})")
         return 1
     print(f"-> custom gate: {gate['script']}")
-    proc = _dispatch(script_p, gate.get("args", []), cwd=cwd_p)
-    return proc.returncode
+    return _dispatch(script_p, gate.get("args", []), cwd=cwd_p)
 
 
 def run_gate(gate, n, target_repo):
@@ -110,8 +150,7 @@ def run_gate(gate, n, target_repo):
                   "axe": "Accessibility (axe) gate", "vpat-lint": "VPAT draft lint gate"}[gate]
         print(f"-> [gate {n}] {label}")
         script = LIB / GATE_MODULES[gate]
-        proc = subprocess.run([sys.executable, str(script), str(target_repo)], encoding="utf-8")
-        return proc.returncode
+        return _dispatch(script, [str(target_repo)])
     print(f"-> [gate {n}] custom gate: {gate.get('script')}")
     return run_custom_gate(gate, target_repo)
 
@@ -268,13 +307,13 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
         return 1
 
     print("-> [1] Code patch step")
-    staged = subprocess.run([git, "-C", str(target_repo), "diff", "--cached", "--quiet"])
+    staged = subprocess.run([git, "-C", str(target_repo), "diff", "--cached", "--quiet"], encoding="utf-8")
     if staged.returncode != 0:
         print(f"FAILED: {target_repo} has staged changes before the pipeline started — refusing to run. Commit or unstage them first; this pipeline assumes a clean index so its own rollback/commit steps don't touch changes it doesn't own.")
         return 1
 
     print(f"  creating feature branch: {branch_name}")
-    branch = subprocess.run([git, "-C", str(target_repo), "checkout", "-b", branch_name])
+    branch = subprocess.run([git, "-C", str(target_repo), "checkout", "-b", branch_name], encoding="utf-8")
     if branch.returncode != 0:
         print(f"FAILED: could not create feature branch {branch_name} in {target_repo}")
         return 1
@@ -317,8 +356,7 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
     coder_cmd = os.environ.get("PIPELINE_CODER_CMD")
     if coder_cmd:
         print(f"  using PIPELINE_CODER_CMD override: {coder_cmd}")
-        proc = _dispatch(coder_cmd, [task_desc, str(target_repo)])
-        coder_rc = proc.returncode
+        coder_rc = _dispatch(coder_cmd, [task_desc, str(target_repo)])
         coder_provider = os.environ.get("AGENT_PROVIDER") or "override"
     else:
         print("  invoking coder via System_Config/run_agent.py")
@@ -338,14 +376,15 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
 
     subprocess.run([sys.executable, str(ROOT / "System_Config" / "log_session.py"),
                      "--provider", coder_provider, "--role", "coder",
-                     "--status", str(coder_rc), "--reason", reason_for_status(coder_rc, coder_provider)])
+                     "--status", str(coder_rc), "--reason", reason_for_status(coder_rc, coder_provider)],
+                    env=_child_env())
 
     if coder_rc != 0:
         print(f"FAILED: code patch step (coder exited {coder_rc})")
         return 1
 
     print("  staging coder's changes")
-    add = subprocess.run([git, "-C", str(target_repo), "add", "-A"])
+    add = subprocess.run([git, "-C", str(target_repo), "add", "-A"], encoding="utf-8")
     if add.returncode != 0:
         print(f"FAILED: could not stage coder's changes in {target_repo}")
         return 1
@@ -360,15 +399,15 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
     # ported. Scanned lines only (added lines, excluding the "+++ b/..."
     # diff header).
     added_lines = [l for l in diff.splitlines() if l.startswith("+") and not l.startswith("+++")]
-    secret_hits = config.looks_like_secret(added_lines)
+    secret_hits = config.looks_like_secret(added_lines, shaped_only=True)
     if secret_hits:
         print("FAILED: likely secret detected in staged changes — refusing to commit.")
         print(f"  match: {secret_hits[0]}")
-        subprocess.run([git, "-C", str(target_repo), "reset", "-q"])
+        subprocess.run([git, "-C", str(target_repo), "reset", "-q"], encoding="utf-8")
         return 1
 
     print("  committing coder's changes")
-    commit = subprocess.run([git, "-C", str(target_repo), "commit", "-q", "-m", f"Agentic Light: {task_desc}"])
+    commit = subprocess.run([git, "-C", str(target_repo), "commit", "-q", "-m", f"Agentic Light: {task_desc}"], encoding="utf-8")
     if commit.returncode != 0:
         print(f"FAILED: could not commit coder's changes in {target_repo}")
         return 1
@@ -409,8 +448,7 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
             human_gate_cmd = override
         else:
             print("WARNING: PIPELINE_HUMAN_GATE_CMD is set but AGENTIC_LIGHT_TEST_MODE=1 is not — ignoring override, using the real human gate (PIPELINE_HUMAN_GATE_CMD is test-only).", file=sys.stderr)
-    gate_proc = _dispatch(human_gate_cmd, [summary])
-    gate_rc = gate_proc.returncode
+    gate_rc = _dispatch(human_gate_cmd, [summary])
 
     if gate_rc == 0:
         print("  human gate: APPROVED")
@@ -432,9 +470,9 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
     print("-> [4] PR creation")
     # --confirmed must be the LAST argv element — see pr_create.py's module
     # docstring on the argparse chunk-matching quirk this order avoids.
-    pr_proc = subprocess.run([sys.executable, str(LIB / "pr_create.py"), str(target_repo), task_desc, "--confirmed"])
-    if pr_proc.returncode != 0:
-        return pr_proc.returncode
+    pr_rc = _dispatch(LIB / "pr_create.py", [str(target_repo), task_desc, "--confirmed"])
+    if pr_rc != 0:
+        return pr_rc
     print()
     print("=" * 50)
     print(f" Pipeline complete — run {run_id}")
@@ -443,4 +481,9 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
 
 
 if __name__ == "__main__":
+    # Reconfigure the REAL streams before main() ever swaps sys.stdout/
+    # sys.stderr for a Tee instance (Tee has no .reconfigure() of its own —
+    # this must happen first).
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     sys.exit(main())
