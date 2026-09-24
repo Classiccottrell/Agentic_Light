@@ -29,6 +29,7 @@ confirmed-correct behavior in specialize.sh; this port does not change it.
 No `command -v python3` check (specialize.sh's own guard) — structurally
 impossible to trigger now that this script IS the python3 process.
 """
+import argparse
 import json
 import os
 import shutil
@@ -305,30 +306,64 @@ def run_interactive(all_roles, known_gates, skill_dirs, read_line):
     return sel_roles, gate_entries, sel_skills
 
 
+class _ArgParser(argparse.ArgumentParser):
+    """error() normally prints usage and exits 2 — specialize.sh's own
+    exit code for every argument problem (missing --preset value, unknown
+    flag) is 1 (confirmed empirically: `bash specialize.sh --preset
+    </dev/null` -> rc 1). Overridden so argparse's own automatic error
+    path (e.g. "--preset" with no following value) exits 1 too, matching
+    every other argument-error path in this file."""
+
+    def error(self, message):
+        print(message, file=sys.stderr)
+        print(HELP_TEXT.splitlines()[0], file=sys.stderr)
+        sys.exit(1)
+
+
+def _build_parser():
+    parser = _ArgParser(add_help=False, allow_abbrev=False)
+    parser.add_argument("--preset", default=None)
+    parser.add_argument("--help", action="store_true")
+    parser.add_argument("--self-test", action="store_true")
+    return parser
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
+    args, unknown = _build_parser().parse_known_args(argv)
 
-    if not argv:
-        preset = ""
-    elif argv[0] == "--help":
+    if args.help:
         print(HELP_TEXT)
         return 0
-    elif argv[0] == "--preset":
-        if len(argv) < 2:
-            print("usage: specialize.py --preset <name>", file=sys.stderr)
-            return 1
-        preset = argv[1]
-    elif argv[0].startswith("--"):
-        print(f"Unknown flag: {argv[0]}", file=sys.stderr)
+    if args.self_test:
+        return self_test()
+    if unknown:
+        # `allow_abbrev=False` means "--pre web-app" lands here too (not
+        # silently accepted as an abbreviation of --preset), matching
+        # specialize.sh's own case statement (an exact-string match, no
+        # prefix support). A bare non-flag positional ("foo") also lands
+        # here (never declared as a positional argument) — specialize.sh
+        # has no catch-all case branch for that either and crashes with
+        # `PRESET: unbound variable` under `set -u` (confirmed empirically,
+        # rc 1); this port refuses the same invocation just as loudly, with
+        # a clearer message, same rc. One accepted divergence: argparse's
+        # standard `--preset=web-app` form IS recognized here (unlike
+        # bash's literal `case` match on "--preset" alone) — disabling that
+        # would mean not using argparse for this flag at all.
+        bad = unknown[0]
+        if bad.startswith("--"):
+            print(f"Unknown flag: {bad}", file=sys.stderr)
+        else:
+            print(f"specialize.py: unexpected argument: {bad!r} (expected --preset <name> or no arguments)", file=sys.stderr)
         print(HELP_TEXT.splitlines()[0], file=sys.stderr)
         return 1
-    else:
-        # specialize.sh has no catch-all case branch here either — a bare
-        # non-flag positional crashes it (`PRESET: unbound variable` under
-        # set -u; confirmed empirically, rc=1). This port refuses the same
-        # invocation just as loudly, with a clearer message, same rc.
-        print(f"specialize.py: unexpected argument: {argv[0]!r} (expected --preset <name> or no arguments)", file=sys.stderr)
+    if args.preset == "":
+        # Bash's `${2:?msg}` treats an explicit empty value the same as a
+        # missing one (confirmed empirically: `--preset ""` -> rc 1, same
+        # message as a bare `--preset`).
+        print("usage: specialize.py --preset <name>", file=sys.stderr)
         return 1
+    preset = args.preset or ""
 
     # Clear the preset marker before writing anything else: if this run
     # fails partway, gen_governance.py falls back to no role_notes overlay
@@ -443,7 +478,11 @@ def main(argv=None):
     print("=" * 50)
     print(f" Roles:  {' '.join(sel_roles) if sel_roles else '<none>'}")
     print(f" Gates:  {json.dumps(sel_gates)}")
-    print(f" Skills: {' '.join(sorted(sel_skills)) if sel_skills else '<none>'}")
+    # Display order matches input order (preset list / env-override /
+    # interactive), same as specialize.sh's own summary line — NOT sorted
+    # (unlike skills-selected.json's own "selected" array, which both this
+    # port and specialize.sh sort for the file).
+    print(f" Skills: {' '.join(sel_skills) if sel_skills else '<none>'}")
     return 0
 
 
@@ -590,6 +629,42 @@ def self_test():
         check("--help: rc == 0", proc.returncode == 0, proc.returncode)
         check("--help: usage text", "Usage:" in proc.stdout, proc.stdout)
 
+        # Fixture 8b: --preset with no following value — argparse's own
+        # automatic error path (_ArgParser.error() override), rc 1 (not
+        # argparse's default 2). Verified empirically to match
+        # specialize.sh's own `${2:?msg}` rc for the same invocation.
+        root = _build_workspace(tmp, "fixture-preset-no-value")
+        proc = _run_in(root, ["--preset"])
+        check("--preset with no value: rc == 1", proc.returncode == 1, proc.returncode)
+
+        # Fixture 8c: --preset with an explicit empty value — bash's
+        # `${2:?msg}` treats empty the same as missing (verified
+        # empirically). argparse itself would accept "" as a value; this
+        # port adds the explicit rejection specialize.sh gets for free.
+        root = _build_workspace(tmp, "fixture-preset-empty-value")
+        proc = _run_in(root, ["--preset", ""])
+        check("--preset with empty value: rc == 1", proc.returncode == 1, proc.returncode)
+
+        # Fixture 8d: --pre (abbreviation) is rejected, not silently
+        # accepted as short for --preset — allow_abbrev=False, matching
+        # specialize.sh's own exact-string case match.
+        root = _build_workspace(tmp, "fixture-preset-abbrev")
+        proc = _run_in(root, ["--pre", "web-app"])
+        check("--pre abbreviation rejected: rc == 1", proc.returncode == 1, proc.returncode)
+        check("--pre abbreviation rejected: unknown flag message", "Unknown flag: --pre" in proc.stderr, proc.stderr)
+
+        # Fixture 8e: gate-name-space-corruption trap (env-override path),
+        # as a real subprocess run — not just a code comment. "eslint,
+        # playwright" (space after the comma) survives AGENTIC_LIGHT_GATES'
+        # deliberately un-stripped split(",") as ["eslint", " playwright"];
+        # the leading space then fails known-gate-name validation. Matches
+        # specialize.sh's own embedded-heredoc validator byte-for-byte
+        # (verified earlier via a side-by-side bash/python run).
+        root = _build_workspace(tmp, "fixture-gate-space-trap")
+        proc = _run_in(root, [], extra_env={"AGENTIC_LIGHT_ROLES": "coder", "AGENTIC_LIGHT_GATES": "eslint, playwright", "AGENTIC_LIGHT_SKILLS": ""})
+        check("gate-space trap: rc == 1", proc.returncode == 1, proc.returncode)
+        check("gate-space trap: unknown gate name with leading space", "unknown gate name ' playwright'" in proc.stderr, proc.stderr)
+
     # Fixture 9: custom gate with an empty script is rejected (pure
     # function, no subprocess needed).
     check("empty custom-gate script detected", has_empty_custom_gate_script([{"name": "custom", "script": ""}]))
@@ -612,10 +687,26 @@ def self_test():
     # real bash run (verified empirically against the .sh original).
     all_roles = load_all_roles()
     known_gates = load_known_gates()
-    replies = iter(["No", "n", "N", "no", "NO"])  # only 4 of these actually decline
+    # all_roles is exactly (architect, coder, creative-director, curator,
+    # eng-manager, qa), in that order (from the schema). 5 replies for 6
+    # roles: "No" (mixed case, does NOT decline — accept), "n"/"N"/"no"/"NO"
+    # (all decline), then the iterator is exhausted and every remaining
+    # prompt (qa's role, then every gate/custom-gate/skill prompt) gets ""
+    # via next(replies, "") — "" is not in the accept set either, so it
+    # defaults each remaining prompt to ITS OWN default (yes for [Y/n],
+    # no for [y/N]). Expected result, computed by hand and asserted exactly
+    # (not just "fewer roles than before"): architect+qa kept,
+    # coder/creative-director/curator/eng-manager declined; eslint+
+    # playwright kept (default yes), axe/vpat-lint/custom-gate declined
+    # (default no).
+    replies = iter(["No", "n", "N", "no", "NO"])
     sel_roles, sel_gates, sel_skills = run_interactive(all_roles, known_gates, ["skill-a", "skill-b"], lambda: next(replies, ""))
-    check("interactive: 'No' (mixed case) does not decline", "architect" in sel_roles, sel_roles)
-    check("interactive: exact n/N/no/NO all decline", len(sel_roles) < len(all_roles), sel_roles)
+    check("interactive: exact roster after mixed-case-does-not-decline + exact n/N/no/NO declines",
+          sel_roles == ["architect", "qa"], sel_roles)
+    check("interactive: gates default correctly once replies are exhausted",
+          sel_gates == ["eslint", "playwright"], sel_gates)
+    check("interactive: skills default to yes once replies are exhausted",
+          sel_skills == ["skill-a", "skill-b"], sel_skills)
 
     def eof_reader():
         raise EOFError
@@ -624,6 +715,25 @@ def self_test():
     check("interactive EOF: [y/N] a11y gates default to no", not any(g in A11Y_GATES for g in sel_gates2 if isinstance(g, str)), sel_gates2)
     check("interactive EOF: custom-gate-add defaults to no", not any(isinstance(g, dict) for g in sel_gates2), sel_gates2)
     check("interactive EOF: [Y/n] skills default to yes", set(sel_skills2) == {"skill-a"}, sel_skills2)
+
+    # Fixture 12: the custom-gate branch itself — script/cwd prompts, the
+    # .strip() on the script reply, and cwd defaulting to "." on a blank
+    # reply. 6 blank replies clear the roles prompts (irrelevant here),
+    # then eslint/playwright/axe/vpat-lint each get a blank (irrelevant),
+    # then "y" to the custom-gate-add prompt, a padded script path (proves
+    # stripping), and a blank cwd (proves the "." default).
+    custom_replies = iter(
+        [""] * 6 +               # roles
+        [""] * 4 +               # eslint, playwright, axe, vpat-lint
+        ["y", "  tools/gate.py  ", ""]  # add custom? yes; script; cwd
+    )
+    _, sel_gates3, _ = run_interactive(all_roles, known_gates, [], lambda: next(custom_replies, ""))
+    custom_gates = [g for g in sel_gates3 if isinstance(g, dict)]
+    check("interactive custom-gate: exactly one custom gate added", len(custom_gates) == 1, sel_gates3)
+    if custom_gates:
+        check("interactive custom-gate: script/cwd/args shape, script stripped, cwd defaulted to '.'",
+              custom_gates[0] == {"name": "custom", "script": "tools/gate.py", "cwd": ".", "args": []},
+              custom_gates[0])
 
     if failures:
         print("specialize: self-test FAILED:", file=sys.stderr)
@@ -637,6 +747,4 @@ def self_test():
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
-    if len(sys.argv) > 1 and sys.argv[1] == "--self-test":
-        sys.exit(self_test())
     sys.exit(main())

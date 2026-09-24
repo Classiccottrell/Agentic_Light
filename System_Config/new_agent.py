@@ -10,13 +10,16 @@ config.sh only for the WORKSPACE constant — recomputed directly here
 instead, same reasoning route_skill.py/log_session.py already document for
 their own ROOT).
 
-No argparse: the bash contract is genuinely "$1=name, $2=scope, then scan
-everything from position 3 onward for a literal --write token", which
-argparse's positional/optional model doesn't express faithfully (argparse
-would also accept --write BEFORE the positionals, which bash's own
-position-3-onward scan does not — a narrow, deliberate divergence for an
-invocation order outside the documented usage string, which always shows
---write last).
+No argparse (a deliberate blueprint §2 deviation — that convention calls
+for argparse on any script with a --flag): a `<scope one-liner>` is
+free-form prose and routinely starts with "-" (e.g. "- Reviews PRs" or
+"Not a general rewrite"); argparse would parse a leading-hyphen positional
+as an unrecognized option and reject it outright, which no caller of this
+script's documented usage (`<name> "<scope>" [--write]`) would expect.
+Positional argv slicing (`argv[0]`, `argv[1]`, scan `argv[2:]` for the
+literal token "--write") reproduces bash's own `$1`/`$2`/`"${@:3}"`
+contract exactly, including that --write is only recognized from position
+3 onward (bash's own scan does not look at position 1 or 2 either).
 """
 import os
 import re
