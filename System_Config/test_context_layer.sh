@@ -80,29 +80,29 @@ The context layer is searchable.
 EOF
 
 HASH="$(shasum -a 256 "$TMP/brain/raw/source.md" | awk '{print $1}')"
-bash "$ROOT/System_Config/context.sh" --root "$TMP" validate >/dev/null
-bash "$ROOT/System_Config/context.sh" --root "$TMP" catalog >/dev/null
+python3 "$ROOT/System_Config/context.py" --root "$TMP" validate >/dev/null
+python3 "$ROOT/System_Config/context.py" --root "$TMP" catalog >/dev/null
 grep -q '"relation": "related"' "$TMP/brain/index/links.json"
 grep -q 'brain/records/learnings/human.md' "$TMP/brain/index/links.json"
 
-SUGGEST="$(bash "$ROOT/System_Config/context.sh" --root "$TMP" curate "$TMP/brain/records/learnings/human.md" --suggest)"
+SUGGEST="$(python3 "$ROOT/System_Config/context.py" --root "$TMP" curate "$TMP/brain/records/learnings/human.md" --suggest)"
 echo "$SUGGEST" | grep -q 'light-project'
-bash "$ROOT/System_Config/context.sh" --root "$TMP" curate "$TMP/brain/records/learnings/human.md" --apply >/dev/null
+python3 "$ROOT/System_Config/context.py" --root "$TMP" curate "$TMP/brain/records/learnings/human.md" --apply >/dev/null
 grep -q '\[\[light-project\]\]' "$TMP/brain/records/learnings/human.md"
 test "$HASH" = "$(shasum -a 256 "$TMP/brain/raw/source.md" | awk '{print $1}')"
 
 python3 "$ROOT/System_Config/memory_index.py" --root "$TMP" >/dev/null
 RESULT="$(python3 "$ROOT/System_Config/memory_search.py" --root "$TMP" --json 'context layer')"
 echo "$RESULT" | grep -q 'human-learning'
-PACKET="$(bash "$ROOT/System_Config/context.sh" --root "$TMP" packet --profile other --max-bytes 1200)"
+PACKET="$(python3 "$ROOT/System_Config/context.py" --root "$TMP" packet --profile other --max-bytes 1200)"
 test "${#PACKET}" -le 1200
 ! echo "$PACKET" | grep -q 'Agentic Light'
 
 cp -R "$TMP" "$TMP-invalid"
 printf '%s\n' '[[missing-record]]' >> "$TMP-invalid/brain/records/learnings/human.md"
-if bash "$ROOT/System_Config/context.sh" --root "$TMP-invalid" validate >/dev/null 2>&1; then exit 1; fi
+if python3 "$ROOT/System_Config/context.py" --root "$TMP-invalid" validate >/dev/null 2>&1; then exit 1; fi
 cp "$TMP/brain/records/projects/light.md" "$TMP/brain/records/projects/duplicate.md"
-if bash "$ROOT/System_Config/context.sh" --root "$TMP" validate >/dev/null 2>&1; then exit 1; fi
+if python3 "$ROOT/System_Config/context.py" --root "$TMP" validate >/dev/null 2>&1; then exit 1; fi
 
 python3 - "$TMP/brain/index/memory.sqlite3" "$ROOT/System_Config" <<'PY'
 import sqlite3, sys
@@ -119,7 +119,7 @@ python3 "$ROOT/System_Config/memory_index.py" --root "$TMP" --semantic >/dev/nul
 grep -Eq 'Ollama|semantic indexing skipped|lexical index ready' "$TMP/ollama.err"
 
 printf '—%.0s' {1..4000} > "$TMP/ROADMAP.md"
-AGENTIC_LIGHT_CONTEXT_MAX_BYTES=256 bash "$ROOT/System_Config/context_packet.sh" --root "$TMP" > "$TMP/packet.txt"
+AGENTIC_LIGHT_CONTEXT_MAX_BYTES=256 python3 "$ROOT/System_Config/context_packet.py" --root "$TMP" > "$TMP/packet.txt"
 test "$(wc -c < "$TMP/packet.txt" | tr -d ' ')" -le 256
 
 echo 'context layer fixture: PASS'

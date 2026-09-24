@@ -15,7 +15,10 @@ command below.
 - `python3 System_Config/test_run_agent.py` — regression test for the gemini/agy `--add-dir` write-confinement contract (stubs `agy` to emulate its silent-cwd-ignoring bug so a future edit that drops the flag fails loudly instead of regressing writes).
 - `python3 pipeline/run.py` — Task Input → coder → ESLint gate → Playwright gate → Human Gate → `gh pr create`.
 - `python3 pipeline/test_pipeline.py` — integration test for the whole pipeline gate/lock/secret-scan contract.
-- `bash skills/skills.sh list` — list available skills (not yet ported — Tier 4).
+- `python3 skills/skills.py list` — list available skills; `python3 skills/skills.py run <name> [args...]` runs `skills/<name>/run_<name>.py` (or `.sh`, or the sole `run_*` entrypoint found).
+- `python3 System_Config/monday_init.py` — weekly initializer: creates the current week's note from the template, the `brain/raw/` folder, and a Master Note Weekly Index row (backup → edit → validate → rollback); Vacation Recovery inserts one synthetic catch-up row if the last logged week is more than 7 days behind. `--dry-run` (or `DRY_RUN=1`) previews; `--self-test` runs its own fixtures (ISO-week edge cases + a real isolated-workspace run).
+- `python3 System_Config/friday_process.py [YYYY-Www]` — weekly close-out: stamps a close-out line into the week's `## Agent Sessions` section (or the legacy `## Claude Sessions` heading) and fills the Master Note row's Summary cell (backup → rewrite → validate → rollback). `--dry-run` (or `DRY_RUN=1`) previews; `--self-test` runs its own fixtures.
+- `python3 System_Config/daily_ingest.py` — scans `brain/raw/YYYY/Wnn label/*.md` for new clips and runs the agent CLI headlessly, one clip per call, to wikify them into `brain/wiki/`; content-hash manifest dedup, 3-attempt quarantine, 2-consecutive-failure wall. `--dry-run` (or `DRY_RUN=1`) previews; `--self-test` exercises the same logic with an injectable fake agent — no real provider call, no spend.
 - `python3 System_Config/healthcheck.py` — layered PASS/WARN/FAIL report, self-heals docs via `gen_site.py` / `gen_preset_pages.py` / `gen_governance.py`.
 - `python3 System_Config/gen_governance.py [--check|--dry-run]` — generates `GOVERNANCE.md` (per-role scope, human sign-off gate, audit trail, this fork's live gate policy, config security) from `agents/*.md`, `agent-roster.json`, `gate-config.json`.
 - `python3 System_Config/new_agent.py <name> "<scope>" [--write]` — scaffold a new `agents/<name>.md`.
@@ -26,7 +29,7 @@ command below.
 - `python3 System_Config/memory_search.py "<query>" [--top N]` — cosine semantic search over the `memory_index.py` cache; prints top-N matching `brain/wiki/` page paths to stdout.
 - `python3 System_Config/context_packet.py [query]` — print a bounded resume packet from the roadmap, active preset, recent session facts, and optional semantic matches. Byte-exact truncation, not a character slice. `pipeline/run.py` prepends its output to the coder prompt opt-in only (`AGENTIC_LIGHT_CONTEXT_PACKET=1`, or automatically when the target repo is this workspace's own root) — never injected into an unrelated external target repo by default.
 - `python3 System_Config/context.py [--root ROOT] packet|validate|catalog|curate ...` — thin dispatcher to `context_packet.py`/`context_validate.py`/`context_catalog.py`/`context_curate.py` (the latter three already pure Python, untouched by this port).
-- `bash System_Config/test_context_packet.sh` — fixture tests proving the packet respects a tiny `AGENTIC_LIGHT_CONTEXT_MAX_LINES`/`_MAX_BYTES` budget against dense multi-byte (em dash) content, and that the default budget preserves every provenance header (not yet ported — Tier 4).
+- `python3 System_Config/test_context_packet.py` — fixture tests proving the packet respects a tiny `AGENTIC_LIGHT_CONTEXT_MAX_LINES`/`_MAX_BYTES` budget against dense multi-byte (em dash) content, and that the default budget preserves every provenance header.
 - `python3 System_Config/preset_audit.py` — validate preset role, gate, skill, and focused role-note contracts, including `design-harness`/`wcag-harness`'s `role_capabilities`/`role_handoff` overlays.
 - `python3 System_Config/white_label_check.py <fork> --name <name> --preset <preset>` — audit a pruned fork's identity, active role files, selected skills, and (via each generator's own `--check` mode) that generated output isn't stale, without modifying it.
 - `python3 System_Config/dashboard.py` — read-only terminal status readout: preset, provider, roster, gates, last agent session, recent pipeline runs.
@@ -64,23 +67,30 @@ Agentic_Light/
 ├── CLAUDE.md
 ├── ROADMAP.md
 ├── GOVERNANCE.md (generated — see gen_governance.py)
-├── bootstrap.sh · bootstrap.py (bash original kept alongside its Python port — not yet deleted)
+├── bootstrap.py
 ├── .obsidian/{app,appearance,core-plugins,community-plugins,graph}.json
 ├── Projects/_TEMPLATE/{BRIEF.md,README.md,spec.md,tasks.md,Plan.md,active/.gitkeep,archive/.gitkeep}
-├── System_Config/ (ported .sh originals kept alongside their .py ports for now — not yet deleted)
-│   ├── config.sh · config.py · test_providers.sh · test_providers.py · mcp.defaults.json · new_agent.sh · new_agent.py · README.md · logs/.gitkeep
-│   ├── monday_init.sh · friday_process.sh · daily_ingest.sh (not yet ported — Tier 4) · run_agent.sh · run_agent.py · test_run_agent.sh · test_run_agent.py
-│   ├── log_session.sh · log_session.py · route_skill.sh · route_skill.py · context.sh · context.py · context_packet.sh · context_packet.py
-│   ├── specialize.sh · specialize.py · presets.json
+├── System_Config/
+│   ├── config.py · test_providers.py · mcp.defaults.json · new_agent.py · README.md · logs/.gitkeep
+│   ├── monday_init.py · friday_process.py · daily_ingest.py · run_agent.py · test_run_agent.py
+│   ├── log_session.py · route_skill.py · context.py · context_packet.py · test_context_packet.py
+│   ├── context_catalog.py · context_curate.py · context_validate.py · test_support.py (shared
+│   │   test-fixture helper, not a test itself)
+│   ├── test_context_catalog.sh · test_context_curate.sh · test_context_layer.sh ·
+│   │   test_context_packet_profiles.sh · test_context_search.sh (bash test harnesses for the
+│   │   already-Python context_catalog/context_curate/context_validate modules above, from
+│   │   the context-layer-decouple work — predates and is separate from this port's Tier
+│   │   scope, kept as-is)
+│   ├── specialize.py · presets.json
 │   ├── agent-roster.schema.json · agent-roster.example.json
 │   ├── gate-config.schema.json · gate-config.example.json
-│   ├── memory_index.py · memory_search.py · test_context_packet.sh (not yet ported — Tier 4) · preset_audit.py · white_label_check.py
-│   ├── gen_site.py · gen_preset_pages.py · gen_governance.py · healthcheck.sh · healthcheck.py · dashboard.sh · dashboard.py
-│   ├── notify.sh · notify.py · .notify.env.example
+│   ├── memory_index.py · memory_search.py · preset_audit.py · white_label_check.py
+│   ├── gen_site.py · gen_preset_pages.py · gen_governance.py · healthcheck.py · dashboard.py
+│   ├── notify.py · .notify.env.example
 ├── agents/
 │   └── architect.md · coder.md · creative-director.md · curator.md · eng-manager.md · qa.md · README.md
 ├── skills/
-│   ├── skills.sh
+│   ├── skills.py
 │   ├── figma-* (12 dirs, from figma/mcp-server-guide) — code-connect, create-new-file,
 │   │   design-to-code, generate-design, generate-diagram, generate-library,
 │   │   implement-motion, swiftui, use, use-figjam, use-motion, use-slides
@@ -103,9 +113,9 @@ Agentic_Light/
 │   ├── raw/README.md
 │   ├── wiki/index.md
 │   └── weekly_logs/{Weekly_Note_Template.md, "2026 Master Note.md", 2026/2026-W30.md}
-└── pipeline/ (ported .sh originals kept alongside their .py ports for now — not yet deleted)
-    ├── run.sh · run.py · test_pipeline.sh · test_pipeline.py · README.md · logs/.gitkeep · gate-config.json (generated by specialize.py, optional)
-    └── lib/{eslint_gate.sh, eslint_gate.py, playwright_gate.sh, playwright_gate.py, axe_gate.sh, axe_gate.py, vpat_lint_gate.sh, vpat_lint_gate.py, human_gate.sh, human_gate.py, pr_create.sh, pr_create.py}
+└── pipeline/
+    ├── run.py · test_pipeline.py · README.md · logs/.gitkeep · gate-config.json (generated by specialize.py, optional)
+    └── lib/{eslint_gate.py, playwright_gate.py, axe_gate.py, vpat_lint_gate.py, human_gate.py, pr_create.py}
 ```
 
 ## Cross-Platform Constraints
@@ -134,10 +144,13 @@ Agentic_Light/
 - `python3` may not exist on Windows (or may be the Microsoft Store
   stub) — Windows users should use `python` or `py -3`.
 
-Tier 4 scripts (`monday_init.sh`, `friday_process.sh`, `daily_ingest.sh`,
-`skills/skills.sh`, `test_context_packet.sh`) are not yet ported and
-remain bash-3.2-safe (no associative arrays, no `mapfile`, no
-`${var,,}`) until their own pass.
+The Bash-to-Python port is complete (all 4 tiers). The 5 `test_context_*.sh`
+files under `System_Config/` (see the Directory Map) predate this port,
+test already-Python `context_*.py` modules, and are intentionally kept as
+bash test harnesses — not part of this port's scope. `skills/systematic-
+debugging/find-polluter.sh` is a vendored skill payload meant to run
+inside a target repo during a debugging session, not part of this
+workspace's own automation layer — also intentionally kept.
 
 ## The 4 Karpathy Agentic Coding Principles
 
