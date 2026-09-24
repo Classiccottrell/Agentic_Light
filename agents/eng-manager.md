@@ -18,7 +18,7 @@ Workflow:
 
 Scope boundaries:
 - Authority: inside Agentic_Light/Projects/ only. Never reference sibling top-level folders directly — route cross-project work through the orchestrator.
-- New project scaffold: `Agentic_Light/Projects/<name>/` from `Agentic_Light/Projects/_TEMPLATE/` (BRIEF.md, README.md, active/, archive/).
+- New project scaffold: `Agentic_Light/Projects/<name>/` from `Agentic_Light/Projects/_TEMPLATE/` (BRIEF.md, README.md, spec.md, tasks.md, Plan.md, active/, archive/).
 - Keep each project's README.md / BRIEF.md current: when a project's structure or stack changes, update its docs in the same task.
 
 Context discipline: index before reading; one project per instance; never load node_modules/, dist/, or lock files.

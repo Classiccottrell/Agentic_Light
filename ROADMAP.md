@@ -26,12 +26,11 @@ Last reviewed: 2026-09-23
 
 ### White-label hardening
 
-1. **Template project lifecycle artifacts** — implemented; QA checks pass.
+1. **Template project lifecycle artifacts** — implemented; scaffold maps updated;
+   PR #26 is undergoing final QA and review.
    `Projects/_TEMPLATE/` includes `spec.md`, `tasks.md`, and resumable `Plan.md`;
    its README documents the provider-neutral flow from brief through verified
-   tasks and execution/resume. Acceptance pending governance scaffold-map
-   updates in `CLAUDE.md` and `agents/eng-manager.md` (explicit consent pending)
-   and PR approval.
+   tasks and execution/resume. Move to Shipped after PR merge.
 2. **Agent risk metadata** — extend agent contracts with explicit
    read-only, destructive, idempotent, and external-side-effect annotations.
    Keep `tools:` as capability metadata; risk metadata describes blast radius.
