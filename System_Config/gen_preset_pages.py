@@ -93,7 +93,7 @@ def build_requires_block(preset):
     items = ', '.join('<code>' + html_mod.escape(r) + '</code>' for r in requires)
     return (
         '\n        <p><strong>Requires:</strong> ' + items + ' &#8212; the selected skills assume your '
-        'provider has this configured. Informational only; <code>specialize.sh</code> does not detect or check it.</p>'
+        'provider has this configured. Informational only; <code>specialize.py</code> does not detect or check it.</p>'
     )
 
 
@@ -160,7 +160,7 @@ def render_page(name, preset, all_roles, template):
         '        <h2>Task Flow</h2>\n'
         '        ' + build_flow_list(active_roles, gates) + '\n'
         '\n'
-        '        <p>Run <code>System_Config/specialize.sh --preset ' + name_esc + '</code> to apply this preset.</p>'
+        '        <p>Run <code>System_Config/specialize.py --preset ' + name_esc + '</code> to apply this preset.</p>'
     )
 
     old_content = (
