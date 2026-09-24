@@ -166,6 +166,14 @@ def run(dry_run=False, today=None):
     ctx = compute_context(today)
     log_dir = config.LOG_DIR
 
+    # Mirrors config.sh's automatic `source`-time side effects (resolve then
+    # warn-only validate), which ran unconditionally, before bash's own
+    # DRY_RUN check — monday_init itself never uses a provider, but every
+    # script that sourced config.sh got this diagnostic for free.
+    config.resolve_agent_provider()
+    if not config.validate_config():
+        print("config.py: configuration warnings above — some scripts may misbehave", file=sys.stderr)
+
     if dry_run:
         print(f"Would create: {ctx['note_file']}  (Monday-anchored: {ctx['date_start']} -> {ctx['date_end']})")
         print(f"  Sprint {ctx['sprint']} | Q{ctx['quarter']} | {ctx['week_label']}")
@@ -179,13 +187,6 @@ def run(dry_run=False, today=None):
         else:
             print("VACATION RECOVERY: no gap > 7 days — skipped")
         return 0
-
-    # Mirrors config.sh's automatic `source`-time side effects (resolve then
-    # warn-only validate) — monday_init itself never uses a provider, but
-    # every script that sourced config.sh got this diagnostic for free.
-    config.resolve_agent_provider()
-    if not config.validate_config():
-        print("config.py: configuration warnings above — some scripts may misbehave", file=sys.stderr)
 
     log_dir.mkdir(parents=True, exist_ok=True)
     lock_dir = log_dir / "monday_init.lock"
@@ -348,7 +349,13 @@ def main():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("-h", "--help", action="store_true")
     args = parser.parse_args()
+
+    if args.help:
+        print(f"Usage: {Path(sys.argv[0]).name} [--dry-run]", file=sys.stderr)
+        print(f"       {Path(sys.argv[0]).name} --self-test", file=sys.stderr)
+        return 0
 
     if args.self_test:
         return self_test()

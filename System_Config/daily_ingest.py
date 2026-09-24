@@ -223,6 +223,15 @@ def run(dry_run=False, run_agent_fn=None):
         with open(log_path, "a", encoding="utf-8", newline="\n") as f:
             f.write(f"[{_ts()}] {msg}\n")
 
+    # Mirrors config.sh's automatic `source`-time side effects (resolve then
+    # warn-only validate), which ran unconditionally for every script that
+    # sourced config.sh — daily_ingest genuinely does need a provider
+    # (run_agent_fn below), so this also gives an early, explicit signal if
+    # none is configured, rather than discovering it mid-loop on the first clip.
+    config.resolve_agent_provider()
+    if not config.validate_config():
+        print("config.py: configuration warnings above — some scripts may misbehave", file=sys.stderr)
+
     log(f"daily_ingest start (scanning: {config.RAW})")
 
     iso_year, iso_week, _unused = date.today().isocalendar()
@@ -364,6 +373,15 @@ def self_test():
         raw_week = ws / "brain" / "raw" / "2026" / "W01 Jan 5-9"
         raw_week.mkdir(parents=True)
 
+        # Real context.py + its dependencies, so the curate --apply
+        # subprocess this test's fake_agent_ok path triggers genuinely runs
+        # (not just "didn't crash the harness" — a real WARN-and-continue
+        # failure here would otherwise be invisible; see the checks below).
+        syscfg = ws / "System_Config"
+        syscfg.mkdir(exist_ok=True)
+        for name in ("context.py", "context_curate.py", "context_catalog.py", "context_validate.py"):
+            shutil.copy(Path(__file__).parent / name, syscfg / name)
+
         import config as _cfg  # same cached module object as the top-level import
         orig = (_cfg.WORKSPACE, _cfg.BRAIN, _cfg.RAW, _cfg.LOG_DIR)
         _cfg.WORKSPACE = ws
@@ -409,6 +427,14 @@ def self_test():
         check("both clips triggered an agent call", len(calls) == 2, len(calls))
         manifest = _cfg.RAW / ".ingested.log"
         check("manifest has 2 entries", len(manifest.read_text(encoding="utf-8").splitlines()) == 2)
+
+        # Curation actually ran (the $ROOT-bug fix, see build_prompt/
+        # curate_new_wiki_pages docstring) — a WARN-and-continue subprocess
+        # failure would otherwise be invisible; assert its real effect.
+        ingest_log = (_cfg.LOG_DIR / "daily_ingest.log").read_text(encoding="utf-8")
+        check("no curation failure logged", "curation failed" not in ingest_log, ingest_log)
+        curation_records = list((ws / "brain" / "records" / "sessions").glob("curation-*.md"))
+        check("curation wrote at least one session record", len(curation_records) >= 1, curation_records)
 
         # Re-run: nothing new (name-seen dedup), no additional agent calls.
         calls.clear()
@@ -477,7 +503,13 @@ def main():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("-h", "--help", action="store_true")
     args = parser.parse_args()
+
+    if args.help:
+        print(f"Usage: {Path(sys.argv[0]).name} [--dry-run]", file=sys.stderr)
+        print(f"       {Path(sys.argv[0]).name} --self-test", file=sys.stderr)
+        return 0
 
     if args.self_test:
         return self_test()

@@ -266,7 +266,13 @@ def main():
     parser.add_argument("week_tag", nargs="?", default=None)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("-h", "--help", action="store_true")
     args = parser.parse_args()
+
+    if args.help:
+        print(f"Usage: {Path(sys.argv[0]).name} [YYYY-Www] [--dry-run]", file=sys.stderr)
+        print(f"       {Path(sys.argv[0]).name} --self-test", file=sys.stderr)
+        return 0
 
     if args.self_test:
         return self_test()

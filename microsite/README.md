@@ -42,7 +42,7 @@ directly from disk — no `python -m http.server` needed.
   `status.json` is the plain-data form; `status.js` wraps the same payload
   as `window.__STATUS__ = {...};`, which is what `health.html` actually
   loads. Both start as an `UNKNOWN`/empty placeholder and are overwritten
-  by `System_Config/healthcheck.sh` on every run — `healthcheck.sh` is the
+  by `System_Config/healthcheck.py` on every run — `healthcheck.py` is the
   sole writer of both files.
 
 ## Regeneration
@@ -52,7 +52,7 @@ roster-schema sources:
 
 ```
 python3 System_Config/gen_site.py          # rewrite dashboard.html in place
-python3 System_Config/gen_site.py --check  # exit 1 if stale (used by healthcheck.sh)
+python3 System_Config/gen_site.py --check  # exit 1 if stale (used by healthcheck.py)
 python3 System_Config/gen_site.py --dry-run # preview the diff, no write
 ```
 
@@ -62,11 +62,11 @@ whole-file generation from a template vs. marker-block rewrite):
 
 ```
 python3 System_Config/gen_preset_pages.py          # rewrite preset pages
-python3 System_Config/gen_preset_pages.py --check  # exit 1 if stale (used by healthcheck.sh)
+python3 System_Config/gen_preset_pages.py --check  # exit 1 if stale (used by healthcheck.py)
 python3 System_Config/gen_preset_pages.py --dry-run # preview, no write
 ```
 
-`System_Config/healthcheck.sh`'s Layer F (doc currency) self-heals by
+`System_Config/healthcheck.py`'s Layer F (doc currency) self-heals by
 invoking `gen_site.py` and `gen_preset_pages.py` for real whenever it
 detects generated pages have drifted — the site should never go stale for
 long.

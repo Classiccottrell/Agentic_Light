@@ -151,7 +151,7 @@ def self_test():
          "--provider", "claude", "--role", "coder", "--status", "0", "--reason", "exit"],
         capture_output=True, encoding="utf-8", env=_child_env(),
     )
-    check("missing note auto-created via monday_init.sh", note.is_file())
+    check("missing note auto-created via monday_init.py", note.is_file())
     if note.is_file():
         note_text = note.read_text(encoding="utf-8")
         check("auto-created note is from template", "TEMPLATE-MARKER" in note_text)
