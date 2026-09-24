@@ -71,6 +71,10 @@ validation rules).
 
 ## Run
 
+For a new project, copy [`Projects/_TEMPLATE/`](Projects/_TEMPLATE/README.md)
+and follow its provider-neutral lifecycle: `BRIEF.md` → `spec.md` →
+`tasks.md` → execution, keeping `Plan.md` as the resumable checkpoint.
+
 ```sh
 bash pipeline/run.sh "<task description>" /path/to/target/repo
 ```
