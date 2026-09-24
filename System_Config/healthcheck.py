@@ -32,9 +32,9 @@ Self-referential glob note (per §7): every place this layer globs the
 project's own script surface for staleness/secret-scanning now globs
 System_Config/*.py instead of *.sh — this script IS one of those *.py
 files now, and the old *.sh glob would silently stop covering the very
-scripts this layer means to watch. Tier 4 scripts (monday_init.sh,
-friday_process.sh, daily_ingest.sh) are still bash and are referenced by
-exact name where doc_check needs them, not through this glob.
+scripts this layer means to watch. monday_init.py/friday_process.py/
+daily_ingest.py (Tier 4, now ported) are referenced by exact name where
+doc_check needs them, not through this glob.
 """
 import contextlib
 import io
@@ -312,7 +312,7 @@ def run(report):
     if week_note.is_file() and week_note.stat().st_size > 0:
         report.check("PASS", "Current weekly note", f"{iso_year}-W{iso_week:02d}.md present")
     else:
-        report.check("WARN", "Current weekly note", f"{iso_year}-W{iso_week:02d}.md missing (run monday_init.sh)")
+        report.check("WARN", "Current weekly note", f"{iso_year}-W{iso_week:02d}.md missing (run monday_init.py)")
 
     master_note = BRAIN / "weekly_logs" / f"{iso_year} Master Note.md"
     if master_note.is_file() and master_note.stat().st_size > 0:
@@ -381,7 +381,7 @@ def run(report):
     pre_warn, pre_fail = report.warn_n, report.fail_n
     doc_check(report, "System_Config/README", SYSCFG / "README.md", sorted(SYSCFG.glob("*.py")))
     doc_check(report, "brain/README", BRAIN / "README.md",
-              [BRAIN / "CLAUDE.md", SYSCFG / "monday_init.sh", SYSCFG / "friday_process.sh", SYSCFG / "daily_ingest.sh"])
+              [BRAIN / "CLAUDE.md", SYSCFG / "monday_init.py", SYSCFG / "friday_process.py", SYSCFG / "daily_ingest.py"])
 
     rc, _ = _call_gen_main(gen_site, ["--check"])
     if rc == 0:

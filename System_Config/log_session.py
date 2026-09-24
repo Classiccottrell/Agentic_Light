@@ -13,8 +13,7 @@ Appends one line under the current ISO week's weekly note's
 matches the legacy '## Claude Sessions' heading still present in notes
 created before the rename. --note (or LOG_SESSION_NOTE env var) overrides
 the target file (never auto-created). If the default current-week note is
-missing, monday_init.sh (still bash — not yet ported; Tier 4) is run first
-to create it from the template.
+missing, monday_init.py is run first to create it from the template.
 """
 import argparse
 import os
@@ -130,16 +129,16 @@ def self_test():
     check("line stamped into legacy heading", text.count("exit 0 (exit)") == 1)
     tmp.unlink()
 
-    # Missing current-week note: run a copy of this script + monday_init.sh
-    # (still bash — Tier 4 hasn't ported it yet) + config.sh + template from
-    # a temp workspace, so the real vault is never touched.
+    # Missing current-week note: run a copy of this script + monday_init.py
+    # + config.py + template from a temp workspace, so the real vault is
+    # never touched.
     os.environ.pop("LOG_SESSION_NOTE", None)
     ws = Path(tempfile.mkdtemp())
     (ws / "System_Config").mkdir()
     (ws / "brain" / "weekly_logs").mkdir(parents=True)
     shutil.copy(Path(__file__), ws / "System_Config" / "log_session.py")
-    shutil.copy(ROOT / "System_Config" / "monday_init.sh", ws / "System_Config" / "monday_init.sh")
-    shutil.copy(ROOT / "System_Config" / "config.sh", ws / "System_Config" / "config.sh")
+    shutil.copy(ROOT / "System_Config" / "monday_init.py", ws / "System_Config" / "monday_init.py")
+    shutil.copy(ROOT / "System_Config" / "config.py", ws / "System_Config" / "config.py")
     (ws / "brain" / "weekly_logs" / "Weekly_Note_Template.md").write_text(
         "# W{{WEEK_NUM}} {{YEAR}} — TEMPLATE-MARKER\n---\n\n## Agent Sessions\n"
         "> Auto-appended after each launcher-completed session.\n\n---\n",
@@ -160,7 +159,7 @@ def self_test():
         check("line landed under ## Agent Sessions in auto-created note", section.count("claude / coder — exit 0 (exit)") == 1)
     check("stdout contract unchanged (empty)", proc.stdout == "", proc.stdout)
 
-    # monday_init.sh fails (no template): still exit 0, no note written.
+    # monday_init.py fails (no template): still exit 0, no note written.
     shutil.rmtree(ws / "brain" / "weekly_logs")
     (ws / "brain" / "weekly_logs").mkdir(parents=True)
     proc2 = subprocess.run(
@@ -168,8 +167,8 @@ def self_test():
          "--provider", "claude", "--role", "coder", "--status", "0", "--reason", "exit"],
         capture_output=True, encoding="utf-8", env=_child_env(),
     )
-    check("non-zero exit when monday_init.sh fails should still be 0", proc2.returncode == 0, proc2.returncode)
-    check("note not written despite monday_init.sh failure", not note.is_file())
+    check("non-zero exit when monday_init.py fails should still be 0", proc2.returncode == 0, proc2.returncode)
+    check("note not written despite monday_init.py failure", not note.is_file())
 
     # Explicit --note that doesn't exist: skip, never auto-create.
     proc3 = subprocess.run(
@@ -226,17 +225,18 @@ def main():
     else:
         note = current_week_note()
         if not note.is_file():
-            print(f"log_session.py: no weekly note at {note} — running monday_init.sh to create it", file=sys.stderr)
-            monday_init_sh = ROOT / "System_Config" / "monday_init.sh"
-            result = subprocess.run(["bash", str(monday_init_sh)], capture_output=True, encoding="utf-8")
+            print(f"log_session.py: no weekly note at {note} — running monday_init.py to create it", file=sys.stderr)
+            monday_init_py = ROOT / "System_Config" / "monday_init.py"
+            result = subprocess.run([sys.executable, str(monday_init_py)],
+                                     capture_output=True, encoding="utf-8", env=_child_env())
             if result.stdout:
                 print(result.stdout, end="", file=sys.stderr)
             if result.stderr:
                 print(result.stderr, end="", file=sys.stderr)
             if result.returncode != 0:
-                print("log_session.py: monday_init.sh exited non-zero", file=sys.stderr)
+                print("log_session.py: monday_init.py exited non-zero", file=sys.stderr)
             if not note.is_file():
-                print(f"log_session.py: weekly note still missing at {note} after monday_init.sh — skipping", file=sys.stderr)
+                print(f"log_session.py: weekly note still missing at {note} after monday_init.py — skipping", file=sys.stderr)
                 return 0
 
     append_session_line(note, args.provider, args.role, args.status, args.reason)

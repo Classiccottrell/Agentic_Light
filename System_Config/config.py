@@ -244,6 +244,76 @@ def date_offset(base, days, fmt):
     return out
 
 
+def validate_config():
+    """Sanity-check the shared config. Ported from config.sh's
+    validate_config, which ran automatically as a side effect of `source
+    config.sh` and never aborted anything — every caller printed its own
+    warning and carried on regardless. Python has no import-time side
+    effects (see module docstring), so callers that want this check call it
+    explicitly; it stays warn-only here too, matching bash exactly: never
+    raises, never dictates a caller's own exit code — just returns
+    True/False so the caller can decide whether to print the generic
+    follow-up warning."""
+    for name, val in (
+        ("WORKSPACE", WORKSPACE), ("BRAIN", BRAIN), ("RAW", RAW),
+        ("LOG_DIR", LOG_DIR), ("AGENT_COMMAND", AGENT_COMMAND),
+        ("AGENT_PROVIDER", AGENT_PROVIDER),
+    ):
+        if not val:
+            print(f"config.py: {name} is unset/empty", file=sys.stderr)
+            return False
+    if not WORKSPACE.is_dir():
+        print(f"config.py: WORKSPACE dir missing: {WORKSPACE}", file=sys.stderr)
+        return False
+    if not BRAIN.is_dir():
+        print(f"config.py: warning: BRAIN dir missing: {BRAIN}", file=sys.stderr)
+    return True
+
+
+def week_info(today=None):
+    """Monday-anchored ISO week info for `today` (a datetime.date; default
+    date.today()). Returns (monday, year, week_num, week_label):
+      monday     -- date object for the Monday of today's ISO week
+      year       -- ISO week-year (%G, pairs with week_num/%V), zero-padded
+      week_num   -- zero-padded ISO week string, e.g. "05"
+      week_label -- human label, e.g. "Jul 20-24" (or "Jun 30 - Jul 4"
+                    across a month edge)
+    Shared by ensure_current_week_raw_folder() below and monday_init.py's
+    own note/Master-Note-row math — config.sh/monday_init.sh independently
+    duplicated this same calculation in two places; this port keeps ONE
+    implementation. `today` is injectable so both monday_init.py's
+    --self-test and any future caller can exercise edge cases (a Sunday
+    anchoring back to Monday, a month-crossing label, an ISO-year rollover
+    like 2025-12-29 -> 2026-W01) without depending on the real system
+    clock."""
+    from datetime import timedelta
+    from datetime import date as _date
+    if today is None:
+        today = _date.today()
+    dow = today.isoweekday()  # 1=Mon .. 7=Sun
+    monday = today - timedelta(days=dow - 1)
+    iso_year, iso_week, _unused = monday.isocalendar()
+    friday = monday + timedelta(days=4)
+    mon_abbr, d_start = monday.strftime("%b"), monday.day
+    end_mon, d_end = friday.strftime("%b"), friday.day
+    if end_mon == mon_abbr:
+        week_label = f"{mon_abbr} {d_start}-{d_end}"
+    else:
+        week_label = f"{mon_abbr} {d_start} - {end_mon} {d_end}"
+    return monday, f"{iso_year:04d}", f"{iso_week:02d}", week_label
+
+
+def ensure_current_week_raw_folder():
+    """mkdir -p the current ISO week's brain/raw/YYYY/Wnn label/ folder so a
+    note always has somewhere to land, regardless of whether monday_init.py
+    has run yet this week. Idempotent. Ported from config.sh. Returns the
+    created/existing Path."""
+    _monday, year, week_num, week_label = week_info()
+    raw_dir = RAW / year / f"W{week_num} {week_label}"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    return raw_dir
+
+
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
