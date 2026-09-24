@@ -58,7 +58,7 @@ Agentic_Light/
 ├── GOVERNANCE.md (generated — see gen_governance.py)
 ├── bootstrap.sh
 ├── .obsidian/{app,appearance,core-plugins,community-plugins,graph}.json
-├── Projects/_TEMPLATE/{BRIEF.md,README.md,active/.gitkeep,archive/.gitkeep}
+├── Projects/_TEMPLATE/{BRIEF.md,README.md,spec.md,tasks.md,Plan.md,active/.gitkeep,archive/.gitkeep}
 ├── System_Config/
 │   ├── config.sh · test_providers.sh · mcp.defaults.json · new_agent.sh · README.md · logs/.gitkeep
 │   ├── monday_init.sh · friday_process.sh · daily_ingest.sh · run_agent.sh · test_run_agent.sh

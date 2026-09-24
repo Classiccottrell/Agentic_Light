@@ -24,7 +24,44 @@ Last reviewed: 2026-09-23
 
 ## Next
 
-_None currently open — see Shipped above._
+### White-label hardening
+
+1. **Template project lifecycle artifacts** — implemented; scaffold maps updated;
+   PR #26 is undergoing final QA and review.
+   `Projects/_TEMPLATE/` includes `spec.md`, `tasks.md`, and resumable `Plan.md`;
+   its README documents the provider-neutral flow from brief through verified
+   tasks and execution/resume. Move to Shipped after PR merge.
+2. **Agent risk metadata** — extend agent contracts with explicit
+   read-only, destructive, idempotent, and external-side-effect annotations.
+   Keep `tools:` as capability metadata; risk metadata describes blast radius.
+3. **Context/session promotion** — connect launcher results to typed session
+   records, then let the curator link those records to projects, decisions,
+   and learnings. Preserve weekly logs as append-only compatibility output.
+4. **Delegation doctrine and audit trail** — document when work stays inline
+   versus delegated, and add provider-neutral launcher audit events. Provider
+   hooks may adapt to this trail but cannot be its source of truth.
+5. **White-label acceptance fixture** — make `white_label_check.py` verify a
+   fork can specialize, run its selected agents and gates, build a context
+   packet, regenerate provider mirrors, and contain no Agentic Light identity.
+
+### Roster decision
+
+- **White-label core:** `architect`, `coder`, `eng-manager`, `qa`, `curator`.
+- **Design and WCAG overlays:** add `creative-director` plus the relevant
+  skills and gates.
+- **Handoffs:** `architect → coder → qa → eng-manager → orchestrator`.
+  `curator` runs alongside the lifecycle; `creative-director → qa` applies
+  only to visual/accessibility presets.
+- Keep `archivist` and `rally` excluded. Add no new roles until a concrete
+  workflow cannot fit the six-role contract.
+
+### Acceptance bar
+
+- A fresh fork can complete the lifecycle without Claude-specific behavior.
+- Every active role has declared capability and risk metadata.
+- A completed launcher run produces a retrievable, provenance-linked session
+  record without mutating raw inputs.
+- White-label audit passes after identity replacement and regeneration.
 
 ## Deliberately out of scope
 
