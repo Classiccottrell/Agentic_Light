@@ -41,6 +41,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -233,6 +234,22 @@ def _disk_system_config_tokens():
         if p.is_file() and _EXT_RE.search(p.name) and p.name != "agent-roster.json"
     ]
     return sorted(set(names))
+
+
+def _git_check_ignore(git_bin, path):
+    """True iff `path` is covered by .gitignore. If git isn't resolvable at
+    all, treat as "not ignored" — the same result bash's `command -v git`
+    guard implicitly produced when git was missing (check-ignore never ran,
+    so the WORKSPACE-relative `if` was always false)."""
+    if git_bin is None:
+        return False
+    try:
+        return subprocess.run(
+            [git_bin, "-C", str(WORKSPACE), "check-ignore", "-q", str(path)],
+            encoding="utf-8",
+        ).returncode == 0
+    except OSError:
+        return False
 
 
 def _atomic_write_text(path, text):
@@ -452,16 +469,12 @@ def run(report):
     if conf.is_file():
         _add_scan_file(conf)
 
+    git_bin = shutil.which("git")
+
     secret_hits = 0
     for f in scan_files:
         rel = f.relative_to(WORKSPACE)
-        try:
-            ignored = subprocess.run(
-                ["git", "-C", str(WORKSPACE), "check-ignore", "-q", str(f)],
-            ).returncode == 0
-        except OSError:
-            ignored = False
-        if ignored:
+        if _git_check_ignore(git_bin, f):
             continue
         hits = config.looks_like_secret(f, shaped_only=False)
         if hits:
@@ -473,13 +486,7 @@ def run(report):
     local_only_files = (".mcp.json", ".agentic-light.conf", "System_Config/.notify.env")
     for rel in local_only_files:
         f = WORKSPACE / rel
-        try:
-            ignored = subprocess.run(
-                ["git", "-C", str(WORKSPACE), "check-ignore", "-q", str(f)],
-            ).returncode == 0
-        except OSError:
-            ignored = False
-        if ignored:
+        if _git_check_ignore(git_bin, f):
             report.check("PASS", f"Gitignore: {rel}", "covered by .gitignore")
         else:
             report.check("WARN", f"Gitignore: {rel}", "documented as local-only but NOT covered by .gitignore")
@@ -488,7 +495,7 @@ def run(report):
 
 def main(argv=None):
     report = Report()
-    now_human = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_human = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
 
     run(report)
 

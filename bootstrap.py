@@ -95,7 +95,7 @@ def cmd_check():
         if p:
             print(f"  [ok] {t} {p}")
             if t == "gh":
-                proc = subprocess.run(["gh", "auth", "status"], capture_output=True, encoding="utf-8")
+                proc = subprocess.run([p, "auth", "status"], capture_output=True, encoding="utf-8")
                 if proc.returncode == 0:
                     print("       gh auth status: ok")
                 else:
@@ -214,7 +214,7 @@ def _configure_providers():
     gh = shutil.which("gh")
     if gh:
         print(f"    [ok] gh found: {gh}")
-        proc = subprocess.run(["gh", "auth", "status"], capture_output=True, encoding="utf-8")
+        proc = subprocess.run([gh, "auth", "status"], capture_output=True, encoding="utf-8")
         if proc.returncode != 0:
             print("         not authenticated — run: gh auth login")
     else:

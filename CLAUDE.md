@@ -12,7 +12,7 @@ command below.
 - `python3 bootstrap.py` — interactive, idempotent scaffold and provider configuration.
 - `python3 bootstrap.py --check` — read-only doctor (tools + provider + no-automation note).
 - `python3 System_Config/test_providers.py` — fake-provider check for ordered pre-launch fallback, one invocation, and no retry after failure.
-- `python3 System_Config/test_run_agent.py` — fixture tests for `run_agent.py`'s watchdog/exit-code/argv-construction contract.
+- `python3 System_Config/test_run_agent.py` — regression test for the gemini/agy `--add-dir` write-confinement contract (stubs `agy` to emulate its silent-cwd-ignoring bug so a future edit that drops the flag fails loudly instead of regressing writes).
 - `python3 pipeline/run.py` — Task Input → coder → ESLint gate → Playwright gate → Human Gate → `gh pr create`.
 - `python3 pipeline/test_pipeline.py` — integration test for the whole pipeline gate/lock/secret-scan contract.
 - `bash skills/skills.sh list` — list available skills (not yet ported — Tier 4).
@@ -67,7 +67,7 @@ Agentic_Light/
 ├── bootstrap.sh · bootstrap.py (bash original kept alongside its Python port — not yet deleted)
 ├── .obsidian/{app,appearance,core-plugins,community-plugins,graph}.json
 ├── Projects/_TEMPLATE/{BRIEF.md,README.md,spec.md,tasks.md,Plan.md,active/.gitkeep,archive/.gitkeep}
-├── System_Config/ (ported .sh originals kept alongside their .py ports for now — see the Python port CLAUDE.md history; not yet deleted)
+├── System_Config/ (ported .sh originals kept alongside their .py ports for now — not yet deleted)
 │   ├── config.sh · config.py · test_providers.sh · test_providers.py · mcp.defaults.json · new_agent.sh · new_agent.py · README.md · logs/.gitkeep
 │   ├── monday_init.sh · friday_process.sh · daily_ingest.sh (not yet ported — Tier 4) · run_agent.sh · run_agent.py · test_run_agent.sh · test_run_agent.py
 │   ├── log_session.sh · log_session.py · route_skill.sh · route_skill.py · context.sh · context.py · context_packet.sh · context_packet.py
@@ -133,10 +133,11 @@ Agentic_Light/
   no longer chmod's anything.
 - `python3` may not exist on Windows (or may be the Microsoft Store
   stub) — Windows users should use `python` or `py -3`.
-- Tier 4 scripts (`monday_init.sh`, `friday_process.sh`,
-  `daily_ingest.sh`, `skills/skills.sh`, `test_context_packet.sh`) are
-  not yet ported and remain bash-3.2-safe (no associative arrays, no
-  `mapfile`, no `${var,,}`) until their own pass.
+
+Tier 4 scripts (`monday_init.sh`, `friday_process.sh`, `daily_ingest.sh`,
+`skills/skills.sh`, `test_context_packet.sh`) are not yet ported and
+remain bash-3.2-safe (no associative arrays, no `mapfile`, no
+`${var,,}`) until their own pass.
 
 ## The 4 Karpathy Agentic Coding Principles
 

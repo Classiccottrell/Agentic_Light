@@ -63,12 +63,12 @@ def _load_env_file(path):
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
-        key, _, val = line.partition("=")
-        key = key.strip()
-        val = val.strip()
-        if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
-            val = val[1:-1]
-        values[key] = val
+        name, _, value = line.partition("=")
+        name = name.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+        values[name] = value
     return values
 
 
@@ -139,7 +139,18 @@ def notify(title, body=""):
     """Send `title`/`body` to every configured channel. Returns True iff at
     least one channel delivered, OR no channel is configured at all (a
     deliberate no-op, not a failure). Never raises for delivery reasons."""
-    env = _load_env_file(ENV_FILE)
+    # bash's `[ -r "$ENV_FILE" ] && source "$ENV_FILE"` reassigns onto
+    # whatever the process already inherited from its environment — an
+    # exported SLACK_WEBHOOK_URL etc. is honored when the file is absent
+    # or silent on that key, but a key the file DOES define (even as "")
+    # overrides the inherited value, since `source` runs after the
+    # environment is inherited. Seed from os.environ, then overlay.
+    env = {
+        "SLACK_WEBHOOK_URL": os.environ.get("SLACK_WEBHOOK_URL", ""),
+        "GCHAT_WEBHOOK_URL": os.environ.get("GCHAT_WEBHOOK_URL", ""),
+        "GCHAT_FALLBACK_LOCAL": os.environ.get("GCHAT_FALLBACK_LOCAL", "0"),
+    }
+    env.update(_load_env_file(ENV_FILE))
     payload = {"text": f"*{title}*\n{body}"}
 
     attempted = False
