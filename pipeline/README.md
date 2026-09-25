@@ -54,7 +54,8 @@ python3 pipeline/run.py --help   # print usage and exit
    `$ROOT`, never from inside `$TARGET_REPO`) is prepended to the coder
    prompt, labeled `Resume context packet:`, only when
    `AGENTIC_LIGHT_CONTEXT_PACKET=1` is set, or automatically when
-   `$TARGET_REPO` resolves (symlink-safe, `pwd -P` on both sides) to this
+   `$TARGET_REPO` resolves (symlink-safe, `Path(...).resolve()` on both
+   sides, matching bash's `pwd -P`) to this
    workspace's own root — i.e. a run dogfooding the pipeline against
    Agentic Light itself. Default-off otherwise: this pipeline runs against
    an **external target repo** (see top of this file), and unconditionally
@@ -90,10 +91,12 @@ python3 pipeline/run.py --help   # print usage and exit
    dirty index at launch is a hard `FAILED: ...`, not silently overridden.
    A coder run that produces no changes also fails this step (no commit,
    no PR).
-   Swappable for testing: set `PIPELINE_CODER_CMD` to any command; if set,
-   `run.py` execs `$PIPELINE_CODER_CMD "<task>" "<target-repo>"` instead of
-   the live agent call — no agent CLI round-trip needed to test the rest of
-   the pipeline.
+   Swappable for testing: set `PIPELINE_CODER_CMD` to a single executable
+   path (no shell tokenizing — not an arbitrary command string; a `.py`
+   path runs under this same Python interpreter, anything else is invoked
+   directly); if set, `run.py` calls it with `["<task>", "<target-repo>"]`
+   appended as argv instead of the live agent call — no agent CLI
+   round-trip needed to test the rest of the pipeline.
 2. **Gates** — `lib/eslint_gate.py <target-repo>` and
    `lib/playwright_gate.py <target-repo>`, run in order, unless
    `pipeline/gate-config.json` exists (see "Gate configuration" below).
@@ -124,16 +127,19 @@ If `pipeline/gate-config.json` exists (see `System_Config/gate-config.schema.jso
 eslint+playwright pair — entries are `"eslint"`, `"playwright"`, `"axe"`, or a
 `custom` object (`{"name": "custom", "script": "...", "cwd": "...",
 "args": [...]}`). `script`/`cwd` are resolved relative to the **target
-repo**, matching how `eslint_gate.py`/`playwright_gate.py` already `cd`
-into it. Parsed with `python3` (stdlib `json`); if the config file exists
-but `python3` is not found, `run.py` hard-fails rather than silently
-falling back — running the wrong gate set would defeat the "100% pass
-before a human sees the diff" contract. No config file (an un-specialized
-fork) keeps the original hardcoded eslint+playwright behavior.
+repo**, matching how `eslint_gate.py`/`playwright_gate.py` already run
+their subprocess with that directory as `cwd`. Parsed with the stdlib
+`json` module directly (this script IS Python, so there's no
+shell-out-to-python3-for-JSON step, and no "python3 not found" failure
+mode left to guard against — that was bash's own concern); a malformed
+`gate-config.json` is a hard `FAILED: ...` — running the wrong gate set
+would defeat the "100% pass before a human sees the diff" contract. No
+config file (an un-specialized fork) keeps the original hardcoded
+eslint+playwright behavior.
 
 A custom gate's resolved `script` and `cwd` are contained to the target
-repo: both are resolved with `cd ... && pwd -P` (this project's existing
-path-resolution idiom, no `realpath` dependency) and rejected with a clear
+repo: both are resolved with `Path(...).resolve()` (symlink-safe, matches
+bash's `cd ... && pwd -P`) and rejected with a clear
 `FAILED: ...` if the resolved path doesn't fall under the target repo.
 `pipeline/gate-config.json` is read from the **Agentic Light workspace**
 (`$PIPELINE_DIR/gate-config.json`), not from the target repo's own tree —

@@ -223,15 +223,6 @@ def run(dry_run=False, run_agent_fn=None):
         with open(log_path, "a", encoding="utf-8", newline="\n") as f:
             f.write(f"[{_ts()}] {msg}\n")
 
-    # Mirrors config.sh's automatic `source`-time side effects (resolve then
-    # warn-only validate), which ran unconditionally for every script that
-    # sourced config.sh — daily_ingest genuinely does need a provider
-    # (run_agent_fn below), so this also gives an early, explicit signal if
-    # none is configured, rather than discovering it mid-loop on the first clip.
-    config.resolve_agent_provider()
-    if not config.validate_config():
-        print("config.py: configuration warnings above — some scripts may misbehave", file=sys.stderr)
-
     log(f"daily_ingest start (scanning: {config.RAW})")
 
     iso_year, iso_week, _unused = date.today().isocalendar()
@@ -513,6 +504,18 @@ def main():
 
     if args.self_test:
         return self_test()
+
+    # Mirrors config.sh's automatic `source`-time side effects (resolve then
+    # warn-only validate), which ran unconditionally for every script that
+    # sourced config.sh — daily_ingest genuinely does need a provider
+    # (run_agent_fn below), so this also gives an early, explicit signal if
+    # none is configured, rather than discovering it mid-loop on the first
+    # clip. Kept out of run() so --self-test's direct, in-process calls
+    # (which inject their own fake run_agent_fn and never need a real
+    # provider) don't trigger it repeatedly.
+    config.resolve_agent_provider()
+    if not config.validate_config():
+        print("config.py: configuration warnings above — some scripts may misbehave", file=sys.stderr)
 
     dry_run = args.dry_run or os.environ.get("DRY_RUN", "0") == "1"
     return run(dry_run=dry_run)

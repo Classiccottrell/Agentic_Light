@@ -115,9 +115,13 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   line-scan port of the equivalent awk), fills the Master Note row's
   Summary cell — rewrites every row whose trimmed 2nd `|`-delimited field
   matches the week tag, leaving every other line byte-identical (backup →
-  rewrite → validate exact row-count match → rollback; unlike
-  `monday_init.py`, a validation failure here leaves the backup file in
-  place rather than deleting it). Optional `[YYYY-Www]` positional argument
+  rewrite → validate → rollback, same backup-kept-on-failure discipline as
+  `monday_init.py`'s Master Note edit). Differs from `monday_init.py` in
+  two ways: validation requires the row count to stay *exactly* equal
+  (`monday_init.py` only requires it not to *drop*, since a legitimate
+  insert grows it), and a "no row matched the week tag" outcome here
+  also keeps the backup (logged as a WARNING, not a validation failure).
+  Optional `[YYYY-Www]` positional argument
   (defaults to the current ISO week). `config.acquire_lock` (10 min
   stale-reclaim); `--dry-run` (or `DRY_RUN=1`) preview; `--self-test` covers
   the stamp/rewrite logic directly plus a real isolated-workspace run. No
@@ -358,15 +362,19 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `System_Config/*` listing drifts from actual `.sh`/`.py`/`.json` files on
   disk).
   Self-heals a stale `microsite/dashboard.html`, stale `microsite/presets/*.html`,
-  or stale `GOVERNANCE.md` by invoking `gen_site.py` / `gen_preset_pages.py` /
-  `gen_governance.py` for
-  real. Writes `microsite/status.json` + `microsite/status.js` (the payload
-  `microsite/health.html` renders). Never `set -e`, always exits 0. No
-  launchd/cron trigger and no GitHub Pages publish step — run it by hand.
+  or stale `GOVERNANCE.md` by calling `gen_site.py` / `gen_preset_pages.py` /
+  `gen_governance.py`'s own `main()` functions directly, in-process, for
+  real (a deliberate improvement over the bash original's subprocess calls
+  now that this script IS Python too — see its own module docstring).
+  Writes `microsite/status.json` + `microsite/status.js` (the payload
+  `microsite/health.html` renders). Deliberately never raises on a failing
+  probe — a failing probe is a result to report, not a reason to abort
+  (mirrors bash's `set -uo pipefail` without `-e`) — and always returns 0.
+  No launchd/cron trigger and no GitHub Pages publish step — run it by hand.
   On a non-`PASS` result, calls `notify.py` with the overall status and
   pass/warn/fail counts (best-effort — never affects healthcheck's own exit).
-  Also runs a heads-up config security scan (AgentShield-lite): greps
-  `System_Config/*.sh`, `System_Config/*.json` (excluding `*.example` /
+  Also runs a heads-up config security scan (AgentShield-lite): regex-scans
+  `System_Config/*.py`, `System_Config/*.json` (excluding `*.example` /
   `*.defaults.json` templates), `.mcp.json`, and any `.env`-shaped file for
   likely-exposed secrets (provider key prefixes, bare `Bearer <token>`,
   non-placeholder `*_KEY`/`*_TOKEN`/`*_SECRET` values) — always `WARN`, never
@@ -382,8 +390,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   independently), plus an opt-in local macOS banner
   (`GCHAT_FALLBACK_LOCAL=1`, via `osascript`, no-op elsewhere). Config comes
   from ignored, mode-`600` `.notify.env` (seed from `.notify.env.example`);
-  the webhook URL is piped to `curl --config -` on stdin, never passed as a
-  bare argument, to keep it out of `ps` output. Every attempt is logged to
+  posts via the stdlib `urllib.request` (no `curl`/third-party dependency
+  — the webhook URL never appears as a subprocess argv, so there's no
+  `ps`-output exposure to guard against in the first place). Every attempt is logged to
   `logs/notify.log`. Never fails its caller for delivery reasons: exit 0 on
   any successful delivery or a deliberate no-config no-op, exit 1 only if
   every configured channel failed. No flags, no severity levels, no dedup —
