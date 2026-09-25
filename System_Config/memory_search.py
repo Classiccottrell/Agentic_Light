@@ -88,8 +88,8 @@ def self_test():
     try:
         wiki_dir = tmp / "wiki"
         wiki_dir.mkdir()
-        (wiki_dir / "alpha.md").write_text("Alpha body about apples.\n")
-        (wiki_dir / "beta.md").write_text("Beta body about oranges.\n")
+        (wiki_dir / "alpha.md").write_text("Alpha body about apples.\n", encoding="utf-8")
+        (wiki_dir / "beta.md").write_text("Beta body about oranges.\n", encoding="utf-8")
         db_path = tmp / ".memoryfield.sqlite3"
         conn = open_db(db_path)
         index_wiki(wiki_dir, conn, fake_embed)
@@ -185,4 +185,6 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     sys.exit(main())

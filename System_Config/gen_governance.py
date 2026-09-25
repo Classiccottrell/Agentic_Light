@@ -58,7 +58,7 @@ ALL_ROLES = ['architect', 'coder', 'creative-director', 'curator', 'eng-manager'
 
 
 def read_frontmatter(path):
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         content = f.read()
     if not content.startswith('---'):
         return None
@@ -91,7 +91,7 @@ def get_agents():
 def load_json_or_none(path):
     if not os.path.exists(path):
         return None
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -115,7 +115,7 @@ def get_active_preset_role_notes():
     """
     if not os.path.exists(ACTIVE_PRESET_PATH):
         return None, {}, {}, {}
-    with open(ACTIVE_PRESET_PATH) as f:
+    with open(ACTIVE_PRESET_PATH, encoding="utf-8") as f:
         preset_name = f.read().strip()
     presets = load_json_or_none(PRESETS_PATH) or {}
     preset = presets.get(preset_name) or {}
@@ -356,7 +356,7 @@ def main():
 
     original = None
     if os.path.exists(OUT_PATH):
-        with open(OUT_PATH) as f:
+        with open(OUT_PATH, encoding="utf-8") as f:
             original = f.read()
 
     if original == new_md:
@@ -374,10 +374,12 @@ def main():
         print('\n'.join(list(diff)[:80]))
         sys.exit(0)
 
-    with open(OUT_PATH, 'w') as f:
+    with open(OUT_PATH, 'w', encoding="utf-8", newline="\n") as f:
         f.write(new_md)
     print('gen_governance: updated ' + OUT_PATH)
 
 
 if __name__ == '__main__':
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     main()

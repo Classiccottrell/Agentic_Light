@@ -30,7 +30,7 @@ PRESETS_DIR = os.path.join(ROOT, 'microsite', 'presets')
 
 
 def get_roles():
-    with open(ROSTER_SCHEMA_PATH) as f:
+    with open(ROSTER_SCHEMA_PATH, encoding="utf-8") as f:
         schema = json.load(f)
     return list(schema['properties']['roles']['properties'].keys())
 
@@ -206,10 +206,10 @@ def main():
     check_mode = '--check' in sys.argv
     dry_run = '--dry-run' in sys.argv
 
-    with open(PRESETS_PATH) as f:
+    with open(PRESETS_PATH, encoding="utf-8") as f:
         presets = json.load(f)
     all_roles = get_roles()
-    with open(TEMPLATE_PATH) as f:
+    with open(TEMPLATE_PATH, encoding="utf-8") as f:
         template = f.read()
 
     stale = False
@@ -230,13 +230,13 @@ def main():
         new_html = render_page(name, preset, all_roles, template)
         existing = None
         if os.path.exists(out_path):
-            with open(out_path) as f:
+            with open(out_path, encoding="utf-8") as f:
                 existing = f.read()
         if existing != new_html:
             stale = True
             written.append(out_path)
             if not check_mode and not dry_run:
-                with open(out_path, 'w') as f:
+                with open(out_path, 'w', encoding="utf-8", newline="\n") as f:
                     f.write(new_html)
 
     if removed:
@@ -273,4 +273,6 @@ def main():
 
 
 if __name__ == '__main__':
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     main()

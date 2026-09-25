@@ -203,6 +203,20 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   legitimately land mid multi-byte UTF-8 sequence, which would raise under
   strict text-mode decoding — a deliberate, documented exception to this
   repo's usual "encoding=utf-8 on every subprocess" rule.
+- **`test_encoding.py`** — AST-based lint (no test framework, matches this
+  repo's own `--self-test` convention) proving CLAUDE.md's Cross-Platform
+  Constraints hold across every `.py` under `System_Config/`, `pipeline/`,
+  `bootstrap.py`, and `skills/skills.py`: `encoding=` on every text-mode
+  `open()`/`os.fdopen()`/`Path.open()`/`read_text()`/`write_text()` and
+  text-mode `subprocess.*` call (binary modes exempt); `newline=` on every
+  write-mode `open()`/`os.fdopen()` (not `write_text()` — its own `newline`
+  parameter is Python 3.10+ only, past this repo's 3.9 floor); and a
+  `sys.stdout`/`sys.stderr` UTF-8 `reconfigure()` inside every
+  `if __name__ == "__main__":` block, never inside `main()` itself (would
+  crash under `healthcheck.py`'s in-process `--check` capture, which
+  redirects `sys.stdout` to a `StringIO`). Vendored skill payloads under
+  `skills/<dir>/` are out of scope by design — none currently ship any `.py`
+  at all (only `skills.py` itself and one vendored `.sh`).
 - **`preset_audit.py`** — stdlib-only validation of preset roles, gates, skills,
   and focused role-note overlays. For `design-harness`/`wcag-harness`
   specifically, also validates the optional `role_capabilities`/

@@ -268,8 +268,8 @@ def self_test():
     try:
         wiki_dir = tmp / "wiki"
         wiki_dir.mkdir()
-        (wiki_dir / "alpha.md").write_text("---\ntitle: Alpha\n---\nAlpha body.\n")
-        (wiki_dir / "beta.md").write_text("---\ntitle: Beta\n---\nBeta body.\n")
+        (wiki_dir / "alpha.md").write_text("---\ntitle: Alpha\n---\nAlpha body.\n", encoding="utf-8")
+        (wiki_dir / "beta.md").write_text("---\ntitle: Beta\n---\nBeta body.\n", encoding="utf-8")
         db_path = tmp / ".memoryfield.sqlite3"
         conn = open_db(db_path)
 
@@ -284,7 +284,7 @@ def self_test():
         assert indexed == 0 and skipped == 2, "FAIL: incremental skip logic broken"
 
         # Change one page's content: only it re-embeds.
-        (wiki_dir / "alpha.md").write_text("---\ntitle: Alpha\n---\nAlpha body CHANGED.\n")
+        (wiki_dir / "alpha.md").write_text("---\ntitle: Alpha\n---\nAlpha body CHANGED.\n", encoding="utf-8")
         indexed, skipped, pruned = index_wiki(wiki_dir, conn, fake_embed, model="fake-model-v1")
         assert indexed == 1 and skipped == 1, "FAIL: changed-page re-embed logic broken"
 
@@ -353,4 +353,6 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     sys.exit(main())

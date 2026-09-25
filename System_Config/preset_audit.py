@@ -19,7 +19,7 @@ def known_capabilities():
     hardcoded 4 if the schema is missing/unreadable rather than hard-failing
     every preset check on an unrelated schema problem."""
     try:
-        schema = json.loads(ROSTER_SCHEMA.read_text())
+        schema = json.loads(ROSTER_SCHEMA.read_text(encoding="utf-8"))
         return set(schema["definitions"]["role"]["properties"]["capabilities"]["items"]["enum"])
     except Exception:
         return set(FALLBACK_CAPABILITIES)
@@ -32,7 +32,7 @@ def fail(message):
 
 def audit():
     try:
-        presets = json.loads(PRESETS.read_text())
+        presets = json.loads(PRESETS.read_text(encoding="utf-8"))
     except Exception as exc:
         return fail(f"cannot read presets.json: {exc}")
     errors = []
@@ -93,4 +93,6 @@ def audit():
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     sys.exit(audit())

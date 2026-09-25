@@ -34,6 +34,7 @@ command below.
 - `python3 System_Config/white_label_check.py <fork> --name <name> --preset <preset>` — audit a pruned fork's identity, active role files, selected skills, and (via each generator's own `--check` mode) that generated output isn't stale, without modifying it.
 - `python3 System_Config/dashboard.py` — read-only terminal status readout: preset, provider, roster, gates, last agent session, recent pipeline runs.
 - `python3 System_Config/notify.py "<title>" "<body>"` — Slack/Google Chat webhook + opt-in local macOS banner dispatch.
+- `python3 System_Config/test_encoding.py` — AST-based lint enforcing the Cross-Platform Constraints below (explicit `encoding=` on every text-mode `open()`/`fdopen()`/`Path.open()`/`read_text()`/`write_text()`/text-mode subprocess call; `newline=` on every write-mode `open()`/`fdopen()`; a `sys.stdout`/`sys.stderr` UTF-8 reconfigure in every `if __name__ == "__main__":` block) across every `.py` under `System_Config/`, `pipeline/`, `bootstrap.py`, and `skills/skills.py`.
 
 ## Provider Contract
 
@@ -73,7 +74,8 @@ Agentic_Light/
 ├── System_Config/
 │   ├── config.py · test_providers.py · mcp.defaults.json · new_agent.py · README.md · logs/.gitkeep
 │   ├── monday_init.py · friday_process.py · daily_ingest.py · run_agent.py · test_run_agent.py
-│   ├── log_session.py · route_skill.py · context.py · context_packet.py · test_context_packet.py
+│   ├── log_session.py · route_skill.py · context.py · context_packet.py · test_context_packet.py ·
+│   │   test_encoding.py
 │   ├── context_catalog.py · context_curate.py · context_validate.py · test_support.py (shared
 │   │   test-fixture helper, not a test itself)
 │   ├── test_context_catalog.sh · test_context_curate.sh · test_context_layer.sh ·
