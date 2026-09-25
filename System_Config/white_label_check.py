@@ -84,7 +84,9 @@ def _build_clean_fork(tmp, fixture_name, preset_name, roles=None):
     repo's own System_Config/presets.json, not a hand-copied paraphrase —
     this also exercises the role_capabilities/role_handoff overlay on
     design-harness/wcag-harness) / agent-roster.json / agents/*.md /
-    microsite/index.html, then actually runs all 3 generators.
+    microsite/index.html / microsite/dashboard.html (a minimal stand-in
+    with gen_site.py's 3 marker pairs, not a copy of the real prose-heavy
+    dashboard.html), then actually runs all 3 generators.
 
     `roles`, if given, overrides the live preset's own `roles` list — written
     into the fork's own copy of presets.json (not just the roster), so
@@ -143,6 +145,26 @@ def _build_clean_fork(tmp, fixture_name, preset_name, roles=None):
         "<!-- gen:skills-count -->0<!-- /gen:skills-count -->\n"
         "<h3>Presets</h3>\n"
         "<!-- gen:presets-start -->\n<!-- gen:presets-end -->\n"
+        "</body></html>\n"
+    )
+
+    # gen_site.py requires microsite/dashboard.html to already exist (it
+    # opens it in place and rewrites only the marker blocks below) — this
+    # fixture is not copied+renamed from REAL_ROOT like the generator
+    # scripts/template.html above because the real dashboard.html carries a
+    # lot of static prose; a minimal stand-in with the same 3 marker pairs
+    # is enough for gen_site.py to run and for audit()'s identity check
+    # (fixture_name in the title, no old_name text) to hold.
+    (root / "microsite" / "dashboard.html").write_text(
+        "<html><head><title>Dashboard — " + fixture_name + "</title></head><body>\n"
+        "<div class=\"preset-grid\">\n"
+        "            <!-- gen:dashboard-presets-start -->\n<!-- gen:dashboard-presets-end -->\n"
+        "</div>\n"
+        "<table><thead><tr>\n"
+        "              <!-- gen:dashboard-roster-head-start -->\n<!-- gen:dashboard-roster-head-end -->\n"
+        "</tr></thead><tbody>\n"
+        "              <!-- gen:dashboard-roster-body-start -->\n<!-- gen:dashboard-roster-body-end -->\n"
+        "</tbody></table>\n"
         "</body></html>\n"
     )
 
@@ -212,14 +234,18 @@ def self_test():
             errors4,
         )
 
-        # Fixture 5: generated-output staleness (an agent's description:
-        # edited post-generation, so the already-rendered index.html
-        # disagrees with agents/*.md) must be caught by
-        # _check_generated_output's gen_site.py --check call.
+        # Fixture 5: generated-output staleness (the preset's own
+        # description: edited post-generation, so the already-rendered
+        # dashboard.html preset card disagrees with presets.json) must be
+        # caught by _check_generated_output's gen_site.py --check call.
+        # (Not an agents/*.md edit: gen_site.py's dashboard build no longer
+        # reads per-agent descriptions -- that table moved to
+        # gen_governance.py's GOVERNANCE.md -- so mutating coder.md would
+        # only flip gen_governance.py stale, not gen_site.py.)
         root5 = _build_clean_fork(tmp, "StaleOutput", "wcag-harness")
-        (root5 / "agents" / "coder.md").write_text(
-            "---\nname: coder\ndescription: a materially different description now.\ntools: Read, Write\n---\n# coder\n"
-        )
+        presets5 = json.loads((root5 / "System_Config" / "presets.json").read_text())
+        presets5["wcag-harness"]["description"] = "a materially different description now."
+        (root5 / "System_Config" / "presets.json").write_text(json.dumps(presets5, indent=2))
         errors5 = audit(root5, "StaleOutput", "wcag-harness")
         check(
             "generated-output staleness is caught",
