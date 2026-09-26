@@ -4,7 +4,7 @@ A lightweight, provider-agnostic template for building a small dev-agent
 harness. It supports Claude, Gemini (`agy` or `gemini`), Codex, and Ollama,
 with no background service, scheduler, or retry queue — everything here runs
 by hand. It ships as a generic fork with all 6 agent roles and no gates; you
-run `specialize.sh` once to turn it into a specific harness (a CLI-tool
+run `specialize.py` once to turn it into a specific harness (a CLI-tool
 harness, a design harness, a WCAG-review harness, etc.) for the project you
 actually need it for. It also bundles a second-brain (plain markdown +
 semantic search, optionally viewable in Obsidian) and a doc-site microsite
@@ -13,14 +13,14 @@ that reflect the harness's current configuration.
 ## Install
 
 ```sh
-bash bootstrap.sh          # interactive, idempotent scaffold + provider setup
-bash bootstrap.sh --check  # read-only doctor: tool/provider/automation status
-bash System_Config/test_providers.sh  # fake-provider regression check
+python3 bootstrap.py          # interactive, idempotent scaffold + provider setup
+python3 bootstrap.py --check  # read-only doctor: tool/provider/automation status
+python3 System_Config/test_providers.py  # fake-provider regression check
 ```
 
-`bootstrap.sh --check` reports which of `claude`/`agy`/`gemini`/`codex`/
+`bootstrap.py --check` reports which of `claude`/`agy`/`gemini`/`codex`/
 `ollama`/`gh`/`node`/`npx`/`python3` are installed, whether provider config
-exists yet, and confirms there's no background automation. `bootstrap.sh`
+exists yet, and confirms there's no background automation. `bootstrap.py`
 itself (no flags) runs the interactive checkbox-style setup: enable/disable
 each provider, set priority order, optionally set a model per provider. It
 writes the result to `.agentic-light.conf` at the repo root (gitignored,
@@ -28,7 +28,7 @@ mode `600`, parsed as text — never sourced as shell). Environment variables
 (`AGENTIC_LIGHT_PROVIDERS`, `AGENTIC_LIGHT_PRIORITY`,
 `AGENTIC_LIGHT_MODEL_<PROVIDER>`) override it non-interactively.
 
-`System_Config/test_providers.sh` is a fake-binary regression suite covering
+`System_Config/test_providers.py` is a fake-binary regression suite covering
 argv construction, model mapping, pre-launch fallback, single-invocation (no
 retry), and Ollama's write-workflow refusal — it exits 0/`PASS` without
 touching any real provider.
@@ -39,11 +39,11 @@ This is the core idea: Agentic Light is not one fixed harness, it's a
 template you fork and specialize once per project.
 
 ```sh
-bash System_Config/specialize.sh --preset <name>
+python3 System_Config/specialize.py --preset <name>
 ```
 
 or run it with no flags for interactive selection (same checkbox UX as
-`bootstrap.sh`: pick roles, gates, and skill dirs by hand).
+`bootstrap.py`: pick roles, gates, and skill dirs by hand).
 
 Presets (from `System_Config/presets.json`):
 
@@ -58,7 +58,7 @@ Presets (from `System_Config/presets.json`):
 
 Specializing writes `System_Config/agent-roster.json` (active roles),
 `pipeline/gate-config.json` (gate list), and
-`System_Config/skills-selected.json` (which `skills/*` dirs `route_skill.sh`
+`System_Config/skills-selected.json` (which `skills/*` dirs `route_skill.py`
 scans). With `--preset`, it also writes `System_Config/.active-preset` (the
 preset name), which `gen_governance.py` reads to render that preset's
 `role_notes` — harness-specific notes on what each active role covers.
@@ -76,11 +76,11 @@ and follow its provider-neutral lifecycle: `BRIEF.md` → `spec.md` →
 `tasks.md` → execution, keeping `Plan.md` as the resumable checkpoint.
 
 ```sh
-bash pipeline/run.sh "<task description>" /path/to/target/repo
+python3 pipeline/run.py "<task description>" /path/to/target/repo
 ```
 
-`run.sh` targets an **external repo**, not Agentic_Light itself. Flow:
-skill routing (`route_skill.sh` prepends matching `SKILL.md` guidance to the
+`run.py` targets an **external repo**, not Agentic_Light itself. Flow:
+skill routing (`route_skill.py` prepends matching `SKILL.md` guidance to the
 coder prompt) → coder step (one provider, foreground, no retry) → gates
 (the ordered list in `pipeline/gate-config.json` if present — `eslint`,
 `playwright`, `axe`, or a `custom` script; falls back to the hardcoded
@@ -95,13 +95,13 @@ contract (concurrency lock, exit codes, WARN-vs-hard-stop rules).
 Two read-only dashboards, no server required:
 
 ```sh
-bash System_Config/dashboard.sh         # terminal: preset, provider, roster, gates, last session, recent runs
+python3 System_Config/dashboard.py         # terminal: preset, provider, roster, gates, last session, recent runs
 open microsite/index.html               # browser: dashboard entry point
 open microsite/dashboard.html           # browser: condensed health + preset cards + roster-by-preset table
 ```
 
 Both microsite pages open directly via `file://` — no build step, no
-`python -m http.server`. `bash System_Config/healthcheck.sh` runs the full
+`python -m http.server`. `python3 System_Config/healthcheck.py` runs the full
 layered PASS/WARN/FAIL check (directory layout, roster/skill frontmatter,
 brain scaffolding, provider config, doc currency, a secrets scan) and
 writes `microsite/status.json`/`status.js`, which `health.html` and
@@ -114,24 +114,24 @@ is where "what can an agent here actually do, and what needs my sign-off"
 lives: per-role scope pulled from `agents/*.md`, the human approval gate
 before any PR, the session-log/pipeline-log audit trail, this fork's live
 gate policy (from `agent-roster.json`/`gate-config.json`, or "unspecialized
-fork" if neither exists), and the `healthcheck.sh` config-security scan.
-`healthcheck.sh` self-heals it when stale, same as the microsite docs below.
+fork" if neither exists), and the `healthcheck.py` config-security scan.
+`healthcheck.py` self-heals it when stale, same as the microsite docs below.
 
 ## Everything else, briefly
 
 **Brain** (`brain/`) — a plain-markdown + SQLite second brain, optionally
 viewable as an Obsidian vault. `brain/raw/` holds immutable clipped notes;
 typed records under `brain/records/` capture projects, decisions, learnings,
-references, and sessions. `context.sh` validates, catalogs, searches, curates,
+references, and sessions. `context.py` validates, catalogs, searches, curates,
 and builds profile-scoped packets; FTS5 works offline and Ollama embeddings
-are optional. `daily_ingest.sh` still wikifies raw clips into `brain/wiki/`.
+are optional. `daily_ingest.py` still wikifies raw clips into `brain/wiki/`.
 All source is plain text/stdlib, with zero Obsidian dependency. `.obsidian/` is
 shipped for zero-setup Obsidian viewing but is not required by the pipeline.
 See `brain/README.md`.
 
-**Skill routing** (`System_Config/route_skill.sh`) — a deterministic
+**Skill routing** (`System_Config/route_skill.py`) — a deterministic
 keyword/substring router (no LLM call) that scans `skills/*/SKILL.md`
-frontmatter and prints matching skill paths; `pipeline/run.sh` uses it to
+frontmatter and prints matching skill paths; `pipeline/run.py` uses it to
 inject skill guidance into the coder prompt. Restricted to
 `System_Config/skills-selected.json`'s selection once you've specialized.
 

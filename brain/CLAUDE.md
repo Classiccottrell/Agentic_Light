@@ -38,8 +38,8 @@ learnings, references, and sessions. `index/` is disposable generated output.
 - Format: Obsidian Web Clipper output (`.md` with `clipped`/`source`/`author`
   frontmatter) — see `brain/raw/README.md`.
 - Folder naming: `raw/YYYY/Wnn <human label>/`, e.g. `raw/2026/W30 Jul 20-24/`.
-  `monday_init.sh` creates the current week's folder automatically.
-- On ingest (`daily_ingest.sh`): create or update the corresponding wiki page
+  `monday_init.py` creates the current week's folder automatically.
+- On ingest (`daily_ingest.py`): create or update the corresponding wiki page
   for each clip's primary entity.
 
 ---
@@ -111,7 +111,7 @@ session that touches `brain/`.
 
 ### Ingest (new raw clip arrives)
 1. Web Clipper saves to `raw/YYYY/Wnn label/`.
-2. `daily_ingest.sh` extracts entities → finds or creates wiki pages.
+2. `daily_ingest.py` extracts entities → finds or creates wiki pages.
 3. `wiki/index.md` is updated.
 4. A line is appended to the current week's `## Agent Sessions` section
    (matching the legacy `## Claude Sessions` heading, retained for older
@@ -119,9 +119,9 @@ session that touches `brain/`.
    provider.
 
 ### Weekly cycle
-- **Monday** — `monday_init.sh` creates `weekly_logs/YYYY/YYYY-Www.md` from
+- **Monday** — `monday_init.py` creates `weekly_logs/YYYY/YYYY-Www.md` from
   the template and a row in `[YYYY] Master Note.md`'s Weekly Index.
-- **Friday** — `friday_process.sh` closes out the week: appends to the
+- **Friday** — `friday_process.py` closes out the week: appends to the
   `## Agent Sessions` section (or the legacy `## Claude Sessions` heading if
   that's what the note still has), then fills the Master Note row's Summary
   cell.
@@ -136,14 +136,14 @@ session that touches `brain/`.
 5. If the answer is novel → file it back into the wiki as a new page or update.
 
 ### Human-record curation
-`System_Config/context.sh curate <record> --suggest` proposes related records
+`System_Config/context.py curate <record> --suggest` proposes related records
 without changing the source. Use `--review` to inspect medium and low
 confidence candidates. Use `--apply` only when an explicit workflow permits
 validated high-confidence links; it appends a Related Context section and
 creates an AI session record. Human prose is never rewritten.
 
-`System_Config/context.sh validate` checks record frontmatter, required
-sections, provenance, IDs, and wikilinks. `context.sh catalog` rebuilds
+`System_Config/context.py validate` checks record frontmatter, required
+sections, provenance, IDs, and wikilinks. `context.py catalog` rebuilds
 `brain/index/catalog.json` and `links.json`; links in record bodies and
 `related`/`source` frontmatter are projected together.
 

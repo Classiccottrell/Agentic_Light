@@ -9,7 +9,7 @@ Text outside marker pairs is fixed policy prose maintained directly in
 
 This is the single place to answer: **what can an agent in this fork
 actually do, and what requires a human's own explicit sign-off before it
-ships?** It documents the mechanism `pipeline/run.sh` already enforces; it
+ships?** It documents the mechanism `pipeline/run.py` already enforces; it
 does not add new mechanism.
 
 ## 1. Per-Role Scope
@@ -35,8 +35,8 @@ style, hand-off targets).
 rally/broadcast agent.
 
 `qa` and `eng-manager` are orchestrator-dispatched roles, not steps
-`pipeline/run.sh` itself invokes — see `agents/README.md`'s "`qa` /
-`eng-manager` are not part of `pipeline/run.sh`" section.
+`pipeline/run.py` itself invokes — see `agents/README.md`'s "`qa` /
+`eng-manager` are not part of `pipeline/run.py`" section.
 
 ## 2. The Human Sign-Off Gate
 
@@ -44,7 +44,7 @@ rally/broadcast agent.
 explicit human approval.** This is the governance checkpoint of the whole
 pipeline, enforced structurally, not by convention:
 
-- `pipeline/run.sh` step 3, the **Human Gate** (`pipeline/lib/human_gate.sh`
+- `pipeline/run.py` step 3, the **Human Gate** (`pipeline/lib/human_gate.py`
   by default; `PIPELINE_HUMAN_GATE_CMD` overrides it only when
   `AGENTIC_LIGHT_TEST_MODE=1` is also set — otherwise the override is
   ignored with a warning and the real gate runs),
@@ -53,7 +53,7 @@ pipeline, enforced structurally, not by convention:
 - The gate **never auto-approves**. A non-interactive session (no TTY on
   stdin) exits `2` (pending) — the pipeline stops and creates no PR, rather
   than defaulting to yes.
-- `pipeline/lib/pr_create.sh` (step 4, `gh pr create --draft`) is only ever
+- `pipeline/lib/pr_create.py` (step 4, `gh pr create --draft`) is only ever
   called after the Human Gate returns approval (`0`). Every other exit path
   — a failed gate, a declined human gate, a pending non-interactive gate —
   hard-stops before this step; see `pipeline/README.md`'s "Halt-on-failure
@@ -65,7 +65,7 @@ pipeline, enforced structurally, not by convention:
 
 ## 3. Audit Trail — What Gets Logged, and Where
 
-- **`System_Config/log_session.sh`** — called exactly once per coder
+- **`System_Config/log_session.py`** — called exactly once per coder
   invocation, after the coder step, regardless of outcome (success, watchdog
   timeout, or an Ollama write-workflow refusal). Appends one line —
   provider, role, exit status, reason — under `## Agent Sessions` in the
@@ -75,7 +75,7 @@ pipeline, enforced structurally, not by convention:
 - **`pipeline/logs/<run-id>.log`** — the full run, gate output included, is
   teed to a per-run log file (`RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"`). This is
   the gate-run history: what ran, in what order, and whether it passed.
-- **`System_Config/healthcheck.sh`**'s "Pipeline Logs" layer reports log
+- **`System_Config/healthcheck.py`**'s "Pipeline Logs" layer reports log
   recency (WARN on a fresh scaffold with zero runs yet, PASS once any exist)
   so a stalled/idle pipeline is visible in the health dashboard, not just in
   a directory listing.
@@ -87,30 +87,30 @@ generic description — regenerated from `System_Config/agent-roster.json`
 and `pipeline/gate-config.json` (or their absence) every run.
 
 <!-- gen:gate-policy-start -->
-**This fork is unspecialized** — `System_Config/agent-roster.json` and `pipeline/gate-config.json` are both absent. `System_Config/specialize.sh` has not been run against a preset yet.
+**This fork is unspecialized** — `System_Config/agent-roster.json` and `pipeline/gate-config.json` are both absent. `System_Config/specialize.py` has not been run against a preset yet.
 
-Default behavior in this state (per `pipeline/run.sh`):
+Default behavior in this state (per `pipeline/run.py`):
 - All 6 roles in `agents/` are available for orchestrator dispatch.
-- The pipeline gate step runs the hardcoded default pair, in order: `eslint` (`pipeline/lib/eslint_gate.sh`), then `playwright` (`pipeline/lib/playwright_gate.sh`).
+- The pipeline gate step runs the hardcoded default pair, in order: `eslint` (`pipeline/lib/eslint_gate.py`), then `playwright` (`pipeline/lib/playwright_gate.py`).
 <!-- gen:gate-policy-end -->
 
-Run `bash System_Config/specialize.sh --preset <name>` (see
+Run `python3 System_Config/specialize.py --preset <name>` (see
 `System_Config/presets.json` for the list) to change this fork's active
 roles/gates, then re-run `python3 System_Config/gen_governance.py` to
 refresh this section.
 
 ## 5. Config Security
 
-`System_Config/healthcheck.sh`'s **Layer G — Config Security Scan** is part
+`System_Config/healthcheck.py`'s **Layer G — Config Security Scan** is part
 of this governance layer, not a separate concern: it greps the project's own
-config surface (`System_Config/*.sh`, `System_Config/*.json`, `.mcp.json`,
+config surface (`System_Config/*.py`, `System_Config/*.json`, `.mcp.json`,
 any `.env*`, `.agentic-light.conf`) for credential-shaped strings (known
 provider key prefixes, bearer tokens, `*_KEY`/`*_TOKEN`/`*_SECRET`
 assignments that aren't placeholders), and WARNs on any hit that isn't
 already covered by `.gitignore`. It also asserts that files documented as
 local-only (`.mcp.json`, `.agentic-light.conf`,
 `System_Config/.notify.env`) are in fact gitignored. Run it directly with
-`bash System_Config/healthcheck.sh`, or read the "Config Security Scan"
+`python3 System_Config/healthcheck.py`, or read the "Config Security Scan"
 section of the generated `microsite/health.html`.
 
 ## See also
@@ -119,6 +119,6 @@ section of the generated `microsite/health.html`.
   configuration schema, concurrency lock, and test coverage.
 - `agents/README.md` — full roster table and hand-off graph.
 - `System_Config/README.md` — script-by-script reference, including
-  `healthcheck.sh` and `log_session.sh`.
+  `healthcheck.py` and `log_session.py`.
 - `System_Config/agent-roster.schema.json` / `gate-config.schema.json` —
   the schemas §1/§4 validate against.

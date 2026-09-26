@@ -11,7 +11,7 @@ EOF
 printf '%s\n' 'private workspace roadmap must not leak' > "$TMP/ROADMAP.md"
 printf '%s\n' 'app learning: café, résumé, naïve, façade' > "$TMP/app-context/learning.md"
 
-PACKET="$(bash "$ROOT/System_Config/context.sh" --root "$TMP" packet --profile example-app --query learning --max-bytes 300)"
+PACKET="$(python3 "$ROOT/System_Config/context.py" --root "$TMP" packet --profile example-app --query learning --max-bytes 300)"
 case "$PACKET" in
   *'app learning'* ) : ;;
   * ) echo 'expected app record in packet' >&2; exit 1 ;;

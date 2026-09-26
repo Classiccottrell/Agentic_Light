@@ -28,7 +28,7 @@ def _check_generated_output(root):
             continue
         proc = subprocess.run(
             [sys.executable, str(script), "--check"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8",
         )
         if proc.returncode != 0:
             detail = (proc.stdout + proc.stderr).strip().splitlines()
@@ -42,8 +42,8 @@ def audit(root, name, preset, old_name="Agentic Light"):
     errors = []
     config = root / "System_Config"
     try:
-        roster = json.loads((config / "agent-roster.json").read_text())
-        presets = json.loads((config / "presets.json").read_text())
+        roster = json.loads((config / "agent-roster.json").read_text(encoding="utf-8"))
+        presets = json.loads((config / "presets.json").read_text(encoding="utf-8"))
     except Exception as exc:
         return [f"cannot read specialized config: {exc}"]
     active = {role for role, data in roster.get("roles", {}).items() if data.get("active")}
@@ -55,7 +55,7 @@ def audit(root, name, preset, old_name="Agentic Light"):
         errors.append(f"agent files {sorted(files)} != active roster {sorted(active)}")
     selected_path = config / "skills-selected.json"
     if selected_path.exists():
-        selected = set(json.loads(selected_path.read_text()).get("selected", []))
+        selected = set(json.loads(selected_path.read_text(encoding="utf-8")).get("selected", []))
         on_disk = {p.name for p in (root / "skills").iterdir() if p.is_dir() and (p / "SKILL.md").exists()}
         if selected != on_disk:
             errors.append(f"selected skills {sorted(selected)} != on-disk skills {sorted(on_disk)}")
@@ -63,7 +63,7 @@ def audit(root, name, preset, old_name="Agentic Light"):
     for path in generated:
         paths = [path] if path.is_file() else list(path.rglob("*.html"))
         for file in paths:
-            text = file.read_text(errors="replace")
+            text = file.read_text(encoding="utf-8", errors="replace")
             if old_name in text:
                 errors.append(f"old identity remains in {file.relative_to(root)}")
             if name not in text:
@@ -84,7 +84,9 @@ def _build_clean_fork(tmp, fixture_name, preset_name, roles=None):
     repo's own System_Config/presets.json, not a hand-copied paraphrase —
     this also exercises the role_capabilities/role_handoff overlay on
     design-harness/wcag-harness) / agent-roster.json / agents/*.md /
-    microsite/index.html, then actually runs all 3 generators.
+    microsite/index.html / microsite/dashboard.html (a minimal stand-in
+    with gen_site.py's 3 marker pairs, not a copy of the real prose-heavy
+    dashboard.html), then actually runs all 3 generators.
 
     `roles`, if given, overrides the live preset's own `roles` list — written
     into the fork's own copy of presets.json (not just the roster), so
@@ -102,26 +104,27 @@ def _build_clean_fork(tmp, fixture_name, preset_name, roles=None):
 
     for rel in ("System_Config/gen_governance.py", "System_Config/gen_site.py",
                 "System_Config/gen_preset_pages.py", "microsite/template.html"):
-        src = (REAL_ROOT / rel).read_text()
-        (root / rel).write_text(src.replace("Agentic Light", fixture_name))
+        src = (REAL_ROOT / rel).read_text(encoding="utf-8")
+        (root / rel).write_text(src.replace("Agentic Light", fixture_name), encoding="utf-8")
 
     (root / "System_Config" / "agent-roster.schema.json").write_text(
-        (REAL_ROOT / "System_Config" / "agent-roster.schema.json").read_text()
+        (REAL_ROOT / "System_Config" / "agent-roster.schema.json").read_text(encoding="utf-8"),
+        encoding="utf-8",
     )
 
-    real_presets = json.loads((REAL_ROOT / "System_Config" / "presets.json").read_text())
+    real_presets = json.loads((REAL_ROOT / "System_Config" / "presets.json").read_text(encoding="utf-8"))
     preset = dict(real_presets[preset_name])
     if roles is not None:
         preset["roles"] = roles
     roles = preset.get("roles", [])
     (root / "System_Config" / "presets.json").write_text(
-        json.dumps({preset_name: preset}, indent=2)
+        json.dumps({preset_name: preset}, indent=2), encoding="utf-8"
     )
 
     all_roles = ("architect", "coder", "creative-director", "curator", "eng-manager", "qa")
     roster = {"roles": {r: {"active": r in roles} for r in all_roles}}
-    (root / "System_Config" / "agent-roster.json").write_text(json.dumps(roster, indent=2))
-    (root / "System_Config" / ".active-preset").write_text(preset_name)
+    (root / "System_Config" / "agent-roster.json").write_text(json.dumps(roster, indent=2), encoding="utf-8")
+    (root / "System_Config" / ".active-preset").write_text(preset_name, encoding="utf-8")
 
     for role in roles:
         (root / "agents" / f"{role}.md").write_text(
@@ -130,7 +133,8 @@ def _build_clean_fork(tmp, fixture_name, preset_name, roles=None):
             f"description: {role} role for {fixture_name}'s {preset_name} harness.\n"
             "tools: Read, Write\n"
             "---\n"
-            f"# {role}\n"
+            f"# {role}\n",
+            encoding="utf-8",
         )
 
     (root / "microsite" / "index.html").write_text(
@@ -143,16 +147,38 @@ def _build_clean_fork(tmp, fixture_name, preset_name, roles=None):
         "<!-- gen:skills-count -->0<!-- /gen:skills-count -->\n"
         "<h3>Presets</h3>\n"
         "<!-- gen:presets-start -->\n<!-- gen:presets-end -->\n"
-        "</body></html>\n"
+        "</body></html>\n",
+        encoding="utf-8",
     )
 
-    (root / "README.md").write_text(fixture_name + " — README.\n")
-    (root / "CLAUDE.md").write_text(fixture_name + " — CLAUDE context.\n")
+    # gen_site.py requires microsite/dashboard.html to already exist (it
+    # opens it in place and rewrites only the marker blocks below) — this
+    # fixture is not copied+renamed from REAL_ROOT like the generator
+    # scripts/template.html above because the real dashboard.html carries a
+    # lot of static prose; a minimal stand-in with the same 3 marker pairs
+    # is enough for gen_site.py to run and for audit()'s identity check
+    # (fixture_name in the title, no old_name text) to hold.
+    (root / "microsite" / "dashboard.html").write_text(
+        "<html><head><title>Dashboard — " + fixture_name + "</title></head><body>\n"
+        "<div class=\"preset-grid\">\n"
+        "            <!-- gen:dashboard-presets-start -->\n<!-- gen:dashboard-presets-end -->\n"
+        "</div>\n"
+        "<table><thead><tr>\n"
+        "              <!-- gen:dashboard-roster-head-start -->\n<!-- gen:dashboard-roster-head-end -->\n"
+        "</tr></thead><tbody>\n"
+        "              <!-- gen:dashboard-roster-body-start -->\n<!-- gen:dashboard-roster-body-end -->\n"
+        "</tbody></table>\n"
+        "</body></html>\n",
+        encoding="utf-8",
+    )
+
+    (root / "README.md").write_text(fixture_name + " — README.\n", encoding="utf-8")
+    (root / "CLAUDE.md").write_text(fixture_name + " — CLAUDE context.\n", encoding="utf-8")
 
     for name in GENERATORS:
         proc = subprocess.run(
             [sys.executable, str(root / "System_Config" / name)],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8",
         )
         if proc.returncode != 0:
             raise RuntimeError(f"_build_clean_fork: {name} failed: {proc.stdout}{proc.stderr}")
@@ -188,7 +214,7 @@ def self_test():
         # Fixture 3: deliberately-stale old-name text (a rename pass that
         # missed one file) must be caught.
         root3 = _build_clean_fork(tmp, "StaleName", "wcag-harness")
-        (root3 / "README.md").write_text("StaleName — leftover Agentic Light reference.\n")
+        (root3 / "README.md").write_text("StaleName — leftover Agentic Light reference.\n", encoding="utf-8")
         errors3 = audit(root3, "StaleName", "wcag-harness")
         check(
             "stale old-name text is caught",
@@ -199,11 +225,12 @@ def self_test():
         # Fixture 4: roster/preset mismatch (an extra active role not in
         # the preset's own roster) must be caught.
         root4 = _build_clean_fork(tmp, "RosterMismatch", "wcag-harness")
-        roster4 = json.loads((root4 / "System_Config" / "agent-roster.json").read_text())
+        roster4 = json.loads((root4 / "System_Config" / "agent-roster.json").read_text(encoding="utf-8"))
         roster4["roles"]["curator"]["active"] = True
-        (root4 / "System_Config" / "agent-roster.json").write_text(json.dumps(roster4, indent=2))
+        (root4 / "System_Config" / "agent-roster.json").write_text(json.dumps(roster4, indent=2), encoding="utf-8")
         (root4 / "agents" / "curator.md").write_text(
-            "---\nname: curator\ndescription: curator for RosterMismatch.\ntools: Read\n---\n# curator\n"
+            "---\nname: curator\ndescription: curator for RosterMismatch.\ntools: Read\n---\n# curator\n",
+            encoding="utf-8",
         )
         errors4 = audit(root4, "RosterMismatch", "wcag-harness")
         check(
@@ -212,14 +239,18 @@ def self_test():
             errors4,
         )
 
-        # Fixture 5: generated-output staleness (an agent's description:
-        # edited post-generation, so the already-rendered index.html
-        # disagrees with agents/*.md) must be caught by
-        # _check_generated_output's gen_site.py --check call.
+        # Fixture 5: generated-output staleness (the preset's own
+        # description: edited post-generation, so the already-rendered
+        # dashboard.html preset card disagrees with presets.json) must be
+        # caught by _check_generated_output's gen_site.py --check call.
+        # (Not an agents/*.md edit: gen_site.py's dashboard build no longer
+        # reads per-agent descriptions -- that table moved to
+        # gen_governance.py's GOVERNANCE.md -- so mutating coder.md would
+        # only flip gen_governance.py stale, not gen_site.py.)
         root5 = _build_clean_fork(tmp, "StaleOutput", "wcag-harness")
-        (root5 / "agents" / "coder.md").write_text(
-            "---\nname: coder\ndescription: a materially different description now.\ntools: Read, Write\n---\n# coder\n"
-        )
+        presets5 = json.loads((root5 / "System_Config" / "presets.json").read_text(encoding="utf-8"))
+        presets5["wcag-harness"]["description"] = "a materially different description now."
+        (root5 / "System_Config" / "presets.json").write_text(json.dumps(presets5, indent=2), encoding="utf-8")
         errors5 = audit(root5, "StaleOutput", "wcag-harness")
         check(
             "generated-output staleness is caught",
@@ -258,4 +289,6 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     raise SystemExit(main())

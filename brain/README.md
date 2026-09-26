@@ -17,15 +17,15 @@ Obsidian experience — see "`.obsidian/` Is Shipped" in the root `CLAUDE.md`.
    color).
 
 ## Obsidian Web Clipper
-Clips land in `brain/raw/YYYY/Wnn <label>/` — `System_Config/monday_init.sh`
-creates the current week's folder when you run it. `daily_ingest.sh` also
+Clips land in `brain/raw/YYYY/Wnn <label>/` — `System_Config/monday_init.py`
+creates the current week's folder when you run it. `daily_ingest.py` also
 self-heals the same folder if missing, so a note has somewhere to land
 whichever script you run first. Point the Web Clipper's save location at
 that week's folder (or configure a template that writes there). See
 `brain/raw/README.md` for the exact naming convention and frontmatter format.
 
 ## Ingestion
-`System_Config/daily_ingest.sh` scans `brain/raw/**/*.md` (two levels deep)
+`System_Config/daily_ingest.py` scans `brain/raw/**/*.md` (two levels deep)
 and turns new clips into wiki pages under `brain/wiki/`. See
 `brain/CLAUDE.md` for the full schema.
 
@@ -37,7 +37,7 @@ offline; add `--semantic` to request local Ollama embeddings. Use
 typed results with excerpts. Markdown remains the source of truth and the
 cache can be deleted and rebuilt at any time.
 
-Use `System_Config/context.sh` as the provider-neutral entrypoint. `validate`
+Use `System_Config/context.py` as the provider-neutral entrypoint. `validate`
 checks typed records, `catalog` rebuilds metadata and links, `packet` creates
 a bounded profile-scoped handoff, and `curate <record> --suggest|--review|--apply`
 lets an agent propose or apply high-confidence links without rewriting human
@@ -47,7 +47,7 @@ The durable record contract and curation safety rules are defined in
 `brain/CLAUDE.md`; generated indexes are disposable and never replace Markdown.
 
 ## Weekly cycle
-- `System_Config/monday_init.sh` — starts the week's note + raw folder. Also runs automatically the first time `log_session.sh` logs a session in a week with no note yet; sessions are appended after initialization succeeds, while initialization failure emits a warning and skips the append.
-- `System_Config/friday_process.sh` — closes out the week.
+- `System_Config/monday_init.py` — starts the week's note + raw folder. Also runs automatically the first time `log_session.py` logs a session in a week with no note yet; sessions are appended after initialization succeeds, while initialization failure emits a warning and skips the append.
+- `System_Config/friday_process.py` — closes out the week.
 
 Both are manual-trigger only — Agentic Light has no background scheduler.
