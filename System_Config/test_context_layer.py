@@ -171,6 +171,7 @@ def _run(base):
     _stale_dimension_check(tmp / "brain/index/memory.sqlite3")
 
     proc = run_py(SC / "memory_index.py", "--root", tmp, "--semantic")
+    check("semantic index without Ollama exits 0", proc.returncode == 0, proc.stdout + proc.stderr)
     check("Ollama absence reported",
           re.search(r"Ollama|semantic indexing skipped|lexical index ready", proc.stderr) is not None,
           proc.stderr)

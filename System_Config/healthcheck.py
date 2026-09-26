@@ -45,6 +45,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import traceback
 from datetime import date, datetime
 from pathlib import Path
 
@@ -195,7 +196,7 @@ def _call_gen_main(module, args):
     """Invoke a gen_*.py module's main() in-process — see this module's
     docstring for why both the SystemExit-raising and the plain-return
     shapes of that function need normalizing here. Returns
-    (exit_code, captured_stdout)."""
+    (exit_code, captured_stdout); exit_code is -1 if main() raised."""
     old_argv = sys.argv
     sys.argv = [str(getattr(module, "__file__", module.__name__))] + list(args)
     buf = io.StringIO()
@@ -211,8 +212,9 @@ def _call_gen_main(module, args):
         else:
             rc = 1
     except Exception as exc:  # a crashing generator is a failed probe, not a crashed healthcheck
-        buf.write(f"{type(exc).__name__}: {exc}")
-        rc = 1
+        traceback.print_exc()  # keep the full traceback visible on stderr
+        buf.write(f"generator crashed: {type(exc).__name__}: {exc}")
+        rc = -1  # distinct from a --check "stale" exit, so callers report FAIL
     finally:
         sys.argv = old_argv
     return rc, buf.getvalue()
@@ -396,21 +398,27 @@ def run(report):
     doc_check(report, "brain/README", BRAIN / "README.md",
               [BRAIN / "CLAUDE.md", SYSCFG / "monday_init.py", SYSCFG / "friday_process.py", SYSCFG / "daily_ingest.py"])
 
-    rc, _ = _call_gen_main(gen_site, ["--check"])
+    rc, out = _call_gen_main(gen_site, ["--check"])
     if rc == 0:
         report.check("PASS", "microsite/index.html", "up to date with agents/skills frontmatter")
+    elif rc < 0:
+        report.check("FAIL", "microsite/index.html", " ".join(out.split()))
     else:
         report.check("WARN", "microsite/index.html", "stale vs agents/skills frontmatter")
 
-    rc, _ = _call_gen_main(gen_preset_pages, ["--check"])
+    rc, out = _call_gen_main(gen_preset_pages, ["--check"])
     if rc == 0:
         report.check("PASS", "microsite/presets/*.html", "up to date with presets.json")
+    elif rc < 0:
+        report.check("FAIL", "microsite/presets/*.html", " ".join(out.split()))
     else:
         report.check("WARN", "microsite/presets/*.html", "stale vs presets.json")
 
-    rc, _ = _call_gen_main(gen_governance, ["--check"])
+    rc, out = _call_gen_main(gen_governance, ["--check"])
     if rc == 0:
         report.check("PASS", "GOVERNANCE.md", "up to date with agents/*.md, agent-roster.json, gate-config.json")
+    elif rc < 0:
+        report.check("FAIL", "GOVERNANCE.md", " ".join(out.split()))
     else:
         report.check("WARN", "GOVERNANCE.md", "stale vs agents/*.md, agent-roster.json, or gate-config.json")
 
