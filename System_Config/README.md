@@ -186,10 +186,14 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   and `curate <record> --suggest|--review|--apply`. Profiles restrict packet
   context roots and explicit includes; curation proposes links from human
   records and applies only high-confidence links while recording an AI session.
-- **`test_context_layer.sh`** — end-to-end fixture covering record validation,
+- **`test_context_layer.py`** — end-to-end fixture covering record validation,
   frontmatter/body links, curation, FTS excerpts, bounded packets, unrelated
   profiles, broken links, duplicate IDs, stale embedding dimensions, Ollama
   absence, Unicode byte caps, and raw-source immutability.
+- **`test_context_catalog.py`** / **`test_context_curate.py`** /
+  **`test_context_packet_profiles.py`** / **`test_context_search.py`** —
+  focused fixtures for validation + catalog, curation suggest/apply,
+  profile-scoped packets, and lexical search respectively.
 - **`test_context_packet.py`** — fixture tests for `context_packet.py`,
   run against a scratch fixture directory via `context_packet.py`'s own
   `--root` flag (no need to copy the script into a fake tree, unlike the

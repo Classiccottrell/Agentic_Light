@@ -56,6 +56,9 @@ calls = os.environ.get("CALLS")
 if calls:
     with open(calls, "a", encoding="utf-8") as f:
         f.write("{name}:" + " ".join(sys.argv[1:]) + "\\n")
+        if os.environ.get("FAKE_READ_STDIN") == "1":
+            data = sys.stdin.buffer.read().decode("utf-8")
+            f.write("{name}-stdin:" + str(len(data)) + ":" + data[:20] + "\\n")
 sys.exit(int(os.environ.get("FAKE_RC", "0")))
 '''
 
@@ -152,6 +155,45 @@ def main():
                           "--permission-mode acceptEdits --max-budget-usd 2.00"),
           CALLS.read_text(encoding="utf-8") if CALLS.exists() else "<no calls file>")
     check("claude call count", calls_line_count() == 1, calls_line_count())
+
+    # Long prompts go over stdin (not argv) for every provider — keeps them
+    # under cmd.exe's 8191-char command-line cap on Windows.
+    long_prompt = "LONGPROMPT " + "é" * (ra.ARGV_PROMPT_LIMIT + 1)
+    stdin_line = f"{{name}}-stdin:{len(long_prompt)}:{long_prompt[:20]}"
+    os.environ["FAKE_READ_STDIN"] = "1"
+    reset_calls()
+    ra.run_agent(long_prompt)
+    check("claude long prompt: argv omits prompt",
+          calls_has_line("claude:-p --model claude-test --allowedTools Read,Write,Edit,Glob,Grep "
+                          "--disallowedTools Bash,KillShell,Task,WebFetch,WebSearch,NotebookEdit "
+                          "--permission-mode acceptEdits --max-budget-usd 2.00"),
+          CALLS.read_text(encoding="utf-8"))
+    check("claude long prompt: full prompt on stdin", calls_has_line(stdin_line.format(name="claude")),
+          CALLS.read_text(encoding="utf-8"))
+
+    os.environ["AGENTIC_LIGHT_PROVIDERS"] = "codex"
+    os.environ["AGENTIC_LIGHT_PRIORITY"] = "codex"
+    os.environ.pop("AGENTIC_LIGHT_MODEL_CODEX", None)
+    reset_calls()
+    ra.run_agent(long_prompt)
+    check("codex long prompt: argv uses '-'", calls_has_line("codex:exec --sandbox workspace-write -"),
+          CALLS.read_text(encoding="utf-8"))
+    check("codex long prompt: full prompt on stdin", calls_has_line(stdin_line.format(name="codex")),
+          CALLS.read_text(encoding="utf-8"))
+
+    os.environ["AGENTIC_LIGHT_PROVIDERS"] = "gemini"
+    os.environ["AGENTIC_LIGHT_PRIORITY"] = "gemini"
+    os.environ.pop("AGENTIC_LIGHT_MODEL_GEMINI", None)
+    write_fake("agy")  # removed by the fallback fixture above
+    reset_calls()
+    ra.run_agent(long_prompt)
+    check("gemini long prompt: argv keeps --add-dir, short -p",
+          calls_has_line(f"agy:-p {ra.GEMINI_STDIN_PROMPT} --add-dir {BRAIN_DIR} --sandbox --approval-mode auto_edit"),
+          CALLS.read_text(encoding="utf-8"))
+    check("gemini long prompt: full prompt on stdin", calls_has_line(stdin_line.format(name="agy")),
+          CALLS.read_text(encoding="utf-8"))
+    del os.environ["FAKE_READ_STDIN"]
+    remove_fake("agy")
 
     check("validate_provider_lists valid", config.validate_provider_lists("claude,codex", "codex,claude") is True)
     for left, right in (("claude,claude", "claude"), ("wat", "wat"), ("claude,codex", "claude"), ("claude,", "claude")):

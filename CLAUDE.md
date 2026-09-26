@@ -29,6 +29,7 @@ command below.
 - `python3 System_Config/memory_search.py "<query>" [--top N]` — cosine semantic search over the `memory_index.py` cache; prints top-N matching `brain/wiki/` page paths to stdout.
 - `python3 System_Config/context_packet.py [query]` — print a bounded resume packet from the roadmap, active preset, recent session facts, and optional semantic matches. Byte-exact truncation, not a character slice. `pipeline/run.py` prepends its output to the coder prompt opt-in only (`AGENTIC_LIGHT_CONTEXT_PACKET=1`, or automatically when the target repo is this workspace's own root) — never injected into an unrelated external target repo by default.
 - `python3 System_Config/context.py [--root ROOT] packet|validate|catalog|curate ...` — thin dispatcher to `context_packet.py`/`context_validate.py`/`context_catalog.py`/`context_curate.py` (the latter three already pure Python, untouched by this port).
+- `python3 System_Config/test_context_{catalog,curate,layer,packet_profiles,search}.py` — context-layer fixture tests: record validation/catalog, curation, end-to-end layer (links, FTS, profiles, stale embeddings, Ollama absence, byte caps, raw-source immutability), profile-scoped packets, and lexical search.
 - `python3 System_Config/test_context_packet.py` — fixture tests proving the packet respects a tiny `AGENTIC_LIGHT_CONTEXT_MAX_LINES`/`_MAX_BYTES` budget against dense multi-byte (em dash) content, and that the default budget preserves every provenance header.
 - `python3 System_Config/preset_audit.py` — validate preset role, gate, skill, and focused role-note contracts, including `design-harness`/`wcag-harness`'s `role_capabilities`/`role_handoff` overlays.
 - `python3 System_Config/white_label_check.py <fork> --name <name> --preset <preset>` — audit a pruned fork's identity, active role files, selected skills, and (via each generator's own `--check` mode) that generated output isn't stale, without modifying it.
@@ -60,6 +61,9 @@ Codex runs through
 `codex exec --sandbox workspace-write`. Ollama is inference-only and this
 write workflow fails fast with exit 64. Executed adapters have a wall-clock
 watchdog; only Claude has the wrapper's dollar budget flag.
+Prompts over 6000 characters are sent on stdin instead of argv on every OS
+(`claude -p`, `codex exec ... -`, `agy -p "<stdin note>"`), which keeps them
+under the Windows `.cmd`-shim command-line limit.
 
 ## Directory Map
 
@@ -78,11 +82,8 @@ Agentic_Light/
 │   │   test_encoding.py
 │   ├── context_catalog.py · context_curate.py · context_validate.py · test_support.py (shared
 │   │   test-fixture helper, not a test itself)
-│   ├── test_context_catalog.sh · test_context_curate.sh · test_context_layer.sh ·
-│   │   test_context_packet_profiles.sh · test_context_search.sh (bash test harnesses for the
-│   │   already-Python context_catalog/context_curate/context_validate modules above, from
-│   │   the context-layer-decouple work — predates and is separate from this port's Tier
-│   │   scope, kept as-is)
+│   ├── test_context_catalog.py · test_context_curate.py · test_context_layer.py ·
+│   │   test_context_packet_profiles.py · test_context_search.py
 │   ├── specialize.py · presets.json
 │   ├── agent-roster.schema.json · agent-roster.example.json
 │   ├── gate-config.schema.json · gate-config.example.json
@@ -146,10 +147,8 @@ Agentic_Light/
 - `python3` may not exist on Windows (or may be the Microsoft Store
   stub) — Windows users should use `python` or `py -3`.
 
-The Bash-to-Python port is complete (all 4 tiers). The 5 `test_context_*.sh`
-files under `System_Config/` (see the Directory Map) predate this port,
-test already-Python `context_*.py` modules, and are intentionally kept as
-bash test harnesses — not part of this port's scope. `skills/systematic-
+The Bash-to-Python port is complete (all 4 tiers, plus the 5
+`test_context_*` harnesses). `skills/systematic-
 debugging/find-polluter.sh` is a vendored skill payload meant to run
 inside a target repo during a debugging session, not part of this
 workspace's own automation layer — also intentionally kept.
