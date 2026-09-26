@@ -181,6 +181,16 @@ def doc_check(report, name, readme, documented):
         report.check("PASS", f"Doc: {name}", "up to date")
 
 
+def _redact_home(path):
+    """Replace the user's home directory prefix with `~` so a committed
+    status snapshot doesn't leak a developer-specific absolute path."""
+    path = str(path)
+    home = os.path.expanduser("~")
+    if home and home != "~" and (path == home or path.startswith(home.rstrip("/\\") + os.sep)):
+        return "~" + path[len(home.rstrip("/\\")):]
+    return path
+
+
 def _call_gen_main(module, args):
     """Invoke a gen_*.py module's main() in-process — see this module's
     docstring for why both the SystemExit-raising and the plain-return
@@ -200,6 +210,9 @@ def _call_gen_main(module, args):
             rc = exc.code
         else:
             rc = 1
+    except Exception as exc:  # a crashing generator is a failed probe, not a crashed healthcheck
+        buf.write(f"{type(exc).__name__}: {exc}")
+        rc = 1
     finally:
         sys.argv = old_argv
     return rc, buf.getvalue()
@@ -334,7 +347,7 @@ def run(report):
     if config.validate_provider_lists(enabled, priority):
         report.check("PASS", "Provider lists", "priority is an exact ordering of enabled providers")
         if config.resolve_agent_provider():
-            report.check("PASS", "Provider executable", f"{config.AGENT_PROVIDER}: {config.AGENT_COMMAND}")
+            report.check("PASS", "Provider executable", f"{config.AGENT_PROVIDER}: {_redact_home(config.AGENT_COMMAND)}")
         else:
             report.check("FAIL", "Provider executable", "no enabled provider executable found")
     else:

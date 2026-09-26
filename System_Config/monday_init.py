@@ -118,7 +118,7 @@ def update_master_index(master, gap_row, index_row, wikilink, log_dir):
         return
 
     rows = ""
-    if gap_row and "| [[gap]] |" not in text:
+    if gap_row and gap_row not in text:
         rows += gap_row + "\n"
     if f"| {wikilink} |" not in text:
         rows += index_row + "\n"

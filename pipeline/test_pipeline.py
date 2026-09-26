@@ -118,7 +118,9 @@ write_fake(NOOP_CODER_STUB, "pass\n")
 # faking a TTY.
 APPROVE_STUB = TMP_ROOT / "approve_stub.py"
 write_fake(APPROVE_STUB, "import sys\n"
-           "print('[approve_stub] auto-approving:', sys.argv[1] if len(sys.argv) > 1 else '')\n"
+           "a = sys.argv[1:]\n"
+           "s = open(a[1], encoding='utf-8').read() if a[:1] == ['--summary-file'] else (a[0] if a else '')\n"
+           "print('[approve_stub] auto-approving:', s)\n"
            "sys.exit(0)\n")
 
 # secret coder stub: adds a line shaped like a real credential (ghp_ + 20

@@ -103,10 +103,11 @@ python3 pipeline/run.py --help   # print usage and exit
    `lib/axe_gate.py <target-repo>` (the accessibility gate) runs only when
    listed in `gate-config.json` — it is not part of the default pair. See
    "Accessibility (axe) gate" below.
-3. **Human Gate** (`lib/human_gate.py "<summary>"`) — renders the already-
+3. **Human Gate** (`lib/human_gate.py --summary-file <path>`) — renders the already-
    committed diff + gate summary, blocks on interactive `[y/N]`. Swappable
    for testing the same way as the coder step: set `PIPELINE_HUMAN_GATE_CMD`
-   to any command taking a summary string as its only argument; `run.py`
+   to any command taking `--summary-file <path>` (a UTF-8 file holding the
+   summary) as its arguments; `run.py`
    calls that instead of `lib/human_gate.py` — but **only** when
    `AGENTIC_LIGHT_TEST_MODE=1` is also set. `PIPELINE_HUMAN_GATE_CMD` is
    test-only: it exists so `test_pipeline.py` can drive the approved path
@@ -201,9 +202,6 @@ evidence capped below `Supports`/`Does Not Support`. Full rule list:
   customer-facing VPAT.
 - Draft present and violates any rule → `FAIL`, propagated, `run.py`
   hard-stops before the human gate.
-- Draft present but `python3` unavailable → `FAIL` (hard stop, not a WARN —
-  a missing interpreter when a draft actually exists to check is a real
-  gap, not an absent-tool no-op).
 
 ## Session logging
 

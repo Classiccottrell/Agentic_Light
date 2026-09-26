@@ -6,11 +6,13 @@ Usage: run.py "<task description>" [target-repo-path]
   against an EXTERNAL target repo, not against Agentic_Light itself.
 """
 import argparse
+import contextlib
 import json
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import zlib
 from pathlib import Path
@@ -448,7 +450,16 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
             human_gate_cmd = override
         else:
             print("WARNING: PIPELINE_HUMAN_GATE_CMD is set but AGENTIC_LIGHT_TEST_MODE=1 is not — ignoring override, using the real human gate (PIPELINE_HUMAN_GATE_CMD is test-only).", file=sys.stderr)
-    gate_rc = _dispatch(human_gate_cmd, [summary])
+    # Summary (incl. the full diff) goes through a temp file, not argv —
+    # Windows caps command-line length, and stdin stays free for the TTY prompt.
+    fd, summary_path = tempfile.mkstemp(prefix="agentic-light-summary-", suffix=".txt")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+            fh.write(summary)
+        gate_rc = _dispatch(human_gate_cmd, ["--summary-file", summary_path])
+    finally:
+        with contextlib.suppress(OSError):
+            os.unlink(summary_path)
 
     if gate_rc == 0:
         print("  human gate: APPROVED")
