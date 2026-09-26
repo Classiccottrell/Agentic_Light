@@ -90,13 +90,14 @@ write_path_fake("gh", "import os, sys\n"
                  "    f.write('gh ' + ' '.join(sys.argv[1:]) + chr(10))\n"
                  "sys.exit(0)\n")
 
-# Fake claude: logs its full argv (including -p prompt) to $CALLS9 — fixture
-# 9 inspects what the real run_agent path actually sent (PIPELINE_CODER_CMD
-# bypasses the prompt entirely, so this is the only way to exercise the
-# context-packet/skill prepend). Always exits 0.
+# Fake claude: logs its full argv plus stdin (run_agent sends long prompts
+# on stdin) to $CALLS9 — fixture 9 inspects what the real run_agent path
+# actually sent (PIPELINE_CODER_CMD bypasses the prompt entirely, so this is
+# the only way to exercise the context-packet/skill prepend). Always exits 0.
 write_path_fake("claude", "import os, sys\n"
+                 "stdin_text = sys.stdin.buffer.read().decode('utf-8')\n"
                  "with open(os.environ['CALLS9'], 'a', encoding='utf-8') as f:\n"
-                 "    f.write(' '.join(sys.argv[1:]) + chr(10))\n"
+                 "    f.write(' '.join(sys.argv[1:]) + chr(10) + stdin_text + chr(10))\n"
                  "sys.exit(0)\n")
 
 # coder stub: modifies a tracked file (seed.txt, exercises `git diff HEAD`)
@@ -118,7 +119,9 @@ write_fake(NOOP_CODER_STUB, "pass\n")
 # faking a TTY.
 APPROVE_STUB = TMP_ROOT / "approve_stub.py"
 write_fake(APPROVE_STUB, "import sys\n"
-           "print('[approve_stub] auto-approving:', sys.argv[1] if len(sys.argv) > 1 else '')\n"
+           "a = sys.argv[1:]\n"
+           "s = open(a[1], encoding='utf-8').read() if a[:1] == ['--summary-file'] else (a[0] if a else '')\n"
+           "print('[approve_stub] auto-approving:', s)\n"
            "sys.exit(0)\n")
 
 # secret coder stub: adds a line shaped like a real credential (ghp_ + 20
@@ -488,7 +491,7 @@ def fixture_9():
         env["LOG_SESSION_NOTE"] = str(LOG_SESSION_NOTE)
         env["PYTHONUTF8"] = "1"
         env.update(extra_env)
-        return subprocess.run([sys.executable, str(RUN), "task", str(repo9)],
+        return subprocess.run([sys.executable, str(RUN), "task", str(repo9)], stdin=subprocess.DEVNULL,
                                capture_output=True, encoding="utf-8", errors="replace", env=env)
 
     CALLS9.write_text("", encoding="utf-8")
@@ -496,6 +499,8 @@ def fixture_9():
     calls9_text = CALLS9.read_text(encoding="utf-8") if CALLS9.exists() else ""
     check("fixture9a: coder stub invoked with real prompt", f"Target repo: {repo9_p}" in calls9_text, calls9_text)
     check("fixture9a: context packet absent by default", "Resume context packet:" not in calls9_text, calls9_text)
+    check("fixture9a: long prompt sent on stdin, not argv",
+          f"Target repo: {repo9_p}" not in calls9_text.split(chr(10), 1)[0], calls9_text[:300])
     print("fixture 9a (context packet absent by default): PASS")
 
     CALLS9.write_text("", encoding="utf-8")

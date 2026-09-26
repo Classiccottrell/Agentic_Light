@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """human_gate.py — render a summary/diff and block on interactive [y/N].
 Mirrors bootstrap's --uninstall TTY-check pattern: never auto-approves.
-Usage: human_gate.py "<summary text>"   (falls back to stdin if no arg)
+Usage: human_gate.py --summary-file <path> | "<summary text>"
+       (falls back to stdin if neither is given and stdin is not a TTY)
 Exit codes: 0 approved | 1 declined | 2 pending (non-interactive)
 
 decide(is_tty, read_line) holds the core y/N decision logic behind an
@@ -37,10 +38,14 @@ def decide(is_tty, read_line):
 def main():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("summary", nargs="?", default="")
+    parser.add_argument("--summary-file", default=None)
     args, _ = parser.parse_known_args()
 
     is_tty = sys.stdin.isatty()
     summary = args.summary
+    if args.summary_file:
+        with open(args.summary_file, encoding="utf-8") as fh:
+            summary = fh.read()
     if not summary and not is_tty:
         summary = sys.stdin.read()
 

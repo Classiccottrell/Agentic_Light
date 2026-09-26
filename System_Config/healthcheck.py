@@ -45,6 +45,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import traceback
 from datetime import date, datetime
 from pathlib import Path
 
@@ -181,11 +182,21 @@ def doc_check(report, name, readme, documented):
         report.check("PASS", f"Doc: {name}", "up to date")
 
 
+def _redact_home(path):
+    """Replace the user's home directory prefix with `~` so a committed
+    status snapshot doesn't leak a developer-specific absolute path."""
+    path = str(path)
+    home = os.path.expanduser("~")
+    if home and home != "~" and (path == home or path.startswith(home.rstrip("/\\") + os.sep)):
+        return "~" + path[len(home.rstrip("/\\")):]
+    return path
+
+
 def _call_gen_main(module, args):
     """Invoke a gen_*.py module's main() in-process — see this module's
     docstring for why both the SystemExit-raising and the plain-return
     shapes of that function need normalizing here. Returns
-    (exit_code, captured_stdout)."""
+    (exit_code, captured_stdout); exit_code is -1 if main() raised."""
     old_argv = sys.argv
     sys.argv = [str(getattr(module, "__file__", module.__name__))] + list(args)
     buf = io.StringIO()
@@ -200,6 +211,10 @@ def _call_gen_main(module, args):
             rc = exc.code
         else:
             rc = 1
+    except Exception as exc:  # a crashing generator is a failed probe, not a crashed healthcheck
+        traceback.print_exc()  # keep the full traceback visible on stderr
+        buf.write(f"generator crashed: {type(exc).__name__}: {exc}")
+        rc = -1  # distinct from a --check "stale" exit, so callers report FAIL
     finally:
         sys.argv = old_argv
     return rc, buf.getvalue()
@@ -334,7 +349,7 @@ def run(report):
     if config.validate_provider_lists(enabled, priority):
         report.check("PASS", "Provider lists", "priority is an exact ordering of enabled providers")
         if config.resolve_agent_provider():
-            report.check("PASS", "Provider executable", f"{config.AGENT_PROVIDER}: {config.AGENT_COMMAND}")
+            report.check("PASS", "Provider executable", f"{config.AGENT_PROVIDER}: {_redact_home(config.AGENT_COMMAND)}")
         else:
             report.check("FAIL", "Provider executable", "no enabled provider executable found")
     else:
@@ -383,21 +398,27 @@ def run(report):
     doc_check(report, "brain/README", BRAIN / "README.md",
               [BRAIN / "CLAUDE.md", SYSCFG / "monday_init.py", SYSCFG / "friday_process.py", SYSCFG / "daily_ingest.py"])
 
-    rc, _ = _call_gen_main(gen_site, ["--check"])
+    rc, out = _call_gen_main(gen_site, ["--check"])
     if rc == 0:
         report.check("PASS", "microsite/index.html", "up to date with agents/skills frontmatter")
+    elif rc < 0:
+        report.check("FAIL", "microsite/index.html", " ".join(out.split()))
     else:
         report.check("WARN", "microsite/index.html", "stale vs agents/skills frontmatter")
 
-    rc, _ = _call_gen_main(gen_preset_pages, ["--check"])
+    rc, out = _call_gen_main(gen_preset_pages, ["--check"])
     if rc == 0:
         report.check("PASS", "microsite/presets/*.html", "up to date with presets.json")
+    elif rc < 0:
+        report.check("FAIL", "microsite/presets/*.html", " ".join(out.split()))
     else:
         report.check("WARN", "microsite/presets/*.html", "stale vs presets.json")
 
-    rc, _ = _call_gen_main(gen_governance, ["--check"])
+    rc, out = _call_gen_main(gen_governance, ["--check"])
     if rc == 0:
         report.check("PASS", "GOVERNANCE.md", "up to date with agents/*.md, agent-roster.json, gate-config.json")
+    elif rc < 0:
+        report.check("FAIL", "GOVERNANCE.md", " ".join(out.split()))
     else:
         report.check("WARN", "GOVERNANCE.md", "stale vs agents/*.md, agent-roster.json, or gate-config.json")
 

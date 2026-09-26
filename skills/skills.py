@@ -88,6 +88,10 @@ def cmd_run(name, args):
 
     if entry.suffix == ".py":
         argv = [sys.executable, str(entry), *args]
+    elif entry.suffix == ".sh" and os.name == "nt":
+        print(f"skills.py: entrypoint {entry} is a Bash script — Bash is required to run it "
+              f"(use WSL or Git Bash, or provide run_{name}.py)", file=sys.stderr)
+        return 1
     else:
         if not os.access(entry, os.X_OK):
             print(f"skills.py: found entrypoint but it is not executable: {entry} (chmod +x it)", file=sys.stderr)

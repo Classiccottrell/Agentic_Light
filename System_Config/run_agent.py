@@ -26,10 +26,19 @@ import config
 MAX_SECONDS = int(os.environ.get("MAX_SECONDS", "300"))
 MAX_BUDGET = os.environ.get("MAX_BUDGET", "2.00")
 
+# Prompts longer than this go to the provider over stdin, not argv, on every
+# OS. On Windows the provider CLIs are npm `.cmd` shims that run through
+# cmd.exe, which caps the whole command line at 8191 chars; Linux caps one
+# argv string at 128 KiB. One threshold everywhere keeps behavior identical.
+ARGV_PROMPT_LIMIT = 6000
+# gemini/agy's -p needs a value; its stdin content is prepended to it.
+GEMINI_STDIN_PROMPT = "Follow the instructions provided on stdin."
+
 
 def _build_argv(provider, command, model, prompt, brain):
+    """prompt=None means the prompt is delivered on stdin instead."""
     if provider == "gemini":
-        argv = [command, "-p", prompt]
+        argv = [command, "-p", GEMINI_STDIN_PROMPT if prompt is None else prompt]
         if model:
             argv += ["--model", model]
         # --add-dir must stay on its own line/list-append (not folded into
@@ -43,11 +52,11 @@ def _build_argv(provider, command, model, prompt, brain):
         argv = [command, "exec", "--sandbox", "workspace-write"]
         if model:
             argv += ["--model", model]
-        argv += [prompt]
+        argv += ["-" if prompt is None else prompt]
         return argv
     # claude (default) — allowedTools/disallowedTools/permission-mode fixed;
     # the pipeline, not the coder, owns git and shell.
-    argv = [command, "-p", prompt]
+    argv = [command, "-p"] + ([] if prompt is None else [prompt])
     if model:
         argv += ["--model", model]
     argv += [
@@ -82,7 +91,9 @@ def run_agent(prompt, log=None, brain=None):
         print("[run_agent] Ollama is inference-only and cannot run write workflows.", file=sys.stderr)
         return 64
 
-    argv = _build_argv(provider, config.AGENT_COMMAND, config.AGENT_MODEL, prompt, brain)
+    use_stdin = len(prompt) > ARGV_PROMPT_LIMIT
+    argv = _build_argv(provider, config.AGENT_COMMAND, config.AGENT_MODEL,
+                       None if use_stdin else prompt, brain)
 
     log_f = None
     stdout_target = subprocess.DEVNULL
@@ -92,7 +103,8 @@ def run_agent(prompt, log=None, brain=None):
             log_f = open(log, "ab")
             stdout_target = log_f
             stderr_target = subprocess.STDOUT
-        proc = subprocess.Popen(argv, cwd=str(brain), stdout=stdout_target, stderr=stderr_target)
+        proc = subprocess.Popen(argv, cwd=str(brain), stdout=stdout_target, stderr=stderr_target,
+                                stdin=subprocess.PIPE if use_stdin else None)
 
         finished = threading.Event()
         watchdog_state = {"signal": None}
@@ -107,6 +119,18 @@ def run_agent(prompt, log=None, brain=None):
 
         wd = threading.Thread(target=_watchdog, daemon=True)
         wd.start()
+        if use_stdin:
+            # Watchdog is already running, so a child that never drains
+            # stdin still gets killed (and the write then fails harmlessly).
+            try:
+                proc.stdin.write(prompt.encode("utf-8"))
+            except OSError:
+                pass
+            finally:
+                try:
+                    proc.stdin.close()
+                except OSError:
+                    pass
         rc = proc.wait()
         finished.set()
         wd.join(timeout=1)
