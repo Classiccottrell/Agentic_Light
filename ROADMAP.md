@@ -1,6 +1,6 @@
 # Agentic Light Roadmap
 
-Last reviewed: 2026-09-23
+Last reviewed: 2026-10-01
 
 ## Shipped
 
@@ -21,26 +21,28 @@ Last reviewed: 2026-09-23
 - **Microsite integrity and polish** — dashboard preset cards and roster tables now regenerate from source, invalid placeholder gate copy was removed, favicon loading is local, preset task flow is semantic, and shared typography, contrast, borders, and status motion were tightened.
 - **Microsite field redesign** — dashboard is now the canonical home reached from `index.html`, all generated pages share the dark field system, and a local reduced-motion-aware contour canvas replaces the old grain backdrop and striped preset-card texture.
 - **App-agnostic context layer** — typed Markdown records, disposable catalog/link projections, offline FTS5 search with optional Ollama embeddings, profile-scoped packets, and conservative agent curation of human records are now available through `context.sh`; raw inputs remain immutable.
+- **Template project lifecycle artifacts** (PR #26) — `Projects/_TEMPLATE/`
+  includes `spec.md`, `tasks.md`, and resumable `Plan.md`; its README documents
+  the provider-neutral flow from brief through verified tasks and
+  execution/resume.
 
 ## Next
 
 ### White-label hardening
 
-1. **Template project lifecycle artifacts** — implemented; scaffold maps updated;
-   PR #26 is undergoing final QA and review.
-   `Projects/_TEMPLATE/` includes `spec.md`, `tasks.md`, and resumable `Plan.md`;
-   its README documents the provider-neutral flow from brief through verified
-   tasks and execution/resume. Move to Shipped after PR merge.
-2. **Agent risk metadata** — extend agent contracts with explicit
-   read-only, destructive, idempotent, and external-side-effect annotations.
-   Keep `tools:` as capability metadata; risk metadata describes blast radius.
-3. **Context/session promotion** — connect launcher results to typed session
+1. **Agent risk metadata** — implemented; PR under review. Every
+   `agents/*.md` declares `risk: {read_only, destructive, idempotent,
+   external_side_effects}`; `preset_audit.py` enforces all four flags and
+   their consistency with `tools:`, `GOVERNANCE.md` renders them, and
+   `new_agent.py` scaffolds them. `tools:` stays capability metadata; risk
+   metadata describes blast radius. Move to Shipped after PR merge.
+2. **Context/session promotion** — connect launcher results to typed session
    records, then let the curator link those records to projects, decisions,
    and learnings. Preserve weekly logs as append-only compatibility output.
-4. **Delegation doctrine and audit trail** — document when work stays inline
+3. **Delegation doctrine and audit trail** — document when work stays inline
    versus delegated, and add provider-neutral launcher audit events. Provider
    hooks may adapt to this trail but cannot be its source of truth.
-5. **White-label acceptance fixture** — make `white_label_check.py` verify a
+4. **White-label acceptance fixture** — make `white_label_check.py` verify a
    fork can specialize, run its selected agents and gates, build a context
    packet, regenerate provider mirrors, and contain no Agentic Light identity.
 

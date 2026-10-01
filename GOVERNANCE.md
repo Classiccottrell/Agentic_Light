@@ -14,20 +14,29 @@ does not add new mechanism.
 
 ## 1. Per-Role Scope
 
-Pulled from each role file's own frontmatter (`description` + `tools`) in
-`agents/`. This is the actual grant, not a paraphrase — see the linked file
-for the full rules each role also follows (context discipline, response
-style, hand-off targets).
+Pulled from each role file's own frontmatter (`description` + `tools` +
+`risk`) in `agents/`. This is the actual grant, not a paraphrase — see the
+linked file for the full rules each role also follows (context discipline,
+response style, hand-off targets).
+
+`tools` is what a role *can* call; `risk` is its declared blast radius.
+**Risk flags** lists the flags set to `true` out of `read-only`,
+`destructive` (may delete or overwrite existing work), `idempotent` (a
+re-run with the same inputs leaves the same end state), and
+`external-side-effects` (may act outside the workspace, e.g. open a PR);
+`none` means all four are `false` — a writing, additive, local role.
+`System_Config/preset_audit.py` enforces that every role declares all four
+and that they agree with its `tools` grant.
 
 <!-- gen:roles-start -->
-| Role | Stated scope (from frontmatter `description`) | Granted tools | Source |
-|---|---|---|---|
-| `architect` | System designer for Agentic Light. Use for high-level architecture, schemas, folder structures, API contracts, and data-model design — before any implementation. Produces specs and Mermaid diagrams; hands blueprints to the coder agent. Not for writing feature code. | `Read, Glob, Grep, Write, Edit` | `agents/architect.md` |
-| `coder` | Implementation engineer for Agentic Light. Use to write or modify code against an existing stack or an architect's blueprint, fix bugs, and run builds/tests. Returns diffs of changed lines. Not for high-level design (use architect) or knowledge notes (use curator). | `Read, Glob, Grep, Edit, Write, Bash` | `agents/coder.md` |
-| `creative-director` | Elite Creative Director and Brand Strategist for Agentic Light. Use for brand critique, campaign concepts, tagline generation, visual direction, copy refinement, and design feedback (e.g. `microsite/`). Applies Impact/Clarity/Disruption framework. Tone: inspiring, candid, sophisticated — NOT Caveman Protocol. | `Read, Write, Edit, Bash` | `agents/creative-director.md` |
-| `curator` | Knowledge curator for the Agentic Light LLM-wiki (plain markdown + SQLite semantic index, optionally viewable in Obsidian). Use to ingest sources into wiki entity pages, extract concept notes, maintain wiki/index.md and cross-links, and answer knowledge queries from the brain. Follows the Karpathy LLM Wiki schema. Authority limited to Agentic_Light/brain/. | `Read, Glob, Grep, Write, Edit` | `agents/curator.md` |
-| `eng-manager` | Project lifecycle controller for Agentic_Light/Projects/. Use to scope a project from its BRIEF.md and stack, plan and route work to architect/coder, validate completion, and prepare artifacts for handoff. Authority limited to Agentic_Light/Projects/. | `Read, Glob, Grep, Edit, Write, Bash` | `agents/eng-manager.md` |
-| `qa` | Quality-assurance verifier for pull requests against existing, cloned repositories under Agentic_Light/Projects/. Use to run a target repo's own lint/typecheck/unit-test commands, extend or author browser/e2e coverage, and compile a pass/fail QA report before a PR is drafted. Not for implementation (use coder) or for creating branches, commits, or PRs (that stays with the orchestrator's approved flow). | `Read, Glob, Grep, Bash, Write, Edit` | `agents/qa.md` |
+| Role | Stated scope (from frontmatter `description`) | Granted tools | Risk flags | Source |
+|---|---|---|---|---|
+| `architect` | System designer for Agentic Light. Use for high-level architecture, schemas, folder structures, API contracts, and data-model design — before any implementation. Produces specs and Mermaid diagrams; hands blueprints to the coder agent. Not for writing feature code. | `Read, Glob, Grep, Write, Edit` | none | `agents/architect.md` |
+| `coder` | Implementation engineer for Agentic Light. Use to write or modify code against an existing stack or an architect's blueprint, fix bugs, and run builds/tests. Returns diffs of changed lines. Not for high-level design (use architect) or knowledge notes (use curator). | `Read, Glob, Grep, Edit, Write, Bash` | destructive | `agents/coder.md` |
+| `creative-director` | Elite Creative Director and Brand Strategist for Agentic Light. Use for brand critique, campaign concepts, tagline generation, visual direction, copy refinement, and design feedback (e.g. `microsite/`). Applies Impact/Clarity/Disruption framework. Tone: inspiring, candid, sophisticated — NOT Caveman Protocol. | `Read, Write, Edit, Bash` | none | `agents/creative-director.md` |
+| `curator` | Knowledge curator for the Agentic Light LLM-wiki (plain markdown + SQLite semantic index, optionally viewable in Obsidian). Use to ingest sources into wiki entity pages, extract concept notes, maintain wiki/index.md and cross-links, and answer knowledge queries from the brain. Follows the Karpathy LLM Wiki schema. Authority limited to Agentic_Light/brain/. | `Read, Glob, Grep, Write, Edit` | none | `agents/curator.md` |
+| `eng-manager` | Project lifecycle controller for Agentic_Light/Projects/. Use to scope a project from its BRIEF.md and stack, plan and route work to architect/coder, validate completion, and prepare artifacts for handoff. Authority limited to Agentic_Light/Projects/. | `Read, Glob, Grep, Edit, Write, Bash` | external-side-effects | `agents/eng-manager.md` |
+| `qa` | Quality-assurance verifier for pull requests against existing, cloned repositories under Agentic_Light/Projects/. Use to run a target repo's own lint/typecheck/unit-test commands, extend or author browser/e2e coverage, and compile a pass/fail QA report before a PR is drafted. Not for implementation (use coder) or for creating branches, commits, or PRs (that stays with the orchestrator's approved flow). | `Read, Glob, Grep, Bash, Write, Edit` | none | `agents/qa.md` |
 <!-- gen:roles-end -->
 
 `archivist` and `rally` are excluded from the roster by design (see

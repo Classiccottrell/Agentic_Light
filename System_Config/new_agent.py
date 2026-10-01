@@ -46,6 +46,7 @@ def build_agent_body(name, scope):
         f"name: {name}\n"
         f"description: {description}\n"
         "tools: Read, Glob, Grep, Edit, Write\n"
+        "risk: {read_only: false, destructive: false, idempotent: false, external_side_effects: false}\n"
         "model: inherit\n"
         "---\n"
         "\n"
@@ -163,7 +164,7 @@ def self_test():
         check("dry-run: creates no file", not agent_md.exists())
 
         # Fixture 5: --write — real scaffold; matches agents/*.md
-        # frontmatter shape (name/description/tools/model), no trailing
+        # frontmatter shape (name/description/tools/risk/model), no trailing
         # newline (byte-parity with the .sh original's heredoc strip).
         proc = run("data-migrator", "Moves data between systems", "--write")
         check("write: rc == 0", proc.returncode == 0, proc.returncode)
@@ -175,6 +176,7 @@ def self_test():
             check("write: name field", "name: data-migrator" in text, text)
             check("write: description field", "description: Moves data between systems. Authority limited to its scope." in text, text)
             check("write: tools field", "tools: Read, Glob, Grep, Edit, Write" in text, text)
+            check("write: risk field", "risk: {read_only: false, destructive: false, idempotent: false, external_side_effects: false}" in text, text)
             check("write: model field", "model: inherit" in text, text)
             check("write: no trailing newline", not data.endswith(b"\n"), data[-10:])
 

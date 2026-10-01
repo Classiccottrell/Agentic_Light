@@ -1,7 +1,7 @@
 # agents/ — Agentic Light Roster
 
 Each agent is a single self-contained file: `agents/<name>.md`
-(frontmatter `name`/`description`/`tools`/`model: inherit` + body). No split
+(frontmatter `name`/`description`/`tools`/`risk`/`model: inherit` + body). No split
 `.md` + `SKILL.md` pair like the parent workspace — Agentic Light keeps one
 file per role. Scaffold new ones with
 `python3 System_Config/new_agent.py <name> "<scope>" [--write]`.
@@ -22,6 +22,37 @@ Light has no archival pipeline and no rally/broadcast agent — do not add
 them back in; if a future task seems to need one, treat that as a signal to
 route the work through the existing roster or reconsider the task, not to
 silently reintroduce a role the spec deliberately dropped.
+
+## Risk metadata
+
+`tools:` is capability metadata — what a role *can* call. `risk:` is its
+declared blast radius — what running it is allowed to do to the world:
+
+```yaml
+risk: {read_only: false, destructive: false, idempotent: false, external_side_effects: false}
+```
+
+| Flag | `true` means |
+|---|---|
+| `read_only` | Never modifies files or state. |
+| `destructive` | May delete or overwrite existing work, not just add to it. |
+| `idempotent` | Re-running the same task with the same inputs leaves the same end state. |
+| `external_side_effects` | May act outside the workspace (network, remote service, PR creation). |
+
+| Agent | Flags set | Why |
+|---|---|---|
+| `architect` | none | Writes specs/diagrams; no shell. |
+| `coder` | `destructive` | Edits and removes existing code and runs builds; never pushes or opens a PR. |
+| `creative-director` | none | Review and copy edits; additive. |
+| `curator` | none | `brain/` is create-or-append only, never delete; raw sources immutable. |
+| `eng-manager` | `external_side_effects` | May create a PR — only after the user's explicit go-ahead. |
+| `qa` | none | Runs checks and adds tests; never branches, commits, or opens a PR. |
+
+The flags describe each role's contract, bounded by its `tools:` —
+`python3 System_Config/preset_audit.py` (run by `healthcheck.py`) fails if
+any role omits a flag or contradicts its tools (e.g. `read_only: true` with
+Write/Edit/Bash). `GOVERNANCE.md` §1 renders the flags per role. When a
+role's rules change what it may do, update its `risk:` in the same edit.
 
 ## `qa` / `eng-manager` are not part of `pipeline/run.py`
 

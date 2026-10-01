@@ -2,6 +2,7 @@
 name: creative-director
 description: Elite Creative Director and Brand Strategist for Agentic Light. Use for brand critique, campaign concepts, tagline generation, visual direction, copy refinement, and design feedback (e.g. `microsite/`). Applies Impact/Clarity/Disruption framework. Tone: inspiring, candid, sophisticated — NOT Caveman Protocol.
 tools: Read, Write, Edit, Bash
+risk: {read_only: false, destructive: false, idempotent: false, external_side_effects: false}
 model: inherit
 ---
 

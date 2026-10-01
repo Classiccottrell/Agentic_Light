@@ -47,8 +47,10 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `../.mcp.json` and populate `mcpServers`; `bootstrap.py` does this
   automatically on first run if `.mcp.json` is absent.
 - **`new_agent.py`** — `new_agent.py <name> "<scope>" [--write]`. Scaffolds
-  `agents/<name>.md` with frontmatter (`name`/`description`/`tools`/`model`).
-  Dry-run by default; refuses to overwrite an existing file.
+  `agents/<name>.md` with frontmatter (`name`/`description`/`tools`/`risk`/
+  `model`); `risk` starts all-`false` — set it to the new role's real blast
+  radius before relying on it (see `agents/README.md`). Dry-run by default;
+  refuses to overwrite an existing file.
 - **`logs/`** — script output lands here. `.gitkeep` tracks the empty dir.
 
 - **`run_agent.py`** — library module (not a CLI; `import run_agent as ra`).
@@ -226,7 +228,12 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   the hardcoded 4 if unreadable), and each handoff target must be one of the
   preset's active roles or `"orchestrator"`. Any preset's `role_notes`/
   `role_capabilities`/`role_handoff` map is also checked for an inactive-role
-  key. `healthcheck.py` runs it as a hard contract check.
+  key. Also validates every `agents/*.md`'s `risk` frontmatter: exactly
+  `read_only`/`destructive`/`idempotent`/`external_side_effects`, each
+  `true`/`false`, consistent with its `tools` (`read_only: true` forbids
+  Write/Edit/Bash/NotebookEdit and `destructive: true`; `read_only: false`
+  needs one of them; `external_side_effects: true` needs Bash).
+  `healthcheck.py` runs it as a hard contract check.
 - **`white_label_check.py`** — non-destructive audit for a specialized fork.
   It checks active roles against the selected preset, pruned agent files,
   selected skills, and old/new identity text — plus, via
