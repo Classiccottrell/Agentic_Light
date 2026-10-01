@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
 """route_skill.py — deterministic, provider-neutral skill router. Python
-port of route_skill.sh. Scans skills/*/SKILL.md frontmatter and keyword/
-substring-matches a task description against each skill's `description`
-field. No LLM call, no ranking model — intentionally basic; smarter matching
-is a later concern, not this step's job.
+port of route_skill.sh. Scans skills/*/SKILL.md frontmatter and ranks
+each skill against a task description by token relevance: task tokens that
+hit a skill's own name (frontmatter `name` or dir name) weigh most;
+description hits are weighted by inverse document frequency across the
+scanned skill set, so a word every Figma skill shares counts for little and
+a rare domain word ("wcag", "dbt") counts for a lot. Results are sorted by
+score descending, ties by dir name — callers capping to the first N (run.py's
+AGENTIC_LIGHT_SKILL_MATCH_LIMIT) keep the most relevant N. Deterministic,
+stdlib-only, no LLM call.
 
 If System_Config/skills-selected.json (written by specialize.py) exists,
 the scan is restricted to only its "selected" skill dirs. Missing file =
 scan all of skills/ (unrestricted).
 
-route() returns the list of matched skill directories (stdout, in main());
---verbose diagnostic notes ("declares requires: ...", "mentions
-unverifiable dependency ...") are a stderr side effect of route() itself,
+route() returns the ranked list of matched skill directories (stdout, in
+main()); --verbose diagnostic notes (each match's score, "declares
+requires: ...", "mentions unverifiable dependency ...") are a stderr side
+effect of route() itself,
 mirroring the bash version's dual-channel output.
 
 Usage: route_skill.py "<task description>"      (single-arg form)
@@ -21,6 +27,7 @@ Usage: route_skill.py "<task description>"      (single-arg form)
 """
 import argparse
 import json
+import math
 import re
 import sys
 import tempfile
@@ -90,56 +97,117 @@ def selected_skill_names():
     return list(data.get("selected", []))
 
 
-def matches_keyword(task_lc, desc_lc):
-    """True if any whitespace-delimited word (len > 3, skips noise like
-    "the"/"and") in the task appears as a substring of the description."""
-    if not desc_lc:
-        return False
-    return any(len(word) > 3 and word in desc_lc for word in task_lc.split())
+# Generic words with no domain signal: English function words plus the
+# task verbs/nouns nearly every task sentence and skill description uses.
+# Matched AFTER stemming, so "writes"/"creates" drop too.
+STOPWORDS = frozenset("""
+    an and any are as at be by can do does for from get how if in into is it
+    me my need new no not of on or our please should so that the these this to
+    want we what when with you your
+    add build change create fix make update use write
+    page file skill user
+""".split())
+
+NAME_MULT = 3.0        # name-token hit = NAME_MULT x that token's IDF
+FULL_NAME_BONUS = 5.0  # whole skill name appears verbatim in the task
+MIN_SCORE = 1.0        # below this a match is noise, not routed ...
+MIN_SCORE_SET = 4      # ... but only once this many skills are scanned: a
+                       # token shared by all n skills always scores ln 2
+                       # (< MIN_SCORE), so a tiny skills-selected.json fork
+                       # (1-3 skills) would otherwise drop real matches
+
+_TOKEN_SPLIT = re.compile(r'[^a-z0-9]+')
 
 
-def route(task, skills_dir=None, verbose=False):
+def _stem(tok):
+    """Light suffix folding only — plurals (models->model,
+    dependencies->dependency) and -ing (debugging->debug, auditing->audit);
+    guarded so short tokens like "css"/"js"/"ui"/"string" survive untouched."""
+    if tok.endswith("ing") and len(tok) - 3 >= 4:
+        tok = tok[:-3]
+        if tok[-1] == tok[-2] and tok[-1] not in "aeiouls":
+            tok = tok[:-1]
+        return tok
+    if len(tok) > 4 and tok.endswith("ies"):
+        return tok[:-3] + "y"
+    if len(tok) > 3 and tok.endswith("s") and not tok.endswith("ss"):
+        return tok[:-1]
+    return tok
+
+
+def tokens(text):
+    """Lowercase, split on non-alphanumerics, stem, drop stopwords and
+    1-char tokens. Returns a set — repeats don't add score."""
+    out = set()
+    for raw in _TOKEN_SPLIT.split(text.lower()):
+        if len(raw) < 2:
+            continue
+        tok = _stem(raw)
+        if tok not in STOPWORDS:
+            out.add(tok)
+    return out
+
+
+def route_scored(task, skills_dir=None, verbose=False):
+    """[(skill_dir, score)] for skills scoring >= MIN_SCORE, sorted by score
+    descending, ties by dir name. Two passes: read every scanned skill's
+    frontmatter, then score against document frequencies computed over that
+    (post-skills-selected.json) set."""
     skills_dir = Path(skills_dir) if skills_dir else DEFAULT_SKILLS_DIR
     task_lc = task.lower()
+    task_toks = tokens(task)
     selected = selected_skill_names()
 
-    # key=str, NOT Path's own default ordering (compares part-tuples) —
-    # verified, deterministic divergence, same class of bug as
-    # context_packet.py's sort fix: bash's `for smd in
-    # "$SKILLS_DIR"/*/SKILL.md` glob sorts the FULL PATH STRING, so
-    # "figma-use/SKILL.md" compares against "figma-use-figjam/SKILL.md" at
-    # the byte after the shared "figma-use" prefix: '/' (0x2F) vs '-'
-    # (0x2D) — hyphen sorts first, so "figma-use" lands AFTER "figma-use-
-    # figjam"/"-motion"/"-slides". Path's default ordering instead compares
-    # ("figma-use", "SKILL.md") against ("figma-use-figjam", "SKILL.md") as
-    # a tuple, where "figma-use" is simply a shorter prefix of the other
-    # component and sorts first — the separator is invisible in a tuple
-    # comparison but a real, sortable character (0x2F) in bash's flat-
-    # string one. key=str reproduces bash's actual glob order (confirmed
-    # against `route_skill.sh` on the real skills/ directory); matters
-    # whenever two+ matched candidates share a common prefix AND the
-    # caller's cap (run.py's AGENTIC_LIGHT_SKILL_MATCH_LIMIT) would
-    # otherwise drop one of them.
-    matched = []
+    skills = []
     for smd in sorted(skills_dir.glob("*/SKILL.md"), key=str):
         skill_dir = smd.parent
         if selected is not None and skill_dir.name not in selected:
             continue
         name = frontmatter_field(smd, "name") or skill_dir.name
         desc = frontmatter_field(smd, "description")
-        desc_lc = desc.lower()
+        if not desc:
+            continue
+        name_toks = tokens(name) | tokens(skill_dir.name)
+        desc_toks = tokens(desc)
+        skills.append((smd, skill_dir, name.lower(), desc.lower(), name_toks, name_toks | desc_toks))
 
-        if (desc_lc and name.lower() in task_lc) or matches_keyword(task_lc, desc_lc):
-            matched.append(skill_dir)
-            if verbose:
-                requires = normalize_requires(frontmatter_field(smd, "requires"))
-                if requires:
-                    print(f"[route_skill] {skill_dir}: declares requires: {requires}", file=sys.stderr)
-                else:
-                    deps = unverifiable_deps(desc_lc)
-                    if deps:
-                        print(f"[route_skill] {skill_dir}: description mentions unverifiable dependency ({deps}) — cannot confirm tool/MCP availability", file=sys.stderr)
-    return matched
+    n = len(skills)
+    df = {}
+    for *_, all_toks in skills:
+        for tok in all_toks:
+            df[tok] = df.get(tok, 0) + 1
+
+    def idf(tok):
+        return math.log(1 + n / df[tok])
+
+    min_score = MIN_SCORE if n >= MIN_SCORE_SET else 1e-9
+    scored = []
+    for smd, skill_dir, name_lc, desc_lc, name_toks, all_toks in skills:
+        score = 0.0
+        for tok in task_toks & all_toks:
+            score += idf(tok) * (NAME_MULT if tok in name_toks else 1.0)
+        if name_lc in task_lc or skill_dir.name.lower() in task_lc:
+            score += FULL_NAME_BONUS
+        if score >= min_score:
+            scored.append((smd, skill_dir, desc_lc, score))
+
+    scored.sort(key=lambda r: (-r[3], r[1].name))
+    if verbose:
+        for smd, skill_dir, desc_lc, score in scored:
+            print(f"[route_skill] {skill_dir}: score {score:.2f}", file=sys.stderr)
+            requires = normalize_requires(frontmatter_field(smd, "requires"))
+            if requires:
+                print(f"[route_skill] {skill_dir}: declares requires: {requires}", file=sys.stderr)
+            else:
+                deps = unverifiable_deps(desc_lc)
+                if deps:
+                    print(f"[route_skill] {skill_dir}: description mentions unverifiable dependency ({deps}) — cannot confirm tool/MCP availability", file=sys.stderr)
+    return [(skill_dir, score) for _, skill_dir, _, score in scored]
+
+
+def route(task, skills_dir=None, verbose=False):
+    """Matched skill dirs, most relevant first (see route_scored)."""
+    return [skill_dir for skill_dir, _ in route_scored(task, skills_dir, verbose)]
 
 
 def self_test():
@@ -200,11 +268,50 @@ def self_test():
         selfile.write_text(json.dumps({"selected": ["beta-skill"]}, indent=2), encoding="utf-8")
         SKILLS_SELECTED_FILE = selfile
         out = [p.name for p in route("figma export design", tmp)]
-        SKILLS_SELECTED_FILE = real_selfile
         check("skills-selected.json excludes deselected alpha-skill", "alpha-skill" not in out, out)
+        # One-skill fork: a single shared description word must still route
+        # (IDF of a token in every scanned skill is only ln 2 < MIN_SCORE).
+        out = [p.name for p in route("write tests", tmp)]
+        SKILLS_SELECTED_FILE = real_selfile
+        check("one-skill selection still routes a one-keyword match", out == ["beta-skill"], out)
 
         nr = normalize_requires('"[a, b]"')
         check("normalize_requires strips quotes and brackets", nr == "a,b", nr)
+
+    # Ranking fixtures — separate dir so these "figma-ish" skills can't
+    # leak into the gamma-skill stderr assertions above. Names chosen so
+    # alphabetical order gives the WRONG answer: the domain skills sort last.
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        generic = "Write and build design files, create pages and models, update text and layout for the user."
+        fixtures = {
+            "aa-design-one": generic,
+            "ab-design-two": generic + " Audit components.",
+            "ac-design-three": generic + " Accessibility notes.",
+            "ad-design-four": generic,
+            "zx-a11y": "Audit any page for WCAG 2.2 AA accessibility: contrast, alt text, focus.",
+            "zz-warehouse": "Creates and optimizes dbt pipelines for the warehouse.",
+        }
+        for name, desc in fixtures.items():
+            (tmp / name).mkdir()
+            (tmp / name / "SKILL.md").write_text(
+                f'---\nname: {name}\ndescription: "{desc}"\n---\n# {name}\n', encoding="utf-8")
+
+        out = [p.name for p in route("audit this page for WCAG accessibility", tmp)]
+        check("domain skill ranks first over shared-generic-word skills", out[:1] == ["zx-a11y"], out)
+
+        out = [p.name for p in route("fix the contrast and alt text on the signup form", tmp)]
+        check("generic task words don't route to design skills", out == ["zx-a11y"], out)
+
+        out = [p.name for p in route("write a dbt model", tmp)]
+        check("3-letter domain token 'dbt' matches", out[:1] == ["zz-warehouse"], out)
+
+        scored = route_scored("audit accessibility", tmp)
+        scores = [s for _, s in scored]
+        check("results sorted by score descending", scores == sorted(scores, reverse=True), scored)
+        check("ranking is by relevance, not name", [p.name for p, _ in scored][:1] == ["zx-a11y"], scored)
+
+        check("stem folds plurals and -ing", tokens("models dependencies debugging css") == {"model", "dependency", "debug", "css"}, tokens("models dependencies debugging css"))
 
     if failures:
         print("route_skill: self-test FAILED:", file=sys.stderr)

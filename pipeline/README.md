@@ -44,9 +44,8 @@ python3 pipeline/run.py --help   # print usage and exit
 0. **Skill routing** — `System_Config/route_skill.py "<task description>"`
    runs before the coder step. Each matched skill's `SKILL.md` is prepended
    to the coder prompt (capped at the first `AGENTIC_LIGHT_SKILL_MATCH_LIMIT`
-   matches, default 3 — the router's basic substring/keyword match can hit
-   many skills on an ordinary task sentence; the cap keeps the prompt from
-   ballooning). Override with `AGENTIC_LIGHT_SKILL_MATCH_LIMIT=<N>` (a
+   matches, default 3 — the router returns matches ranked by relevance, so
+   the cap keeps the most relevant N and stops the prompt from ballooning). Override with `AGENTIC_LIGHT_SKILL_MATCH_LIMIT=<N>` (a
    non-negative integer; `0` injects no skill context); a malformed or unset
    value falls back to 3 with a stderr note. No match, or the router being
    unavailable, is a silent no-op.

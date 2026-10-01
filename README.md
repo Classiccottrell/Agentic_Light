@@ -130,8 +130,9 @@ shipped for zero-setup Obsidian viewing but is not required by the pipeline.
 See `brain/README.md`.
 
 **Skill routing** (`System_Config/route_skill.py`) — a deterministic
-keyword/substring router (no LLM call) that scans `skills/*/SKILL.md`
-frontmatter and prints matching skill paths; `pipeline/run.py` uses it to
+relevance-ranked router (IDF-weighted token match, no LLM call) that scans
+`skills/*/SKILL.md` frontmatter and prints matching skill paths, most
+relevant first; `pipeline/run.py` uses it to
 inject skill guidance into the coder prompt. Restricted to
 `System_Config/skills-selected.json`'s selection once you've specialized.
 
