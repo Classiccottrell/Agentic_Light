@@ -177,8 +177,14 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   dirs; a missing file scans all of `skills/`. `--self-test` / `--skills-dir
   <path>` for testing against a fixture dir instead of the real `skills/`.
 - **`context_packet.py`** — bounded, provider-neutral resume packet. It reads
-  `ROADMAP.md`, the active preset, the newest weekly log tail, and optional
-  semantic matches. `AGENTIC_LIGHT_CONTEXT_MAX_LINES` and
+  `ROADMAP.md`'s `## Next` section (≤40 lines; the file head if it has
+  none), the active preset, the tail of the newest `YYYY-Www.md` weekly note
+  (never `Weekly_Note_Template.md`), and up to `--top` context matches of
+  ≤20 lines each. Matches are lexical: ranked FTS5 hits from
+  `memory_index.py`'s `brain/index/memory.sqlite3` when that cache is built,
+  else files ranked by distinct query terms; with no query, the newest
+  records by frontmatter `updated:`. `README.md`/`CLAUDE.md`/the weekly
+  template are never matches. `AGENTIC_LIGHT_CONTEXT_MAX_LINES` and
   `AGENTIC_LIGHT_CONTEXT_MAX_BYTES` cap output; Markdown remains the source of
   truth and the packet is derived output. Truncation is byte-exact
   (`text.encode("utf-8")[:max_bytes]`, written to stdout via
@@ -186,8 +192,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   mid multi-byte UTF-8 sequence), not a character slice — Python's `s[:N]`
   (like bash's `${s:0:N}`) counts characters, so a tiny `MAX_BYTES` override
   against multi-byte content (this repo's own em dashes) could silently
-  exceed its budget on a naive port. `pipeline/run.py` prepends this script's
-  output to the coder prompt, labeled `Resume context packet:`, opt-in only
+  exceed its budget on a naive port. `pipeline/run.py` passes the task
+  description as the query and prepends this script's output to the coder
+  prompt, labeled `Resume context packet:`, opt-in only
   (`AGENTIC_LIGHT_CONTEXT_PACKET=1`, or automatically when the pipeline's
   target repo resolves to this workspace's own root) — never injected into an
   unrelated external target repo by default.
@@ -281,6 +288,10 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   different from `run_agent.py`'s own 300s/$2.00 defaults) are set via
   `os.environ.setdefault()` *before* `import run_agent`, since that module
   captures both from the environment once, at import time.
+  Raw clips are immutable: each clip's bytes are snapshotted before its
+  agent call and compared after; a changed or deleted clip is restored
+  (atomic write) and counted as a failed attempt, never recorded (the
+  read-only chmod during the run is advisory only).
   Content-hash manifest (`brain/raw/.ingested.log`, sha256-keyed) for
   idempotent re-scans; quarantines a clip after 3 failed attempts
   (`brain/raw/.failed.log`); stops the run after 2 consecutive failures

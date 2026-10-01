@@ -11,11 +11,23 @@ on decode if re-assembled as str.
 import argparse
 import json
 import os
+import re
+import sqlite3
 import sys
 from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# Per-section line budgets, so no single source (the roadmap used to take 80
+# of the default 120 lines) crowds the session facts and matches out.
+ROADMAP_LINES = 40
+SESSION_LINES = 25
+MATCH_LINES = 20
+WEEKLY_NOTE_RE = re.compile(r"^\d{4}-W\d{2}\.md$")
+STOPWORDS = {"the", "and", "for", "with", "this", "that", "from", "into", "add", "fix", "use", "make", "update"}
+# Docs about the brain and its empty note form, not context worth injecting.
+BOILERPLATE = {"README.md", "CLAUDE.md", "Weekly_Note_Template.md"}
 
 
 def _head_lines(path, n):
@@ -34,6 +46,91 @@ def _tail_lines(path, n):
     return text.splitlines()[-n:] if n > 0 else []
 
 
+def _roadmap_lines(path, n):
+    """The roadmap's actionable `## Next` section (up to the next `## `
+    heading), capped at n lines; the file's head when it has no such
+    section. Shipped history is the least useful part for resuming work."""
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    start = next((i for i, line in enumerate(lines) if line.strip() == "## Next"), None)
+    if start is None:
+        return lines[:n]
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+    return lines[start:end][:n]
+
+
+def latest_weekly_note(weekly_dir):
+    """Newest `YYYY-Www.md` note anywhere under weekly_dir. Only real
+    weekly notes qualify: a plain path sort picked Weekly_Note_Template.md
+    (it sorts after `2026/...`), so the packet reported the template as
+    the latest session facts."""
+    if not weekly_dir.is_dir():
+        return None
+    notes = [p for p in weekly_dir.rglob("*.md") if WEEKLY_NOTE_RE.match(p.name)]
+    return max(notes, key=lambda p: p.name) if notes else None
+
+
+def _query_terms(query):
+    return sorted({t for t in re.findall(r"[a-z0-9][a-z0-9_-]+", query.lower()) if len(t) >= 3 and t not in STOPWORDS})
+
+
+def _fts_matches(root, context_dir, query, top):
+    """Ranked matches from memory_index.py's FTS5 cache, or None when the
+    cache isn't built (the caller then falls back to a term scan)."""
+    db_path = root / "brain" / "index" / "memory.sqlite3"
+    if not db_path.is_file():
+        return None
+    try:
+        from memory_search import fts_search
+        conn = sqlite3.connect(str(db_path))
+        try:
+            rows = fts_search(conn, " ".join(_query_terms(query)), top * 4)
+        finally:
+            conn.close()
+    except (ImportError, sqlite3.Error):
+        return None
+    found = []
+    for row in rows:
+        path = root / row["path"]
+        if path.is_file() and context_dir in path.parents and path.name not in BOILERPLATE:
+            found.append(path)
+    return found[:top]
+
+
+def _term_matches(md_files, query, top):
+    """Files ranked by how many distinct query terms they contain. A whole
+    task sentence never appears verbatim in a note, so the old substring
+    test matched nothing once the pipeline started passing the task."""
+    terms = _query_terms(query)
+    if not terms:
+        return []
+    scored = []
+    for p in md_files:
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace").lower()
+        except OSError:
+            continue
+        hits = sum(1 for t in terms if t in text)
+        if hits:
+            scored.append((-hits, str(p), p))
+    return [p for _, _, p in sorted(scored)[:top]]
+
+
+def _recent_records(md_files, top):
+    """No query: newest records first, by frontmatter `updated:`, skipping
+    BOILERPLATE (already filtered out of md_files). Undated files sort last."""
+    def updated(p):
+        try:
+            head = p.read_text(encoding="utf-8", errors="replace")[:2000]
+        except OSError:
+            return ""
+        m = re.search(r"^updated:\s*(\S+)", head, re.MULTILINE) if head.startswith("---") else None
+        return m.group(1) if m else ""
+    return sorted(md_files, key=lambda p: (updated(p), str(p)), reverse=True)[:top]
+
+
 def build_packet(root, profile_name, profile_explicit, query, top, max_lines, max_bytes):
     """Raises RuntimeError on a bad/missing profile or context root — a
     plain exception, not SystemExit, so an importing caller (pipeline/run.py
@@ -42,17 +139,10 @@ def build_packet(root, profile_name, profile_explicit, query, top, max_lines, ma
     nonzero context_packet.sh exit via `set +e`. main() below is the only
     caller that turns this into a process exit.
 
-    Known, accepted deviation from context_packet.sh's --query path: bash
-    shells out to `rg -i -l --glob '*.md'` (a case-insensitive REGEX search
-    that also skips gitignored and hidden files by default); this port does
-    a plain case-insensitive substring search over every *.md file under
-    context_dir (hidden files/dirs are skipped — see the md_files filter
-    below — but .gitignore is NOT consulted). Re-implementing ripgrep's
-    regex engine and gitignore parser with stdlib only was judged out of
-    proportion to this fork's actual usage (queries here are plain
-    keywords, not regexes); flagged rather than silently matched, per the
-    porting brief. A query containing regex metacharacters (e.g. `.`, `*`)
-    will therefore behave differently between the two implementations.
+    Query matching: ranked FTS5 matches from memory_index.py's cache
+    (brain/index/memory.sqlite3) when it has been built, else files ranked
+    by how many distinct query terms (3+ chars, minus a few stopwords) they
+    contain. Lexical either way; no embeddings are requested here.
     """
     lines = []
 
@@ -90,7 +180,7 @@ def build_packet(root, profile_name, profile_explicit, query, top, max_lines, ma
         lines.append("## Roadmap")
         roadmap = root / "ROADMAP.md"
         if roadmap.is_file():
-            lines.extend(_head_lines(roadmap, 80))
+            lines.extend(_roadmap_lines(roadmap, ROADMAP_LINES))
         else:
             lines.append("ROADMAP.md unavailable")
         lines.append("")
@@ -102,18 +192,10 @@ def build_packet(root, profile_name, profile_explicit, query, top, max_lines, ma
             lines.append("unspecialized")
         lines.append("")
         lines.append("## Recent Session Facts")
-        weekly_dir = root / "brain" / "weekly_logs"
-        # key=str, not Path's own tuple-of-parts ordering: bash's `find |
-        # sort` compares the full path as one flat string (so
-        # ".../2026 Master Note.md" < ".../2026/2026-W30.md" — a space
-        # (0x20) sorts before a slash (0x2F)), whereas Path.__lt__ compares
-        # path-part tuples (where the bare "2026" directory component would
-        # instead be treated as a PREFIX of "2026 Master Note.md" and sort
-        # first) — a real, empirically-confirmed divergence in this repo's
-        # own brain/weekly_logs/, not a hypothetical.
-        candidates = sorted(weekly_dir.rglob("*.md"), key=str) if weekly_dir.is_dir() else []
-        if candidates:
-            lines.extend(_tail_lines(candidates[-1], 25))
+        note = latest_weekly_note(root / "brain" / "weekly_logs")
+        if note:
+            lines.append(f"Source: {note.relative_to(root).as_posix()}")
+            lines.extend(_tail_lines(note, SESSION_LINES))
         else:
             lines.append("No weekly log found")
     elif include_paths:
@@ -134,30 +216,22 @@ def build_packet(root, profile_name, profile_explicit, query, top, max_lines, ma
     # behavior on the --query path below (see build_packet's docstring on
     # the query-match method's other, accepted differences from `rg`).
     md_files = sorted(
-        (p for p in context_dir.rglob("*.md") if p.is_file() and not any(part.startswith(".") for part in p.relative_to(context_dir).parts)),
+        (p for p in context_dir.rglob("*.md") if p.is_file() and p.name not in BOILERPLATE and not any(part.startswith(".") for part in p.relative_to(context_dir).parts)),
         key=str,
     )
     if query:
-        query_lc = query.lower()
-        matches = []
-        for p in md_files:
-            try:
-                if query_lc in p.read_text(encoding="utf-8", errors="replace").lower():
-                    matches.append(p)
-            except OSError:
-                continue
-            if len(matches) >= top:
-                break
+        matches = _fts_matches(root, context_dir, query, top)
+        if matches is None:
+            matches = _term_matches(md_files, query, top)
     else:
-        matches = md_files[-top:] if top > 0 else []
-
+        matches = _recent_records(md_files, top) if top > 0 else []
     if not matches:
         lines.append("No matching context records.")
     else:
         for match in matches:
             rel = match.relative_to(root)
             lines.append(f"### {rel}")
-            lines.extend(_head_lines(match, 80))
+            lines.extend(_head_lines(match, MATCH_LINES))
             lines.append("")
 
     text = "\n".join(lines[:max_lines]) + "\n"
