@@ -4,7 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-mkdir -p "$TMP/brain/records/learnings" "$TMP/brain/records/projects" "$TMP/brain/wiki" "$TMP/brain/weekly_logs/2026" "$TMP/brain/index"
+mkdir -p "$TMP/brain/records/learnings" "$TMP/brain/records/projects" "$TMP/brain/wiki" "$TMP/brain/weekly_logs/2026" "$TMP/brain/index" "$TMP/brain/raw"
+printf '%s\n' 'immutable source' > "$TMP/brain/raw/source.md"
 
 cat > "$TMP/brain/records/learnings/retrieval.md" <<'EOF'
 ---

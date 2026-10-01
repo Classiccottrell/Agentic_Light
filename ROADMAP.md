@@ -149,6 +149,11 @@ where shipped docs promise more than the code delivers.
     requires a non-empty `source:` but never checks that the paths exist, and
     frontmatter `related:` links are not validated. Verified: records citing
     nonexistent raw files pass.
+    _Status: fixed; PR under review. Source paths must exist inside the
+    workspace (URLs accepted), and `related:` ids must resolve. This also
+    fixes a parser crash on the block-list frontmatter form that
+    `brain/records/README.md` documents: an empty `key:` followed by
+    `  - item` lines raised `AttributeError`._
 11. **Raw immutability during ingest isn't enforced.** `daily_ingest.py`
     marks clips read-only during the run, but that is advisory: a tool can
     replace a read-only file in a writable directory, and root ignores it.
@@ -166,7 +171,7 @@ where shipped docs promise more than the code delivers.
     `daily_ingest.py` asks the LLM to append its own line, which is not
     deterministic and breaks the single-logger rule.
 
-**Suggested order:** 10, then 8–9 (1–3, 7 and 11 are fixed). Fold 12
+**Suggested order:** 8–9 next (1–3, 7, 10 and 11 are fixed). Fold 12
 into White-label item 1, and 4–6 into White-label item 2 (the
 prompt-assembly contract is the precondition for item 3's acceptance
 fixture).

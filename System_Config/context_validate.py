@@ -15,6 +15,32 @@ TYPES = {
 }
 REQUIRED = {"id", "type", "title", "status", "scope", "created", "updated", "author", "source"}
 LINK_RE = re.compile(r"\[\[([^]|#]+)(?:#[^]|]+)?(?:\|[^]]+)?\]\]")
+URL_RE = re.compile(r"^[a-z][a-z0-9+.-]*://", re.IGNORECASE)
+
+
+def as_list(value):
+    """Flatten a parsed frontmatter value to a list of non-empty strings.
+    parse_value turns a block-list item like `  - [[x]]` into the nested
+    list ["[x]"], so values can arrive one level deep."""
+    if value in ("", None):
+        return []
+    if not isinstance(value, list):
+        return [str(value)]
+    out = []
+    for item in value:
+        out.extend(as_list(item))
+    return out
+
+
+def related_targets(meta):
+    """Record ids named by `related:`, accepting `[[id]]`, `[[id|alias]]`,
+    `[[id#heading]]`, or a bare id, inline or as a block list."""
+    targets = []
+    for item in as_list(meta.get("related")):
+        target = re.sub(r"^\[+|\]+$", "", item.strip()).split("|")[0].split("#")[0].strip()
+        if target:
+            targets.append(target)
+    return targets
 
 
 def parse_value(raw):
@@ -38,7 +64,12 @@ def parse_frontmatter(path):
     current = None
     for line in text[4:end].splitlines():
         if line.startswith("  - ") and current:
-            data.setdefault(current, []).append(parse_value(line[4:]))
+            # `key:` with an empty value stored "" above; the first block
+            # item turns it into a list (setdefault kept the "" and crashed
+            # on .append, so the documented block-list form never parsed).
+            if not isinstance(data.get(current), list):
+                data[current] = []
+            data[current].append(parse_value(line[4:]))
             continue
         if ":" not in line:
             continue
@@ -79,8 +110,18 @@ def validate_file(path, root, targets=None):
     kind = str(meta["type"])
     if kind not in TYPES:
         findings.append(f"{path}: unsupported type: {kind}")
-    if not meta.get("source"):
+    sources = as_list(meta.get("source"))
+    if not sources:
         findings.append(f"{path}: source must contain at least one provenance path")
+    root_resolved = root.resolve()
+    for source in sources:
+        if URL_RE.match(source):
+            continue
+        target = (root / source).resolve()
+        if target != root_resolved and root_resolved not in target.parents:
+            findings.append(f"{path}: source escapes the workspace: {source}")
+        elif not target.exists():
+            findings.append(f"{path}: source not found: {source}")
     for section in TYPES.get(kind, []):
         if section not in body_sections(body):
             findings.append(f"{path}: missing section: {section}")
@@ -88,6 +129,9 @@ def validate_file(path, root, targets=None):
     for target in LINK_RE.findall(body):
         if target.strip() not in targets:
             findings.append(f"{path}: broken wikilink: [[{target.strip()}]]")
+    for target in related_targets(meta):
+        if target not in targets:
+            findings.append(f"{path}: broken related link: {target}")
     return findings
 
 
