@@ -137,11 +137,19 @@ where shipped docs promise more than the code delivers.
    agent cache" to "Agent timeouts need a watchdog" into a human-authored
    record. Raise the threshold, make `author: human` records suggest-only,
    and add a precision fixture.
+   _Status: threshold and precision fixture fixed; PR under review. `high`
+   now needs two target-title words, or a one-word title plus two more
+   shared terms, and the stoplist is broader. **Open decision:** making
+   `author: human` records suggest-only would reverse the shipped
+   "conservative agent curation of human records" design, which both
+   curation fixtures pin. Left for the maintainer to decide._
 9. **Curation writes are messy.** `apply_links` appends a new
    `## Related Context` heading every time new links appear, instead of
    extending the existing one. Curation session files are named per second,
    so two runs in the same second overwrite each other, and the writes are
    not atomic.
+   _Status: fixed; PR under review. Links extend the existing section,
+   session names include a per-call digest, and both writes are atomic._
 
 **Provenance and immutability**
 
@@ -171,7 +179,7 @@ where shipped docs promise more than the code delivers.
     `daily_ingest.py` asks the LLM to append its own line, which is not
     deterministic and breaks the single-logger rule.
 
-**Suggested order:** 8–9 next (1–3, 7, 10 and 11 are fixed). Fold 12
+**Suggested order:** gaps 1–3 and 7–11 are fixed (8 has one open decision). Fold 12
 into White-label item 1, and 4–6 into White-label item 2 (the
 prompt-assembly contract is the precondition for item 3's acceptance
 fixture).
