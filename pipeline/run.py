@@ -347,7 +347,7 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
             max_lines, _ = _env_nonneg_int("AGENTIC_LIGHT_CONTEXT_MAX_LINES", 120)
             max_bytes, _ = _env_nonneg_int("AGENTIC_LIGHT_CONTEXT_MAX_BYTES", 12000)
             packet_bytes = context_packet.build_packet(
-                ROOT, profile_env or "agentic-light", bool(profile_env), "", 5, max_lines, max_bytes)
+                ROOT, profile_env or "agentic-light", bool(profile_env), task_desc, 5, max_lines, max_bytes)
             context_packet_text = packet_bytes.decode("utf-8", errors="replace")
         except Exception:
             context_packet_text = ""

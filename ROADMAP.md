@@ -25,24 +25,26 @@ Last reviewed: 2026-10-01
   includes `spec.md`, `tasks.md`, and resumable `Plan.md`; its README documents
   the provider-neutral flow from brief through verified tasks and
   execution/resume.
+- **Agent risk metadata** (PR #29) — every `agents/*.md` declares
+  `risk: {read_only, destructive, idempotent, external_side_effects}`;
+  `preset_audit.py` enforces all four flags and their consistency with
+  `tools:`, `GOVERNANCE.md` renders them, and `new_agent.py` scaffolds them.
+  `tools:` stays capability metadata; risk metadata describes blast radius.
+- **Skill routing by relevance** (PR #31) — `route_skill.py` scores skills by
+  IDF-weighted token overlap (name tokens weighted up) and sorts by score
+  before `pipeline/run.py` applies its cap; self-test pins expected picks.
 
 ## Next
 
 ### White-label hardening
 
-1. **Agent risk metadata** — implemented; PR under review. Every
-   `agents/*.md` declares `risk: {read_only, destructive, idempotent,
-   external_side_effects}`; `preset_audit.py` enforces all four flags and
-   their consistency with `tools:`, `GOVERNANCE.md` renders them, and
-   `new_agent.py` scaffolds them. `tools:` stays capability metadata; risk
-   metadata describes blast radius. Move to Shipped after PR merge.
-2. **Context/session promotion** — connect launcher results to typed session
+1. **Context/session promotion** — connect launcher results to typed session
    records, then let the curator link those records to projects, decisions,
    and learnings. Preserve weekly logs as append-only compatibility output.
-3. **Delegation doctrine and audit trail** — document when work stays inline
+2. **Delegation doctrine and audit trail** — document when work stays inline
    versus delegated, and add provider-neutral launcher audit events. Provider
    hooks may adapt to this trail but cannot be its source of truth.
-4. **White-label acceptance fixture** — make `white_label_check.py` verify a
+3. **White-label acceptance fixture** — make `white_label_check.py` verify a
    fork can specialize, run its selected agents and gates, build a context
    packet, regenerate provider mirrors, and contain no Agentic Light identity.
 
@@ -69,16 +71,25 @@ where shipped docs promise more than the code delivers.
    week.** `context_packet.py` picks the last `brain/weekly_logs/**/*.md` by
    path string, and `Weekly_Note_Template.md` sorts after `2026/…`. Select
    only `YYYY/YYYY-Www.md` notes, by ISO week.
+   _Status: fixed; PR under review. Move to Shipped after merge._
 2. **The roadmap uses up the packet budget.** The 120-line default cap gives
    ~80 lines to `ROADMAP.md`, and context matches get cut off after about one
    entry. With no query, "matches" are the last 5 `brain/**/*.md` files by
    alphabetical path, not by recency or relevance. `pipeline/run.py` always
    passes an empty query, even though it has the task description.
+   _Status: fixed; PR under review. The roadmap now contributes only its
+   `## Next` section (≤40 lines), matches are capped at 20 lines each, the
+   no-query default is newest records first, and the pipeline passes the
+   task as the query._
 3. **The packet has no semantic matches.** `CLAUDE.md` and
    `System_Config/README.md` promise "optional semantic matches", but the
    packet runs a case-insensitive substring scan and never calls
    `memory_search.py`'s FTS5/embedding index. Either wire it in or correct
    the docs.
+   _Status: fixed; PR under review. The packet uses ranked FTS5 matches
+   when `memory_index.py`'s cache is built, otherwise a query-term scan, and
+   the docs now say lexical. Embedding-backed matches stay a possible
+   follow-up._
 
 **Agent roles never reach a model**
 
@@ -86,7 +97,7 @@ where shipped docs promise more than the code delivers.
    inline text, and `run_agent.py` never reads `agents/coder.md`. No provider
    discovers `agents/`: there is no `.claude/agents/`, `AGENTS.md` or
    `GEMINI.md` mirror. Role scope, capabilities, handoffs and risk are
-   governance documentation only. White-label item 4's "regenerate provider
+   governance documentation only. White-label item 3's "regenerate provider
    mirrors" assumes mirrors exist, and they do not. The fix is the
    prompt-assembly contract from `AGENT_AGNOSTIC_REVIEW.md`, which was never
    built: role file + selected skills + packet + task, with fixed order and
@@ -115,6 +126,7 @@ where shipped docs promise more than the code delivers.
    Rank before capping, for example by name/keyword weighting or reusing
    FTS5 bm25. Add a routing fixture with expected picks. Specialized forks
    are only partly protected by `skills-selected.json`.
+   _Status: fixed in PR #31 (see Shipped)._
 
 **Curation**
 
@@ -137,12 +149,15 @@ where shipped docs promise more than the code delivers.
     requires a non-empty `source:` but never checks that the paths exist, and
     frontmatter `related:` links are not validated. Verified: records citing
     nonexistent raw files pass.
-11. **Raw immutability during ingest is only a prompt instruction.**
-    `daily_ingest.py` hashes the clip after the agent call, so an edited
-    clip gets recorded instead of caught. Hash before the call, compare
-    after, and fail the clip on a mismatch.
+11. **Raw immutability during ingest isn't enforced.** `daily_ingest.py`
+    marks clips read-only during the run, but that is advisory: a tool can
+    replace a read-only file in a writable directory, and root ignores it.
+    The clip is hashed only after the agent call, so an edited clip gets
+    recorded instead of caught, and a deleted one crashed the whole run.
+    _Status: fixed; PR under review. Bytes are snapshotted before each call;
+    a changed or deleted clip is restored and counted as a failure._
 
-**Session records (feeds White-label item 2)**
+**Session records (feeds White-label item 1)**
 
 12. **Session lines can't say what happened.** A line records only
     provider/role/exit/reason: no task, target repo, run id, branch, or
@@ -151,9 +166,9 @@ where shipped docs promise more than the code delivers.
     `daily_ingest.py` asks the LLM to append its own line, which is not
     deterministic and breaks the single-logger rule.
 
-**Suggested order:** 1–3 and 11 (small, contained bugs), then 10, 8–9 and
-7. Fold 12 into White-label item 2, and 4–6 into White-label item 3 (the
-prompt-assembly contract is the precondition for item 4's acceptance
+**Suggested order:** 10, then 8–9 (1–3, 7 and 11 are fixed). Fold 12
+into White-label item 1, and 4–6 into White-label item 2 (the
+prompt-assembly contract is the precondition for item 3's acceptance
 fixture).
 
 ### Acceptance bar

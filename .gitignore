@@ -16,6 +16,9 @@ pipeline/logs/*.log
 # OS cruft
 .DS_Store
 
+# Python bytecode (generated whenever a script runs)
+__pycache__/
+
 # Semantic/search caches (rebuildable — Markdown remains the source of truth)
 brain/wiki/.memoryfield.sqlite3*
 brain/index/

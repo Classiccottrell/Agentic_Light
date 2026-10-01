@@ -92,6 +92,64 @@ def main():
         check("default budget: Active Preset header", "\n## Active Preset\n" in out2, out2[:200])
         check("default budget: Recent Session Facts header", "\n## Recent Session Facts\n" in out2, out2[:200])
         print("fixture 2 (default budget contains all provenance headers): PASS")
+
+        # ---------------------------------------------------------------
+        # Fixture 3: "Recent Session Facts" reads the newest real weekly
+        # note — never Weekly_Note_Template.md, which sorts after
+        # "2026/..." as a plain path string — and wins on ISO week across
+        # years and nesting depths.
+        # ---------------------------------------------------------------
+        wl = fake_root / "brain" / "weekly_logs"
+        (wl / "Weekly_Note_Template.md").write_text("TEMPLATE-ONLY-MARKER\n", encoding="utf-8")
+        (wl / "2026").mkdir()
+        (wl / "2026" / "2026-W09.md").write_text("## Agent Sessions\n- older week\n", encoding="utf-8")
+        (wl / "2026" / "2026-W40.md").write_text("## Agent Sessions\n- LATEST-WEEK-MARKER\n", encoding="utf-8")
+        proc3 = subprocess.run([sys.executable, str(SCRIPT), "--root", str(fake_root)],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=base_env)
+        out3 = proc3.stdout.decode("utf-8", errors="replace")
+        facts = out3.split("## Recent Session Facts", 1)[-1].split("## Context Matches", 1)[0]
+        check("session facts: latest week", "LATEST-WEEK-MARKER" in facts, facts)
+        check("session facts: not the template", "TEMPLATE-ONLY-MARKER" not in facts, facts)
+        check("session facts: names its source", "Source: brain/weekly_logs/2026/2026-W40.md" in facts, facts)
+        print("fixture 3 (session facts use the newest weekly note): PASS")
+
+        # ---------------------------------------------------------------
+        # Fixture 4: the roadmap contributes its "## Next" section, not its
+        # Shipped history, and a long roadmap cannot starve the matches.
+        # ---------------------------------------------------------------
+        (fake_root / "ROADMAP.md").write_text(
+            "# Roadmap\n\n## Shipped\n" + "".join(f"- SHIPPED-HISTORY {i}\n" for i in range(100))
+            + "\n## Next\n- NEXT-ITEM-MARKER\n\n## Out of scope\n- nothing\n",
+            encoding="utf-8",
+        )
+        records = fake_root / "brain" / "records" / "learnings"
+        records.mkdir(parents=True)
+        (records / "watchdog.md").write_text(
+            "---\nupdated: 2026-09-30\n---\n## Insight\nThe provider watchdog kills hung sessions.\n", encoding="utf-8")
+        (records / "unrelated.md").write_text(
+            "---\nupdated: 2026-01-01\n---\n## Insight\nBanana bread.\n", encoding="utf-8")
+        proc4 = subprocess.run([sys.executable, str(SCRIPT), "--root", str(fake_root)],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=base_env)
+        out4 = proc4.stdout.decode("utf-8", errors="replace")
+        check("roadmap: Next section included", "NEXT-ITEM-MARKER" in out4, out4[:400])
+        check("roadmap: Shipped history excluded", "SHIPPED-HISTORY" not in out4, out4[:400])
+        check("no query: newest record listed first",
+              out4.find("watchdog.md") != -1 and out4.find("watchdog.md") < out4.find("unrelated.md"), out4)
+        print("fixture 4 (roadmap Next section; budget left for matches): PASS")
+
+        # ---------------------------------------------------------------
+        # Fixture 5: a whole task sentence (what pipeline/run.py passes)
+        # still finds the relevant record via its terms; the old verbatim
+        # substring test matched nothing.
+        # ---------------------------------------------------------------
+        proc5 = subprocess.run([sys.executable, str(SCRIPT), "--root", str(fake_root),
+                                "--query", "Fix the provider watchdog so hung sessions are killed"],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=base_env)
+        out5 = proc5.stdout.decode("utf-8", errors="replace")
+        matches5 = out5.split("## Context Matches", 1)[-1]
+        check("task query: relevant record matched", "watchdog.md" in matches5, matches5)
+        check("task query: unrelated record not matched", "unrelated.md" not in matches5, matches5)
+        print("fixture 5 (task-sentence query matches by terms): PASS")
     finally:
         from test_support import rmtree_force
         try:

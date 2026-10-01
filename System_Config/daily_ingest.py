@@ -191,6 +191,26 @@ def curate_new_wiki_pages(root, src_link, log_path):
                 f.write(f"[{_ts()}] WARN: curation failed for {page} — ingest remains recorded\n")
 
 
+def restore_raw(path, original):
+    """Put a raw clip's original bytes back after an agent changed or
+    removed it. The read-only chmod above is advisory (a tool can replace
+    a read-only file in a writable dir, and root ignores it); this
+    before/after comparison is the actual immutability guarantee."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=path.name + ".", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(original)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+    try:
+        path.chmod(path.stat().st_mode & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH)
+    except OSError:
+        pass
+
+
 def build_prompt(rel, src_link, weekly_note, year, week, today):
     return (
         "You are running headlessly to ingest ONE clip into the brain/ knowledge wiki.\n"
@@ -312,8 +332,19 @@ def run(dry_run=False, run_agent_fn=None):
                 prompt = build_prompt(rel, src_link, weekly_note, year, week, today)
 
                 log(f"ingesting: {rel}")
+                raw_path = config.RAW / rel
+                raw_before = raw_path.read_bytes()
                 rc = run_agent_fn(prompt, log=str(log_path), brain=str(config.BRAIN))
-                if rc == 0:
+                try:
+                    raw_after = raw_path.read_bytes()
+                except OSError:
+                    raw_after = None
+                if raw_after != raw_before:
+                    restore_raw(raw_path, raw_before)
+                    log(f"RAW MUTATED (agent {'removed' if raw_after is None else 'changed'} an immutable clip): {rel} — original restored; NOT recorded, will retry next run")
+                    consecutive_bad += 1
+                    fail_bump(failmf, rel)
+                elif rc == 0:
                     if wiki_has_link(config.BRAIN / "wiki", f"[[{src_link}]]"):
                         curate_new_wiki_pages(config.WORKSPACE, src_link, log_path)
                         h = hashlib.sha256((config.RAW / rel).read_bytes()).hexdigest()
@@ -469,6 +500,37 @@ def self_test():
         rc = run(dry_run=False, run_agent_fn=fake_agent_noop)
         check("no-op clip not recorded as ingested",
               not manifest_name_seen(manifest, "2026/W03 Jan 19-23/noop.md"))
+
+        # Immutability: an agent that rewrites (or deletes) its raw clip gets
+        # the original bytes restored and the clip is not recorded. Other
+        # pending clips (noop.md) are ingested normally by the same agent.
+        raw_week4 = _cfg.RAW / "2026" / "W04 Jan 26-30"
+        raw_week4.mkdir(parents=True)
+        victim = raw_week4 / "victim.md"
+        victim.write_bytes(b"original clip bytes\n")
+        doomed = raw_week4 / "doomed.md"
+        doomed.write_bytes(b"deleted by agent\n")
+
+        def fake_agent_mutates(prompt, log=None, brain=None):
+            calls.append(prompt)
+            fake_agent_ok(prompt)
+            if "victim.md" in prompt:
+                victim.chmod(0o644)
+                victim.write_bytes(b"agent rewrote this\n")
+            if "doomed.md" in prompt:
+                doomed.unlink()
+            return 0
+
+        calls.clear()
+        rc = run(dry_run=False, run_agent_fn=fake_agent_mutates)
+        check("mutation run returns 0", rc == 0, rc)
+        check("rewritten raw clip restored byte-for-byte", victim.read_bytes() == b"original clip bytes\n", victim.read_bytes())
+        check("deleted raw clip restored", doomed.is_file() and doomed.read_bytes() == b"deleted by agent\n")
+        check("mutated clip not recorded as ingested", not manifest_name_seen(manifest, "2026/W04 Jan 26-30/victim.md"))
+        check("deleted clip not recorded as ingested", not manifest_name_seen(manifest, "2026/W04 Jan 26-30/doomed.md"))
+        check("mutated clip counted as a failed attempt", fail_attempts_of(_cfg.RAW / ".failed.log", "2026/W04 Jan 26-30/victim.md") == 1)
+        check("mutation logged", "RAW MUTATED" in (_cfg.LOG_DIR / "daily_ingest.log").read_text(encoding="utf-8"))
+        check("well-behaved clip in the same run still ingested", manifest_name_seen(manifest, "2026/W03 Jan 19-23/noop.md"))
 
         # Deep-nesting warning: too-deep.md never gets scanned as a candidate.
         check("nested-too-deep file excluded from candidates",
