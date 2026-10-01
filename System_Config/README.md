@@ -146,12 +146,24 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   its own checks against temp fixtures (including a temp copy of the
   workspace scripts for the auto-init path; the real vault is never
   touched). Called once by `pipeline/run.py` after the coder step completes.
-- **`route_skill.py`** — deterministic keyword/substring skill router (no
-  LLM call). `route_skill.py "<task description>"` (or pipe the task on
-  stdin) scans `skills/*/SKILL.md` frontmatter (`name`/`description` only —
-  ignores Claude-specific fields like `disable-model-invocation`, per
+- **`route_skill.py`** — deterministic relevance-ranked skill router (no
+  LLM call, stdlib only). `route_skill.py "<task description>"` (or pipe the
+  task on stdin) scans `skills/*/SKILL.md` frontmatter (`name`/`description`
+  only — ignores Claude-specific fields like `disable-model-invocation`, per
   `AGENT_AGNOSTIC_REVIEW.md`) and prints matching skill directory paths, one
-  per line. A skill may declare an optional `requires:` frontmatter field
+  per line, most relevant first. Task and skill text are lowercased, split
+  on non-alphanumerics, lightly stemmed (plurals, `-ing`), and filtered
+  through one short `STOPWORDS` list (function words plus generic task
+  verbs/nouns like `write`/`fix`/`page`/`file`); tokens of 2+ chars survive,
+  so `dbt`/`ui`/`css` still count. Each shared token scores its inverse
+  document frequency across the scanned skills (a word in every Figma
+  description counts for little, `wcag` for a lot), x3 when it is one of the
+  skill's own name tokens (frontmatter `name` or dir name), plus a bonus
+  when the whole skill name appears in the task. Skills scoring below
+  `MIN_SCORE` are dropped (only once `MIN_SCORE_SET`+ skills are scanned —
+  a tiny `skills-selected.json` fork routes any token hit); the rest sort by score descending, ties by dir
+  name — so `pipeline/run.py`'s first-N cap keeps the most relevant N.
+  `--verbose` prints each match's score on stderr. A skill may declare an optional `requires:` frontmatter field
   (single-line, comma-separated, e.g. `requires: figma-mcp, some-tool`;
   bracketed `[a, b]` also accepted — multi-line YAML list items are not
   parsed, same limitation as `name`/`description`). `--verbose` reports a
