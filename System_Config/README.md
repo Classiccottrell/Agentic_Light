@@ -210,6 +210,11 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   and `curate <record> --suggest|--review|--apply`. Profiles restrict packet
   context roots and explicit includes; curation proposes links from human
   records and applies only high-confidence links while recording an AI session.
+  `high` means two of the target's title words appear in the record (or its
+  whole one-word title plus two more shared terms); one shared title word is
+  only `medium`, so it is suggested, never applied. Links go under a single
+  `## Related Context` section, writes are atomic, and every `--apply`
+  leaves its own `brain/records/sessions/curation-*.md` record.
 - **`test_context_layer.sh`** — end-to-end fixture covering record validation,
   frontmatter/body links, curation, FTS excerpts, bounded packets, unrelated
   profiles, broken links, duplicate IDs, stale embedding dimensions, Ollama
