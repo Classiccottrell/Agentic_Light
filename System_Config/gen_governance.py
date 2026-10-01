@@ -10,7 +10,7 @@ claim is pulled from a file that already governs real agent behavior.
 
 Sources:
   agents/*.md                     -- per-role scope: frontmatter description
-                                      + granted tools
+                                      + granted tools + declared risk
   System_Config/agent-roster.json -- active roles + capabilities for THIS
                                       fork (absent on an unspecialized fork)
   pipeline/gate-config.json       -- ordered gate list for THIS fork (absent
@@ -69,13 +69,23 @@ def read_frontmatter(path):
     name_m = re.search(r'^name:\s*(.+)$', fm, re.MULTILINE)
     desc_m = re.search(r'^description:\s*(.+)$', fm, re.MULTILINE)
     tools_m = re.search(r'^tools:\s*(.+)$', fm, re.MULTILINE)
+    risk_m = re.search(r'^risk:\s*(.+)$', fm, re.MULTILINE)
     if not name_m:
         return None
     return {
         'name': name_m.group(1).strip(),
         'description': desc_m.group(1).strip() if desc_m else '',
         'tools': tools_m.group(1).strip() if tools_m else '',
+        'risk': risk_label(risk_m.group(1)) if risk_m else 'undeclared',
     }
+
+
+def risk_label(raw):
+    """Render `risk: {read_only: false, destructive: true, ...}` as the
+    flags set to true (`none` when all are false). Strict validation lives
+    in preset_audit.py; this only has to render what is there."""
+    flags = re.findall(r'(\w+)\s*:\s*true\b', raw)
+    return ', '.join(f.replace('_', '-') for f in flags) or 'none'
 
 
 def get_agents():
@@ -128,11 +138,12 @@ def build_roles_block(agents):
     rows = []
     for a in agents:
         rows.append(
-            '| `' + a['name'] + '` | ' + a['description'] + ' | `' + a['tools'] + '` | `' + a['rel'] + '` |'
+            '| `' + a['name'] + '` | ' + a['description'] + ' | `' + a['tools'] + '` | '
+            + a['risk'] + ' | `' + a['rel'] + '` |'
         )
     table = (
-        '| Role | Stated scope (from frontmatter `description`) | Granted tools | Source |\n'
-        '|---|---|---|---|\n' + '\n'.join(rows)
+        '| Role | Stated scope (from frontmatter `description`) | Granted tools | Risk flags | Source |\n'
+        '|---|---|---|---|---|\n' + '\n'.join(rows)
     )
     if not role_notes:
         return table
@@ -240,10 +251,19 @@ does not add new mechanism.
 
 ## 1. Per-Role Scope
 
-Pulled from each role file's own frontmatter (`description` + `tools`) in
-`agents/`. This is the actual grant, not a paraphrase — see the linked file
-for the full rules each role also follows (context discipline, response
-style, hand-off targets).
+Pulled from each role file's own frontmatter (`description` + `tools` +
+`risk`) in `agents/`. This is the actual grant, not a paraphrase — see the
+linked file for the full rules each role also follows (context discipline,
+response style, hand-off targets).
+
+`tools` is what a role *can* call; `risk` is its declared blast radius.
+**Risk flags** lists the flags set to `true` out of `read-only`,
+`destructive` (may delete or overwrite existing work), `idempotent` (a
+re-run with the same inputs leaves the same end state), and
+`external-side-effects` (may act outside the workspace, e.g. open a PR);
+`none` means all four are `false` — a writing, additive, local role.
+`System_Config/preset_audit.py` enforces that every role declares all four
+and that they agree with its `tools` grant.
 
 <!-- gen:roles-start -->
 {roles_block}

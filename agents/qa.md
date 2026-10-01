@@ -2,6 +2,7 @@
 name: qa
 description: Quality-assurance verifier for pull requests against existing, cloned repositories under Agentic_Light/Projects/. Use to run a target repo's own lint/typecheck/unit-test commands, extend or author browser/e2e coverage, and compile a pass/fail QA report before a PR is drafted. Not for implementation (use coder) or for creating branches, commits, or PRs (that stays with the orchestrator's approved flow).
 tools: Read, Glob, Grep, Bash, Write, Edit
+risk: {read_only: false, destructive: false, idempotent: false, external_side_effects: false}
 model: inherit
 ---
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Validate preset rosters without adding a runtime dependency."""
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -12,6 +13,8 @@ ROSTER_SCHEMA = ROOT / "System_Config" / "agent-roster.schema.json"
 KNOWN_GATES = {"eslint", "playwright", "axe", "vpat-lint"}
 KNOWN_ROLES = {p.stem for p in AGENTS.glob("*.md") if p.name != "README.md"}
 FALLBACK_CAPABILITIES = {"read", "write", "shell", "delegate"}
+RISK_KEYS = ("read_only", "destructive", "idempotent", "external_side_effects")
+WRITE_TOOLS = {"Write", "Edit", "Bash", "NotebookEdit"}
 
 
 def known_capabilities():
@@ -25,6 +28,51 @@ def known_capabilities():
         return set(FALLBACK_CAPABILITIES)
 
 
+def frontmatter_field(text, key):
+    """Value of a one-line `key:` field in the leading `---` block, or None."""
+    if not text.startswith("---\n"):
+        return None
+    end = text.find("\n---", 3)
+    block = text[4:end] if end != -1 else ""
+    m = re.search(rf"^{re.escape(key)}:[ \t]*(.*)$", block, re.MULTILINE)
+    return m.group(1).strip() if m else None
+
+
+def agent_risk_errors(path):
+    """Every agent declares `risk: {read_only: .., destructive: ..,
+    idempotent: .., external_side_effects: ..}` -- exactly those four keys,
+    each true/false -- and the flags agree with its `tools:` grant."""
+    text = path.read_text(encoding="utf-8")
+    raw = frontmatter_field(text, "risk")
+    if raw is None:
+        return [f"{path.name}: missing risk metadata"]
+    m = re.fullmatch(r"\{(.*)\}", raw)
+    if not m:
+        return [f"{path.name}: risk must be a one-line {{key: bool, ...}} map, got {raw!r}"]
+    risk = {}
+    for pair in m.group(1).split(","):
+        key, sep, value = (part.strip() for part in pair.partition(":"))
+        if not sep or value not in ("true", "false"):
+            return [f"{path.name}: risk entry {pair.strip()!r} must be `key: true|false`"]
+        if key in risk:
+            return [f"{path.name}: risk repeats {key}"]
+        risk[key] = value == "true"
+    if set(risk) != set(RISK_KEYS):
+        return [f"{path.name}: risk keys {sorted(risk)} != {sorted(RISK_KEYS)}"]
+    errors = []
+    tools = {t.strip() for t in (frontmatter_field(text, "tools") or "").split(",") if t.strip()}
+    writes = bool(tools & WRITE_TOOLS)
+    if risk["read_only"] and writes:
+        errors.append(f"{path.name}: risk read_only=true but tools grant {sorted(tools & WRITE_TOOLS)}")
+    if not risk["read_only"] and not writes:
+        errors.append(f"{path.name}: risk read_only=false but tools grant no write tool")
+    if risk["read_only"] and risk["destructive"]:
+        errors.append(f"{path.name}: risk cannot be both read_only and destructive")
+    if risk["external_side_effects"] and "Bash" not in tools:
+        errors.append(f"{path.name}: risk external_side_effects=true needs Bash in tools")
+    return errors
+
+
 def fail(message):
     print(f"preset_audit: FAIL: {message}", file=sys.stderr)
     return 1
@@ -36,6 +84,9 @@ def audit():
     except Exception as exc:
         return fail(f"cannot read presets.json: {exc}")
     errors = []
+    for path in sorted(AGENTS.glob("*.md")):
+        if path.name != "README.md":
+            errors.extend(agent_risk_errors(path))
     for name, preset in presets.items():
         roles = preset.get("roles")
         if not isinstance(roles, list) or not roles or len(roles) != len(set(roles)):
@@ -88,7 +139,7 @@ def audit():
         for error in errors:
             print(f"preset_audit: FAIL: {error}", file=sys.stderr)
         return 1
-    print(f"preset_audit: PASS: {len(presets)} presets; focused rosters valid")
+    print(f"preset_audit: PASS: {len(presets)} presets; focused rosters valid; {len(KNOWN_ROLES)} agents declare risk")
     return 0
 
 
