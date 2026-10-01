@@ -201,8 +201,11 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
 - **`context_validate.py`** / **`context_catalog.py`** — validate typed
   `brain/records/` Markdown and build disposable `brain/index/catalog.json`
   and `brain/index/links.json` projections. Markdown stays canonical; broken
-  links, duplicate IDs, missing provenance, and invalid record sections fail
-  validation.
+  body wikilinks, unresolved `related:` ids, duplicate IDs, and invalid
+  record sections fail validation, as does provenance that is missing, names
+  a path that doesn't exist, or escapes the workspace (`http(s)://`-style
+  URL sources are accepted as-is). Frontmatter lists may be inline
+  (`[a, b]`) or block (`key:` then `  - item` lines).
 - **`context.py`** — app-agnostic entrypoint: `validate`, `catalog`, `packet`,
   and `curate <record> --suggest|--review|--apply`. Profiles restrict packet
   context roots and explicit includes; curation proposes links from human

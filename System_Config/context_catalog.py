@@ -8,7 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from context_validate import LINK_RE, parse_frontmatter, record_paths, validate
+from context_validate import LINK_RE, parse_frontmatter, record_paths, related_targets, validate
 
 
 def excerpt(body, limit=280):
@@ -55,13 +55,8 @@ def links(root, docs):
         for target in LINK_RE.findall(body):
             target = target.strip()
             output.append({"source": item["path"], "target": by_id.get(target, target), "relation": "related", "origin": "body", "confidence": 1.0 if target in by_id else 0.0})
-        for field in ("related", "source"):
-            values = meta.get(field, [])
-            if not isinstance(values, list):
-                values = [values]
-            for target in LINK_RE.findall(" ".join(str(value) for value in values)):
-                target = target.strip()
-                output.append({"source": item["path"], "target": by_id.get(target, target), "relation": field, "origin": "frontmatter", "confidence": 1.0 if target in by_id else 0.0})
+        for target in related_targets(meta):
+            output.append({"source": item["path"], "target": by_id.get(target, target), "relation": "related", "origin": "frontmatter", "confidence": 1.0 if target in by_id else 0.0})
     return output
 
 

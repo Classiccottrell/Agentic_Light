@@ -30,7 +30,8 @@ for readable connections and frontmatter relations for machine retrieval.
 
 - Human prose is never silently replaced.
 - Raw captures remain immutable.
-- Claims and learnings carry at least one source path.
+- Claims and learnings carry at least one source: a workspace path that
+  exists, or a URL. `related:` entries must name existing records.
 - AI curation defaults to a reviewable proposal.
 - Stale or conflicting knowledge is marked, not deleted.
 - Run `python3 System_Config/context_validate.py validate brain/records` before committing.
