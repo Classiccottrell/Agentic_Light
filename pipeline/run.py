@@ -6,6 +6,8 @@ Usage: run.py "<task description>" [target-repo-path]
   against an EXTERNAL target repo, not against Agentic_Light itself.
 """
 import argparse
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -21,6 +23,7 @@ import config              # noqa: E402  resolve_agent_provider(), acquire_lock(
 import run_agent as ra     # noqa: E402  run_agent()
 import route_skill         # noqa: E402  route() — imported and called directly, not subprocessed (nothing overrides it via env var)
 import context_packet      # noqa: E402  build_packet() — same reasoning
+import prompt_assembly     # noqa: E402  assemble(), check_launch() — the role launch contract
 
 PIPELINE_DIR = ROOT / "pipeline"
 LIB = PIPELINE_DIR / "lib"
@@ -68,6 +71,50 @@ class Tee:
     @property
     def log_f(self):
         return self._log_f
+
+
+class EventLog:
+    """Provider-neutral audit trail for one run: JSON Lines appended to
+    pipeline/logs/<run-id>.events.jsonl. The launcher's record of truth —
+    log_session.py's weekly-note line is compatibility output, and provider
+    hooks may only adapt to this file. Best-effort by contract: a failed
+    write warns once on stderr and never changes the pipeline's outcome.
+    Callers pass explicit fields only — never the environment, the prompt,
+    or the diff."""
+
+    def __init__(self, path, run_id):
+        self.path = path
+        self.run_id = run_id
+        self._warned = False
+
+    def emit(self, event, **fields):
+        record = {"v": 1, "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                  "run_id": self.run_id, "event": event, **fields}
+        try:
+            with open(self.path, "a", encoding="utf-8", newline="\n") as f:
+                f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+        except Exception as e:  # noqa: BLE001 — audit writes must never fail the run
+            if not self._warned:
+                self._warned = True
+                print(f"WARNING: audit events not written to {self.path} ({type(e).__name__}) — continuing.", file=sys.stderr)
+
+
+def _events_path(run_id):
+    """pipeline/logs/<run-id>.events.jsonl; AGENTIC_LIGHT_EVENTS_PATH
+    overrides it only under AGENTIC_LIGHT_TEST_MODE=1 (same test-only
+    contract as PIPELINE_HUMAN_GATE_CMD)."""
+    override = os.environ.get("AGENTIC_LIGHT_EVENTS_PATH")
+    if override and os.environ.get("AGENTIC_LIGHT_TEST_MODE") == "1":
+        return Path(override)
+    return PIPELINE_DIR / "logs" / f"{run_id}.events.jsonl"
+
+
+def _resolve_provider_quietly():
+    """Provider run_agent() will pick, for the audit trail and capability
+    check. resolve_agent_provider() is idempotent and run_agent() re-runs it
+    (and prints its own errors) at launch, so its stderr is muted here."""
+    with contextlib.redirect_stderr(io.StringIO()):
+        return config.AGENT_PROVIDER if config.resolve_agent_provider() else None
 
 
 def _child_env():
@@ -261,14 +308,36 @@ def _run(task_desc, target_repo):
     tee = Tee(log_f, real_stdout)
     sys.stdout = tee
     sys.stderr = Tee(log_f, real_stderr)
+    events = EventLog(_events_path(run_id), run_id)
+    # stage: last step reached; pr_done: a "pr" event was already emitted.
+    state = {"stage": "start", "pr_done": False}
+    rc = None
     try:
-        return _run_body(task_desc, target_repo, run_id, run_log_path, branch_name)
+        rc = _run_body(task_desc, target_repo, run_id, run_log_path, branch_name, events, state)
+        return rc
     finally:
+        if not state["pr_done"]:
+            events.emit("pr", created=False, reason=f"run halted at {state['stage']}")
+        events.emit("run_end", exit_code=rc, stage=state["stage"],
+                    status="error" if rc is None else "pass" if rc == 0
+                    else "pending" if rc == 2 and state["stage"] == "human_gate" else "fail")
         sys.stdout, sys.stderr = real_stdout, real_stderr
         log_f.close()
 
 
-def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
+def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name, events, state):
+    coder_cmd = os.environ.get("PIPELINE_CODER_CMD")
+    provider = "override" if coder_cmd else _resolve_provider_quietly()
+    events.emit("run_start", task=task_desc, target_repo=str(target_repo), branch=branch_name,
+                provider=provider, role="coder", preset=prompt_assembly.active_preset(ROOT),
+                log=str(run_log_path))
+
+    def preflight_fail(check, msg):
+        print(msg)
+        events.emit("preflight", result="fail", check=check)
+        return 1
+
+    state["stage"] = "preflight"
     print("=" * 50)
     print(" Agentic Light Pipeline — run " + run_id)
     print(" Task:        " + task_desc)
@@ -285,8 +354,16 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
         try:
             gates_from_config = validate_gate_config(gate_config_path, ROOT / "System_Config" / "gate-config.schema.json")
         except ValueError as e:
-            print(str(e))
-            return 1
+            return preflight_fail("gate_config", str(e))
+
+    # Roster/capability enforcement — before any branch exists or the coder
+    # runs. No System_Config/agent-roster.json = no check (unspecialized fork).
+    try:
+        roster_info = prompt_assembly.check_launch("coder", None if provider == "override" else provider)
+    except ValueError as e:
+        return preflight_fail("roster", str(e))
+    if roster_info["roster"] == "present":
+        print(f"-> [0] Roster check: coder active; capability check: {roster_info['capability_check']}")
 
     print(f"-> [0] Pre-flight sensitive-file scan: {target_repo}")
     hits = _sensitive_hits(target_repo)
@@ -297,20 +374,22 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
         if os.environ.get("AGENTIC_LIGHT_ALLOW_SENSITIVE_REPO") != "1":
             print("FAILED: refusing to launch the coder with these files present in its cwd (advisory filename screening, not a security boundary) — its Read/Grep tools have no path restriction beyond cwd.")
             print("  Set AGENTIC_LIGHT_ALLOW_SENSITIVE_REPO=1 to proceed anyway (e.g. once you've confirmed these are dummy/fixture files).")
+            events.emit("preflight", result="fail", check="sensitive_files")
             return 1
         print("  AGENTIC_LIGHT_ALLOW_SENSITIVE_REPO=1 set — proceeding despite the match(es) above.")
     print()
 
     git = shutil.which("git")
     if git is None:
-        print("FAILED: git not found on PATH")
-        return 1
+        return preflight_fail("git", "FAILED: git not found on PATH")
 
     print("-> [1] Code patch step")
     staged = subprocess.run([git, "-C", str(target_repo), "diff", "--cached", "--quiet"], encoding="utf-8")
     if staged.returncode != 0:
-        print(f"FAILED: {target_repo} has staged changes before the pipeline started — refusing to run. Commit or unstage them first; this pipeline assumes a clean index so its own rollback/commit steps don't touch changes it doesn't own.")
-        return 1
+        return preflight_fail("clean_index", f"FAILED: {target_repo} has staged changes before the pipeline started — refusing to run. Commit or unstage them first; this pipeline assumes a clean index so its own rollback/commit steps don't touch changes it doesn't own.")
+    events.emit("preflight", result="pass", roster=roster_info, sensitive_files=len(hits))
+
+    state["stage"] = "branch"
 
     print(f"  creating feature branch: {branch_name}")
     branch = subprocess.run([git, "-C", str(target_repo), "checkout", "-b", branch_name], encoding="utf-8")
@@ -322,20 +401,24 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
     skill_match_limit, warn = _env_nonneg_int("AGENTIC_LIGHT_SKILL_MATCH_LIMIT", 3)
     if warn:
         print(warn, file=sys.stderr)
-    skill_context = ""
+    skill_texts = []
+    routed = []
     try:
-        matched_skills = route_skill.route(task_desc)
+        matched_skills = route_skill.route_scored(task_desc)
     except Exception:
         matched_skills = []
-    for i, skill_dir in enumerate(matched_skills, start=1):
+    for i, (skill_dir, score) in enumerate(matched_skills, start=1):
         skill_md = skill_dir / "SKILL.md"
         if not skill_md.is_file():
             continue
-        if i > skill_match_limit:
+        injected = i <= skill_match_limit
+        routed.append({"skill": skill_dir.name, "score": round(score, 4), "injected": injected})
+        if not injected:
             print(f"  routed skill: {skill_dir} (skipped — over {skill_match_limit}-match cap)")
             continue
         print(f"  routed skill: {skill_dir}")
-        skill_context += skill_md.read_text(encoding="utf-8") + "\n"
+        skill_texts.append(skill_md.read_text(encoding="utf-8"))
+    events.emit("skills_routed", cap=skill_match_limit, skills=routed)
 
     # Context packet — opt-in only (see context_packet.py's module docstring).
     context_packet_text = ""
@@ -352,10 +435,11 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
         except Exception:
             context_packet_text = ""
 
+    state["stage"] = "coder"
     coder_rc = 0
-    coder_cmd = os.environ.get("PIPELINE_CODER_CMD")
     if coder_cmd:
         print(f"  using PIPELINE_CODER_CMD override: {coder_cmd}")
+        events.emit("coder_launch", provider="override", role="coder", via="PIPELINE_CODER_CMD")
         coder_rc = _dispatch(coder_cmd, [task_desc, str(target_repo)])
         coder_provider = os.environ.get("AGENT_PROVIDER") or "override"
     else:
@@ -366,11 +450,11 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
         # guard; splitting it across adjacent string literals would still
         # concatenate correctly at runtime but would break that source-text
         # search.
-        prompt = f"Target repo: {target_repo}. Task: {task_desc}. Implement the change on the current branch. Do not run shell commands, create branches, or commit — the pipeline handles all git operations."
-        if skill_context:
-            prompt = f"Relevant skill guidance:\n{skill_context}\n{prompt}"
-        if context_packet_text:
-            prompt = f"Resume context packet:\n{context_packet_text}\n\n{prompt}"
+        task_block = f"Target repo: {target_repo}. Task: {task_desc}. Implement the change on the current branch. Do not run shell commands, create branches, or commit — the pipeline handles all git operations."
+        sections = prompt_assembly.assemble_sections("coder", task_block, skill_texts, context_packet_text, ROOT)
+        prompt = prompt_assembly.assemble("coder", task_block, skill_texts, context_packet_text, ROOT)
+        events.emit("coder_launch", provider=provider, role="coder", via="run_agent",
+                    prompt_sections=[{"name": n, "bytes": len(c.encode("utf-8"))} for n, c in sections])
         coder_rc = ra.run_agent(prompt, log=str(run_log_path), brain=str(target_repo))
         coder_provider = config.AGENT_PROVIDER or "unknown"
 
@@ -378,7 +462,10 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
                      "--provider", coder_provider, "--role", "coder",
                      "--status", str(coder_rc), "--reason", reason_for_status(coder_rc, coder_provider)],
                     env=_child_env())
+    events.emit("coder_exit", provider=coder_provider, status=coder_rc,
+                reason=reason_for_status(coder_rc, coder_provider))
 
+    state["stage"] = "commit"
     if coder_rc != 0:
         print(f"FAILED: code patch step (coder exited {coder_rc})")
         return 1
@@ -415,10 +502,18 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
     print()
 
     # Gates — hard stop, no further steps, on any gate failure.
+    state["stage"] = "gates"
+
+    def gate_event(n, gate, rc):
+        events.emit("gate", n=n, gate=gate if isinstance(gate, str) else "custom",
+                    script=None if isinstance(gate, str) else gate.get("script"),
+                    rc=rc, result="pass" if rc == 0 else "fail")
+
     if gates_from_config is not None:
         print("-> [2] Gates (from pipeline/gate-config.json)")
         for n, gate in enumerate(gates_from_config, start=1):
             rc = run_gate(gate, n, target_repo)
+            gate_event(n, gate, rc)
             if rc != 0:
                 label = gate if isinstance(gate, str) else "custom"
                 print(f"FAILED: gate {n} ({label}) — halting, no further steps, no PR will be created")
@@ -426,16 +521,21 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
             print()
     else:
         print("-> [2] Gates (no gate-config.json found — using default eslint+playwright)")
-        if run_gate("eslint", 1, target_repo) != 0:
+        rc = run_gate("eslint", 1, target_repo)
+        gate_event(1, "eslint", rc)
+        if rc != 0:
             print("FAILED: ESLint gate — halting, no further steps, no PR will be created")
             return 1
         print()
-        if run_gate("playwright", 2, target_repo) != 0:
+        rc = run_gate("playwright", 2, target_repo)
+        gate_event(2, "playwright", rc)
+        if rc != 0:
             print("FAILED: Playwright gate — halting, no further steps, no PR will be created")
             return 1
         print()
 
     # Human Gate — blocks on TTY y/N; never auto-approves.
+    state["stage"] = "human_gate"
     print("-> [3] Human gate")
     summary = (f"Task: {task_desc}\nTarget repo: {target_repo}\nBranch:      {branch_name}\n"
                "Gates: passed/skipped (see log above)\n\n"
@@ -449,6 +549,8 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
         else:
             print("WARNING: PIPELINE_HUMAN_GATE_CMD is set but AGENTIC_LIGHT_TEST_MODE=1 is not — ignoring override, using the real human gate (PIPELINE_HUMAN_GATE_CMD is test-only).", file=sys.stderr)
     gate_rc = _dispatch(human_gate_cmd, [summary])
+    events.emit("human_gate", rc=gate_rc,
+                decision={0: "approved", 2: "pending"}.get(gate_rc, "declined"))
 
     if gate_rc == 0:
         print("  human gate: APPROVED")
@@ -467,12 +569,17 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
     # (the last command run is a successful `echo`), never pr_create's own
     # code. Mirror both halves explicitly rather than always returning
     # pr_create's return code.
+    state["stage"] = "pr"
     print("-> [4] PR creation")
     # --confirmed must be the LAST argv element — see pr_create.py's module
     # docstring on the argparse chunk-matching quirk this order avoids.
     pr_rc = _dispatch(LIB / "pr_create.py", [str(target_repo), task_desc, "--confirmed"])
+    state["pr_done"] = True
+    events.emit("pr", created=pr_rc == 0, rc=pr_rc,
+                reason=None if pr_rc == 0 else "pr_create.py failed")
     if pr_rc != 0:
         return pr_rc
+    state["stage"] = "done"
     print()
     print("=" * 50)
     print(f" Pipeline complete — run {run_id}")

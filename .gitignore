@@ -12,6 +12,7 @@ System_Config/.notify.env
 # Runtime logs
 System_Config/logs/*.log
 pipeline/logs/*.log
+pipeline/logs/*.events.jsonl
 
 # OS cruft
 .DS_Store

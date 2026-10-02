@@ -25,7 +25,8 @@ Sources:
                                       an optional per-role `role_notes`
                                       overlay, rendered additively alongside
                                       each role's generic scope in agents/*.md
-  pipeline/README.md, System_Config/log_session.py, System_Config/healthcheck.py
+  pipeline/README.md, System_Config/log_session.py, System_Config/healthcheck.py,
+  System_Config/prompt_assembly.py
                                       -- referenced, not parsed; the flow/
                                       logging/security text below is fixed
                                       policy prose describing what those
@@ -277,7 +278,38 @@ rally/broadcast agent.
 `pipeline/run.py` itself invokes — see `agents/README.md`'s "`qa` /
 `eng-manager` are not part of `pipeline/run.py`" section.
 
-## 2. The Human Sign-Off Gate
+## 2. Delegation Doctrine — Inline vs. Delegated
+
+What the code actually does, not an aspiration:
+
+- **One launched role.** `pipeline/run.py` launches exactly one agent, the
+  `coder`, in the foreground, through one provider, with no retry and no
+  mid-run provider handoff. Its prompt is assembled by
+  `System_Config/prompt_assembly.py` in a fixed order — role contract
+  (`agents/coder.md` body plus the active preset's `role_notes` line), routed
+  skills, the opt-in context packet, then the task with the launcher's
+  constraints, which win wherever the earlier sections disagree. The same
+  text goes to every provider.
+- **Everything else stays inline in the launcher.** Branching, staging,
+  commits, the secret scan, every gate, the human gate and PR creation run
+  in `pipeline/run.py` itself, never inside the agent. The coder is told not
+  to run shell commands or touch git, and the Claude adapter enforces that
+  with its tool deny-list.
+- **The other roles are scope declarations.** `architect`, `qa`,
+  `eng-manager`, `curator` and `creative-director` are dispatched by a human
+  or an orchestrating session, as separate invocations, never by the
+  pipeline. Their hand-off target is `role_handoff` in
+  `System_Config/presets.json` (when the active preset declares one) or the
+  role file's own text; artifacts pass through files and reports, not a
+  provider's subagent tool. Delegate when the work needs that role's scope;
+  keep a single-file or read-only lookup inline.
+- **Launch is gated by the roster.** When `System_Config/agent-roster.json`
+  exists, the launcher refuses, before any branch is created, to launch a
+  role that is inactive in it or whose declared capabilities the selected
+  provider adapter does not grant (`prompt_assembly.PROVIDER_CAPABILITIES`).
+  `risk` flags stay informational at launch.
+
+## 3. The Human Sign-Off Gate
 
 **No code produced by this system reaches a pull request without an
 explicit human approval.** This is the governance checkpoint of the whole
@@ -298,28 +330,36 @@ pipeline, enforced structurally, not by convention:
   hard-stops before this step; see `pipeline/README.md`'s "Halt-on-failure
   guarantee" and "Human Gate exit codes".
 - Every configured gate (ESLint/Playwright/axe, or the fork's own
-  `gate-config.json` list — see §4 below) must pass, or be skipped via its
+  `gate-config.json` list — see §5 below) must pass, or be skipped via its
   own documented no-op condition, **before** the human ever sees the diff.
   A failing gate is a hard stop, not a warning shown alongside the PR.
 
-## 3. Audit Trail — What Gets Logged, and Where
+## 4. Audit Trail — What Gets Logged, and Where
 
-- **`System_Config/log_session.py`** — called exactly once per coder
-  invocation, after the coder step, regardless of outcome (success, watchdog
-  timeout, or an Ollama write-workflow refusal). Appends one line —
-  provider, role, exit status, reason — under `## Agent Sessions` in the
-  current ISO week's weekly note (`brain/weekly_logs/YYYY/YYYY-Www.md`).
-  This is the append-only session record: every coder invocation, whether
-  it made it to a PR or not, leaves a trace.
+- **`pipeline/logs/<run-id>.events.jsonl`** — the audit trail of record.
+  `pipeline/run.py` appends one JSON object per line for the run: start
+  (task, target repo, branch, provider, role, preset), preflight result,
+  routed skills with scores, coder launch and exit, each gate result, the
+  human-gate decision, PR creation or the reason none was created, and run
+  end. It is written by the launcher, so it is the same for every provider;
+  provider-native hooks may adapt to it but are never its source. Writes are
+  best-effort (a failed write warns and never fails the run) and carry no
+  environment, prompt or diff.
+- **`System_Config/log_session.py`** — compatibility output, called exactly
+  once per coder invocation, after the coder step, regardless of outcome
+  (success, watchdog timeout, or an Ollama write-workflow refusal). Appends
+  one line — provider, role, exit status, reason — under `## Agent Sessions`
+  in the current ISO week's weekly note
+  (`brain/weekly_logs/YYYY/YYYY-Www.md`).
 - **`pipeline/logs/<run-id>.log`** — the full run, gate output included, is
-  teed to a per-run log file (`RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"`). This is
-  the gate-run history: what ran, in what order, and whether it passed.
+  teed to a per-run log file (run id `YYYYmmdd-HHMMSS-<pid>`). This is the
+  human-readable transcript: what ran, in what order, and its output.
 - **`System_Config/healthcheck.py`**'s "Pipeline Logs" layer reports log
   recency (WARN on a fresh scaffold with zero runs yet, PASS once any exist)
   so a stalled/idle pipeline is visible in the health dashboard, not just in
   a directory listing.
 
-## 4. Gate Policy — This Fork's Current State
+## 5. Gate Policy — This Fork's Current State
 
 Reflects the actual specialization state of **this** clone/fork, not a
 generic description — regenerated from `System_Config/agent-roster.json`
@@ -334,7 +374,7 @@ Run `python3 System_Config/specialize.py --preset <name>` (see
 roles/gates, then re-run `python3 System_Config/gen_governance.py` to
 refresh this section.
 
-## 5. Config Security
+## 6. Config Security
 
 `System_Config/healthcheck.py`'s **Layer G — Config Security Scan** is part
 of this governance layer, not a separate concern: it greps the project's own
@@ -356,7 +396,7 @@ section of the generated `microsite/health.html`.
 - `System_Config/README.md` — script-by-script reference, including
   `healthcheck.py` and `log_session.py`.
 - `System_Config/agent-roster.schema.json` / `gate-config.schema.json` —
-  the schemas §1/§4 validate against.
+  the schemas §1/§5 validate against.
 """
 
 

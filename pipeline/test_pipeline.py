@@ -58,7 +58,11 @@ REAL_GATE_CONFIG = ROOT / "pipeline" / "gate-config.json"
 GATE_CONFIG_BACKUP = TMP_ROOT / "gate-config.json.bak"
 GATE_CONFIG_TOUCHED = [False]
 
-PRE_LOGS = set((ROOT / "pipeline" / "logs").glob("*.log"))
+REAL_ROSTER = ROOT / "System_Config" / "agent-roster.json"
+ROSTER_BACKUP = TMP_ROOT / "agent-roster.json.bak"
+ROSTER_TOUCHED = [False]
+
+PRE_LOGS = set((ROOT / "pipeline" / "logs").glob("*.log")) | set((ROOT / "pipeline" / "logs").glob("*.events.jsonl"))
 
 
 def write_fake(path, body):
@@ -205,15 +209,62 @@ def restore_gate_config():
     GATE_CONFIG_TOUCHED[0] = False
 
 
+def set_roster(roles):
+    if REAL_ROSTER.is_file() and not ROSTER_TOUCHED[0]:
+        shutil.copy(REAL_ROSTER, ROSTER_BACKUP)
+    ROSTER_TOUCHED[0] = True
+    REAL_ROSTER.write_text(json.dumps({"roles": roles}), encoding="utf-8")
+
+
+def restore_roster():
+    if not ROSTER_TOUCHED[0]:
+        return
+    if ROSTER_BACKUP.is_file():
+        shutil.move(str(ROSTER_BACKUP), str(REAL_ROSTER))
+    else:
+        REAL_ROSTER.unlink(missing_ok=True)
+    ROSTER_TOUCHED[0] = False
+
+
 def cleanup():
     restore_gate_config()
+    restore_roster()
     try:
         rmtree_force(TMP_ROOT)
     except OSError:
         pass
-    for f in (ROOT / "pipeline" / "logs").glob("*.log"):
+    logs = ROOT / "pipeline" / "logs"
+    for f in list(logs.glob("*.log")) + list(logs.glob("*.events.jsonl")):
         if f not in PRE_LOGS:
             f.unlink()
+
+
+def run_direct(repo, extra_env=None, task="task"):
+    """Drive the REAL run_agent.py path against the fake `claude` (argv ->
+    $CALLS9) instead of PIPELINE_CODER_CMD, so the assembled prompt and the
+    provider capability check are both exercised."""
+    env = dict(BASE_ENV)
+    env.pop("AGENT_TYPE", None)
+    env.pop("PIPELINE_CODER_CMD", None)
+    env["PATH"] = f"{FAKE_BIN}{os.pathsep}{env.get('PATH', '')}"
+    env["CALLS9"] = str(CALLS9)
+    env["MAX_SECONDS"] = "3"
+    env["AGENTIC_LIGHT_PROVIDERS"] = "claude"
+    env["AGENTIC_LIGHT_PRIORITY"] = "claude"
+    env["AGENTIC_LIGHT_TEST_MODE"] = "1"
+    env["PIPELINE_HUMAN_GATE_CMD"] = str(APPROVE_STUB)
+    env["LOG_SESSION_NOTE"] = str(LOG_SESSION_NOTE)
+    env["PYTHONUTF8"] = "1"
+    env.update(extra_env or {})
+    return subprocess.run([sys.executable, str(RUN), task, str(repo)],
+                           capture_output=True, encoding="utf-8", errors="replace", env=env)
+
+
+def read_events(path):
+    path = Path(path)
+    if not path.is_file():
+        return []
+    return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
 
 
 def add_package_json(repo, scripts):
@@ -282,6 +333,7 @@ def fixture_1():
     check("fixture1: summary shows PATCHED.txt", "PATCHED.txt" in out)
     note_text = LOG_SESSION_NOTE.read_text(encoding="utf-8")
     check("fixture1: session logged exactly once", note_text.count("/ coder — exit 0 (exit)") == 1, note_text)
+    check("fixture1: no roster -> no roster check line", "Roster check" not in out, out)
     print("fixture 1 (normal pass): PASS")
 
 
@@ -475,31 +527,15 @@ def fixture_9():
     repo9 = new_target_repo("repo9")
     repo9_p = str(Path(os.path.abspath(repo9)))
 
-    def run_direct(extra_env):
-        env = dict(BASE_ENV)
-        env.pop("AGENT_TYPE", None)
-        env["PATH"] = f"{FAKE_BIN}{os.pathsep}{env.get('PATH', '')}"
-        env["CALLS9"] = str(CALLS9)
-        env["MAX_SECONDS"] = "3"
-        env["AGENTIC_LIGHT_PROVIDERS"] = "claude"
-        env["AGENTIC_LIGHT_PRIORITY"] = "claude"
-        env["AGENTIC_LIGHT_TEST_MODE"] = "1"
-        env["PIPELINE_HUMAN_GATE_CMD"] = str(APPROVE_STUB)
-        env["LOG_SESSION_NOTE"] = str(LOG_SESSION_NOTE)
-        env["PYTHONUTF8"] = "1"
-        env.update(extra_env)
-        return subprocess.run([sys.executable, str(RUN), "task", str(repo9)],
-                               capture_output=True, encoding="utf-8", errors="replace", env=env)
-
     CALLS9.write_text("", encoding="utf-8")
-    proc9a = run_direct({})
+    proc9a = run_direct(repo9)
     calls9_text = CALLS9.read_text(encoding="utf-8") if CALLS9.exists() else ""
     check("fixture9a: coder stub invoked with real prompt", f"Target repo: {repo9_p}" in calls9_text, calls9_text)
     check("fixture9a: context packet absent by default", "Resume context packet:" not in calls9_text, calls9_text)
     print("fixture 9a (context packet absent by default): PASS")
 
     CALLS9.write_text("", encoding="utf-8")
-    proc9b = run_direct({"AGENTIC_LIGHT_CONTEXT_PACKET": "1"})
+    proc9b = run_direct(repo9, {"AGENTIC_LIGHT_CONTEXT_PACKET": "1"})
     calls9_text = CALLS9.read_text(encoding="utf-8") if CALLS9.exists() else ""
     check("fixture9b: coder stub invoked with real prompt", f"Target repo: {repo9_p}" in calls9_text, calls9_text)
     check("fixture9b: context packet present with opt-in flag", "Resume context packet:" in calls9_text, calls9_text)
@@ -598,6 +634,132 @@ def fixture_10():
     restore_gate_config()
 
 
+def fixture_11():
+    # Prompt-assembly contract: four delimited sections in fixed order, and
+    # agents/coder.md's body (frontmatter stripped) actually reaches the
+    # provider argv.
+    import prompt_assembly
+    repo11 = new_target_repo("repo11")
+    CALLS9.write_text("", encoding="utf-8")
+    run_direct(repo11, {"AGENTIC_LIGHT_CONTEXT_PACKET": "1"}, task="fix the login form accessibility")
+    sent = CALLS9.read_text(encoding="utf-8") if CALLS9.exists() else ""
+    idx = [sent.find(f"----- BEGIN {n} -----") for n in prompt_assembly.SECTION_ORDER]
+    check("fixture11: all four sections present", all(i >= 0 for i in idx), (idx, sent[:400]))
+    check("fixture11: sections in contract order", idx == sorted(idx), idx)
+    body = prompt_assembly.strip_frontmatter((ROOT / "agents" / "coder.md").read_text(encoding="utf-8")).strip()
+    check("fixture11: coder.md body injected", body.splitlines()[0] in sent and body.splitlines()[-1] in sent, sent[:400])
+    check("fixture11: coder.md frontmatter not injected", "model: inherit" not in sent, sent[:400])
+    task_at = sent.find("----- BEGIN TASK -----")
+    check("fixture11: precedence line inside TASK", sent.find(prompt_assembly.PRECEDENCE_LINE) > task_at > 0, sent[task_at:task_at + 300])
+    check("fixture11: git-ops constraint inside TASK", sent.find("the pipeline handles all git operations") > task_at, sent[task_at:task_at + 300])
+    print("fixture 11 (prompt-assembly contract: order + role body): PASS")
+
+
+def fixture_12():
+    # 12a: inactive coder -> FAILED before branch creation and before the
+    # coder runs (override stub would write PATCHED.txt).
+    set_roster({"coder": {"active": False}})
+    repo12a = new_target_repo("repo12a")
+    reset_calls()
+    proc = run_pipeline("task", repo12a, human_gate_cmd=APPROVE_STUB)
+    out = proc.stdout + proc.stderr
+    check("fixture12a: rc == 1", proc.returncode == 1, proc.returncode)
+    check("fixture12a: FAILED not active", "FAILED: role 'coder' is not active" in out, out)
+    check("fixture12a: no branch created", git_current_branch(repo12a) == "main", git_current_branch(repo12a))
+    check("fixture12a: coder never ran", not (repo12a / "PATCHED.txt").exists())
+    check("fixture12a: gh never called", not calls_nonempty())
+    print("fixture 12a (inactive coder refused pre-launch): PASS")
+
+    # 12b: coder declares `shell`; the claude adapter disallows Bash ->
+    # FAILED pre-launch, provider never invoked.
+    set_roster({"coder": {"active": True, "capabilities": ["read", "write", "shell"]}})
+    repo12b = new_target_repo("repo12b")
+    CALLS9.write_text("", encoding="utf-8")
+    proc = run_direct(repo12b)
+    out = proc.stdout + proc.stderr
+    check("fixture12b: rc == 1", proc.returncode == 1, proc.returncode)
+    check("fixture12b: FAILED capability", "does not grant" in out and "'shell'" in out, out)
+    check("fixture12b: no branch created", git_current_branch(repo12b) == "main", git_current_branch(repo12b))
+    check("fixture12b: provider never invoked", CALLS9.read_text(encoding="utf-8") == "", CALLS9.read_text(encoding="utf-8"))
+    print("fixture 12b (unsatisfiable capability refused pre-launch): PASS")
+
+    # 12c: satisfiable capabilities -> check passes and the coder launches.
+    set_roster({"coder": {"active": True, "capabilities": ["read", "write"]}})
+    repo12c = new_target_repo("repo12c")
+    CALLS9.write_text("", encoding="utf-8")
+    proc = run_direct(repo12c)
+    out = proc.stdout + proc.stderr
+    check("fixture12c: capability check pass", "capability check: pass" in out, out)
+    check("fixture12c: provider invoked", CALLS9.read_text(encoding="utf-8") != "")
+    print("fixture 12c (satisfiable capabilities launch): PASS")
+
+    # 12d: invalid roster JSON -> FAILED pre-launch, like gate-config.
+    REAL_ROSTER.write_text("{not json", encoding="utf-8")
+    repo12d = new_target_repo("repo12d")
+    proc = run_pipeline("task", repo12d, human_gate_cmd=APPROVE_STUB)
+    out = proc.stdout + proc.stderr
+    check("fixture12d: rc == 1", proc.returncode == 1, proc.returncode)
+    check("fixture12d: FAILED roster JSON", "agent-roster.json is not readable JSON" in out, out)
+    check("fixture12d: no branch created", git_current_branch(repo12d) == "main")
+    print("fixture 12d (unreadable roster refused pre-launch): PASS")
+    restore_roster()
+
+
+def fixture_13():
+    # 13a: passing run writes the default-path events file with the full
+    # sequence, next to the run log.
+    repo13a = new_target_repo("repo13a")
+    reset_calls()
+    proc = run_pipeline("add a widget", repo13a, human_gate_cmd=APPROVE_STUB)
+    out = proc.stdout + proc.stderr
+    log_line = next((l for l in out.splitlines() if l.startswith(" Log:")), "")
+    events_path = Path(log_line.split(":", 1)[1].strip()[:-len(".log")] + ".events.jsonl") if log_line else Path("")
+    ev = read_events(events_path)
+    seq = [e["event"] for e in ev]
+    want = ["run_start", "preflight", "skills_routed", "coder_launch", "coder_exit",
+            "gate", "gate", "human_gate", "pr", "run_end"]
+    check("fixture13a: rc == 0", proc.returncode == 0, proc.returncode)
+    check("fixture13a: event sequence", seq == want, seq)
+    check("fixture13a: one run id", len({e.get("run_id") for e in ev}) == 1, ev)
+    if seq == want:
+        check("fixture13a: run_start fields", ev[0]["task"] == "add a widget" and ev[0]["role"] == "coder"
+              and ev[0]["branch"].startswith("agentic-light/"), ev[0])
+        check("fixture13a: preflight pass", ev[1]["result"] == "pass", ev[1])
+        check("fixture13a: human gate approved", ev[7]["decision"] == "approved", ev[7])
+        check("fixture13a: pr created", ev[8]["created"] is True, ev[8])
+        check("fixture13a: run_end pass", ev[9]["status"] == "pass" and ev[9]["exit_code"] == 0, ev[9])
+    check("fixture13a: no env dumped", "PATH" not in events_path.read_text(encoding="utf-8") if events_path.is_file() else False)
+    print("fixture 13a (events file, passing run): PASS")
+
+    # 13b: gate failure -> gate fail, no PR with a reason, run_end fail.
+    repo13b = new_target_repo("repo13b")
+    add_package_json(repo13b, {"lint": "exit 1"})
+    events13b = TMP_ROOT / "events13b.jsonl"
+    proc = run_pipeline("task", repo13b, human_gate_cmd=APPROVE_STUB,
+                        extra_env={"AGENTIC_LIGHT_EVENTS_PATH": str(events13b)})
+    ev = read_events(events13b)
+    seq = [e["event"] for e in ev]
+    want = ["run_start", "preflight", "skills_routed", "coder_launch", "coder_exit", "gate", "pr", "run_end"]
+    check("fixture13b: rc == 1", proc.returncode == 1, proc.returncode)
+    check("fixture13b: event sequence", seq == want, seq)
+    if seq == want:
+        check("fixture13b: gate fail", ev[5]["gate"] == "eslint" and ev[5]["result"] == "fail", ev[5])
+        check("fixture13b: no PR, reason given", ev[6]["created"] is False and "gates" in ev[6]["reason"], ev[6])
+        check("fixture13b: run_end fail", ev[7]["status"] == "fail", ev[7])
+    print("fixture 13b (events file, gate-failure run): PASS")
+
+    # 13c: an unwritable events path (a directory) must not fail the run.
+    repo13c = new_target_repo("repo13c")
+    reset_calls()
+    proc = run_pipeline("add a widget", repo13c, human_gate_cmd=APPROVE_STUB,
+                        extra_env={"AGENTIC_LIGHT_EVENTS_PATH": str(TMP_ROOT)})
+    out = proc.stdout + proc.stderr
+    check("fixture13c: rc == 0", proc.returncode == 0, proc.returncode)
+    check("fixture13c: pipeline complete", "Pipeline complete" in out, out)
+    check("fixture13c: warned once", out.count("WARNING: audit events not written") == 1, out)
+    print("fixture 13c (unwritable events path does not fail the run): PASS")
+
+
 def main():
     try:
         fixture_1()
@@ -613,6 +775,9 @@ def main():
         fixture_8()
         fixture_9()
         fixture_10()
+        fixture_11()
+        fixture_12()
+        fixture_13()
     finally:
         cleanup()
 

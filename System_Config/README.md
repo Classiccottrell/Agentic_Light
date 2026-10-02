@@ -148,6 +148,23 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   its own checks against temp fixtures (including a temp copy of the
   workspace scripts for the auto-init path; the real vault is never
   touched). Called once by `pipeline/run.py` after the coder step completes.
+  Compatibility output: the run's audit trail of record is
+  `pipeline/logs/<run-id>.events.jsonl` (see `pipeline/README.md`).
+- **`prompt_assembly.py`** — library module, the role launch contract
+  (`--self-test` runs its own fixtures). `assemble(role, task_block,
+  skill_texts, packet_text)` returns the one prompt `pipeline/run.py` hands
+  to `run_agent()`, the same for every provider: `ROLE CONTRACT`
+  (`agents/<role>.md` without frontmatter, plus the active preset's
+  `role_notes` line), `SKILL GUIDANCE`, `CONTEXT PACKET`, `TASK`, in that
+  order, each between `----- BEGIN/END <NAME> -----` lines, empty sections
+  omitted; the `TASK` section opens with a line saying the launcher's
+  constraints override the earlier sections. `check_launch(role, provider)`
+  enforces `agent-roster.json` at launch: no file means no check; otherwise
+  an invalid roster, an inactive role, or a declared capability the
+  provider adapter doesn't grant raises `FAILED: ...`.
+  `PROVIDER_CAPABILITIES` is derived from `run_agent.py`'s flags (claude
+  and gemini `read`/`write`, codex adds `shell`, ollama none, nobody
+  `delegate`) and must change with them. `risk:` stays informational.
 - **`route_skill.py`** — deterministic relevance-ranked skill router (no
   LLM call, stdlib only). `route_skill.py "<task description>"` (or pipe the
   task on stdin) scans `skills/*/SKILL.md` frontmatter (`name`/`description`
@@ -186,8 +203,8 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   mid multi-byte UTF-8 sequence), not a character slice — Python's `s[:N]`
   (like bash's `${s:0:N}`) counts characters, so a tiny `MAX_BYTES` override
   against multi-byte content (this repo's own em dashes) could silently
-  exceed its budget on a naive port. `pipeline/run.py` prepends this script's
-  output to the coder prompt, labeled `Resume context packet:`, opt-in only
+  exceed its budget on a naive port. `pipeline/run.py` puts this script's
+  output in the coder prompt's CONTEXT PACKET section, labeled `Resume context packet:`, opt-in only
   (`AGENTIC_LIGHT_CONTEXT_PACKET=1`, or automatically when the pipeline's
   target repo resolves to this workspace's own root) — never injected into an
   unrelated external target repo by default.
