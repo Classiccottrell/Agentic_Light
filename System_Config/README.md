@@ -289,6 +289,39 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   and a generated-output-staleness failure (an agent's `description:` edited
   post-generation so `gen_site.py --check` disagrees with the already-
   rendered `index.html`).
+  `--acceptance [--preset P]` (default: `design-harness`, `wcag-harness`,
+  `cli-tool`; also run by `--self-test`) is the end-to-end acceptance
+  fixture. `_build_acceptance_fork()` copies this repo's tracked tree into a
+  temp dir and walks the `microsite/whitelabel.html` procedure: specialize,
+  delete inactive role files and unselected skills, prune `presets.json`,
+  rename every non-`.py` file plus the generators' identity prose (runtime
+  filenames such as `.agentic-light.conf` are protected), then regenerate.
+  It then checks five things:
+  1. Specialize output is valid and `audit()` passes.
+  2. The fork's own `pipeline/run.py` runs against a scratch git repo through
+     the real `run_agent` path. The provider is a fake `codex` on `PATH`,
+     because `PIPELINE_CODER_CMD` never assembles a prompt. `gh` is faked and
+     the human gate is auto-approved under test mode. The run must pass the
+     launch-time roster/capability check, inject the fork's renamed
+     `agents/coder.md` as ROLE CONTRACT plus a TASK section, run exactly the
+     preset's gates, and end `pass`.
+  3. `context_packet.py` builds in the fork, within budget.
+  4. Exactly one session record exists; it validates with the fork's
+     `context_validate.py`, and its provenance paths exist.
+  5. No `Agentic Light`/`agentic-light`/`Agentic_Light` text (case-sensitive)
+     appears in any non-`.py` file after the run, the target repo's branches
+     and commits, the `gh` argv, the captured prompt, the packet, or the
+     `run.py`/`specialize.py` console output. `.py`
+     hits are informational only, since the procedure leaves mechanism alone.
+
+  It also evaluates `prompt_assembly.check_launch("coder", "claude")` in the
+  fork. Provider mirrors are reported as not implemented, with the
+  role-contract-in-prompt check as the substitute. Each finding is keyed by
+  (kind, surface) and printed with its cause from `KNOWN_FINDINGS`.
+  `--acceptance` exits 1 while any finding remains. `--self-test` fails only
+  on a failing check or a finding not in `KNOWN_FINDINGS`. Everything runs
+  under a temp dir that is always removed: no network, no real provider, no
+  real `gh`.
 - **`daily_ingest.py`** — runs `config.resolve_agent_provider()`/
   `config.validate_config()` first (warn-only — same explicit equivalent of
   bash's automatic `source`-time diagnostic noted under `config.py` above;
