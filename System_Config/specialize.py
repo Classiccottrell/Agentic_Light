@@ -38,6 +38,8 @@ import sys
 import tempfile
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
+import identity  # load_identity() — the banner name
+
 ROOT = Path(os.path.abspath(__file__)).parent.parent
 SYSCFG = ROOT / "System_Config"
 PRESETS_FILE = SYSCFG / "presets.json"
@@ -364,6 +366,11 @@ def main(argv=None):
         print("usage: specialize.py --preset <name>", file=sys.stderr)
         return 1
     preset = args.preset or ""
+    try:
+        name = identity.load_identity()["name"]
+    except identity.IdentityError as e:
+        print(f"specialize.py: invalid identity: {e}", file=sys.stderr)
+        return 1
 
     # Clear the preset marker before writing anything else: if this run
     # fails partway, gen_governance.py falls back to no role_notes overlay
@@ -378,7 +385,7 @@ def main(argv=None):
     skill_dirs = skill_dirs_present()
 
     print("=" * 50)
-    print(" Agentic Light — specialize")
+    print(f" {name} — specialize")
     print(f" Workspace: {ROOT}")
     print("=" * 50)
     print()
@@ -501,7 +508,7 @@ def _build_workspace(tmp, fixture_name, skill_names=None):
     (root / "pipeline").mkdir()
     (root / "skills").mkdir()
     shutil.copy(Path(__file__), root / "System_Config" / "specialize.py")
-    for name in ("presets.json", "agent-roster.schema.json", "gate-config.schema.json", "agent-roster.example.json"):
+    for name in ("identity.py", "presets.json", "agent-roster.schema.json", "gate-config.schema.json", "agent-roster.example.json"):
         shutil.copy(SYSCFG / name, root / "System_Config" / name)
     for skill in (skill_names if skill_names is not None else skill_dirs_present()):
         (root / "skills" / skill).mkdir()

@@ -103,7 +103,7 @@ def cmd_check():
         else:
             print(f"  [--] {t} missing")
 
-    conf = ROOT / ".agentic-light.conf"
+    conf = config.agent_config_read_path()
     if conf.is_file():
         print()
         print("→ Provider config:")
@@ -207,7 +207,7 @@ def _configure_providers():
             print("Invalid model name.", file=sys.stderr)
             return 1
         lines.append(f"MODEL_{provider.upper()}={model}")
-    _atomic_write_text(ROOT / ".agentic-light.conf", "\n".join(lines) + "\n", mode=0o600)
+    _atomic_write_text(config.agent_config_path(), "\n".join(lines) + "\n", mode=0o600)
     print(f"    [ok] Enabled: {providers}")
     print(f"    [ok] Priority: {priority}")
 
@@ -314,7 +314,11 @@ def main(argv=None):
         print(HELP_TEXT)
         return 0
     if arg in ("--check", "--check-deps"):
-        return cmd_check()
+        try:
+            return cmd_check()
+        except config.identity.IdentityError as e:
+            print(f"bootstrap.py: invalid identity: {e}", file=sys.stderr)
+            return 1
     if arg == "--uninstall":
         return cmd_uninstall()
     if arg.startswith("--"):
@@ -326,7 +330,11 @@ def main(argv=None):
     # normal interactive setup — bootstrap.sh's case statement has no
     # catch-all for a non-"--"-prefixed argument either, so it's silently
     # ignored there too; preserved here rather than "fixed" into an error.
-    return cmd_setup()
+    try:
+        return cmd_setup()
+    except config.identity.IdentityError as e:
+        print(f"bootstrap.py: invalid identity: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

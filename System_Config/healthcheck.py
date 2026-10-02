@@ -329,16 +329,25 @@ def run(report):
     # LAYER D — Provider configuration (read-only)
     # ═══════════════════════════════════════════════════════════════════
     report.begin_section("Provider Configuration")
-    enabled = os.environ.get("AGENTIC_LIGHT_PROVIDERS") or config.config_value("PROVIDERS") or "claude,gemini,codex,ollama"
-    priority = os.environ.get("AGENTIC_LIGHT_PRIORITY") or config.config_value("PRIORITY") or enabled
-    if config.validate_provider_lists(enabled, priority):
-        report.check("PASS", "Provider lists", "priority is an exact ordering of enabled providers")
-        if config.resolve_agent_provider():
-            report.check("PASS", "Provider executable", f"{config.AGENT_PROVIDER}: {config.AGENT_COMMAND}")
+    # The provider config's filename derives from System_Config/identity.json,
+    # so a bad identity file is a FAIL here, not a crash.
+    try:
+        config.identity.load_identity()
+        identity_error = None
+    except config.identity.IdentityError as e:
+        identity_error = str(e)
+        report.check("FAIL", "Identity", identity_error)
+    if not identity_error:
+        enabled = os.environ.get("AGENTIC_LIGHT_PROVIDERS") or config.config_value("PROVIDERS") or "claude,gemini,codex,ollama"
+        priority = os.environ.get("AGENTIC_LIGHT_PRIORITY") or config.config_value("PRIORITY") or enabled
+        if config.validate_provider_lists(enabled, priority):
+            report.check("PASS", "Provider lists", "priority is an exact ordering of enabled providers")
+            if config.resolve_agent_provider():
+                report.check("PASS", "Provider executable", f"{config.AGENT_PROVIDER}: {config.AGENT_COMMAND}")
+            else:
+                report.check("FAIL", "Provider executable", "no enabled provider executable found")
         else:
-            report.check("FAIL", "Provider executable", "no enabled provider executable found")
-    else:
-        report.check("FAIL", "Provider lists", "unknown, duplicate, or mismatched enabled/priority entries")
+            report.check("FAIL", "Provider lists", "unknown, duplicate, or mismatched enabled/priority entries")
     report.end_section()
 
     # ═══════════════════════════════════════════════════════════════════
@@ -465,9 +474,14 @@ def run(report):
         for f in sorted(WORKSPACE.glob(pattern)):
             if f.is_file():
                 _add_scan_file(f)
-    conf = WORKSPACE / ".agentic-light.conf"
-    if conf.is_file():
-        _add_scan_file(conf)
+    # Provider config: .<slug>.conf (System_Config/identity.json) plus the
+    # legacy filename config.py still falls back to — one entry when equal.
+    conf_names = list(dict.fromkeys(([] if identity_error else [config.agent_config_path().name])
+                                    + [config.LEGACY_AGENT_CONFIG.name]))
+    for name in conf_names:
+        conf = WORKSPACE / name
+        if conf.is_file():
+            _add_scan_file(conf)
 
     git_bin = shutil.which("git")
 
@@ -483,7 +497,7 @@ def run(report):
     if secret_hits == 0:
         report.check("PASS", "Config secret scan", "no likely-exposed secrets in tracked config surface")
 
-    local_only_files = (".mcp.json", ".agentic-light.conf", "System_Config/.notify.env")
+    local_only_files = (".mcp.json", *conf_names, "System_Config/.notify.env")
     for rel in local_only_files:
         f = WORKSPACE / rel
         if _git_check_ignore(git_bin, f):

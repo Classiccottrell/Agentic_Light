@@ -45,6 +45,7 @@ Usage:
   python3 System_Config/gen_governance.py --dry-run # preview, no write
 """
 import os, re, glob, json, sys
+import identity  # load_identity() — the slug-derived provider-config filename
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(SCRIPT_DIR)
@@ -390,11 +391,11 @@ refresh this section.
 `System_Config/healthcheck.py`'s **Layer G — Config Security Scan** is part
 of this governance layer, not a separate concern: it greps the project's own
 config surface (`System_Config/*.py`, `System_Config/*.json`, `.mcp.json`,
-any `.env*`, `.agentic-light.conf`) for credential-shaped strings (known
+any `.env*`, `{conf_name}`) for credential-shaped strings (known
 provider key prefixes, bearer tokens, `*_KEY`/`*_TOKEN`/`*_SECRET`
 assignments that aren't placeholders), and WARNs on any hit that isn't
 already covered by `.gitignore`. It also asserts that files documented as
-local-only (`.mcp.json`, `.agentic-light.conf`,
+local-only (`.mcp.json`, `{conf_name}`,
 `System_Config/.notify.env`) are in fact gitignored. Run it directly with
 `python3 System_Config/healthcheck.py`, or read the "Config Security Scan"
 section of the generated `microsite/health.html`.
@@ -416,6 +417,7 @@ def build_markdown():
     return STATIC_TEMPLATE.format(
         roles_block=build_roles_block(agents),
         gate_policy_block=build_gate_policy_block(),
+        conf_name=f".{identity.load_identity()['slug']}.conf",
     )
 
 
@@ -423,7 +425,11 @@ def main():
     check_mode = '--check' in sys.argv
     dry_run = '--dry-run' in sys.argv
 
-    new_md = build_markdown()
+    try:
+        new_md = build_markdown()
+    except identity.IdentityError as e:
+        print(f"gen_governance: invalid identity: {e}", file=sys.stderr)
+        sys.exit(1)
 
     original = None
     if os.path.exists(OUT_PATH):

@@ -20,6 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "System_Config"))
 import config              # noqa: E402  resolve_agent_provider(), acquire_lock(), looks_like_secret(), WORKSPACE
+import identity            # noqa: E402  load_identity() — branch prefix, commit prefix, banner
 import run_agent as ra     # noqa: E402  run_agent()
 import route_skill         # noqa: E402  route() — imported and called directly, not subprocessed (nothing overrides it via env var)
 import context_packet      # noqa: E402  build_packet() — same reasoning
@@ -268,8 +269,9 @@ def write_session_record(run_id, task_desc, events, state, run_log_path, exc=Non
         text = build_session_record(run_id, task_desc, events, state, run_log_path, exc)
         out_dir = _sessions_dir()
         out_dir.mkdir(parents=True, exist_ok=True)
-        # File stem == record id, so .gitignore's `session-[0-9]*.md` rule
-        # matches launcher records only (never curation-* or human records).
+        # File stem == record id (session-YYYYMMDD-HHMMSS-<pid>), the exact shape
+        # .gitignore matches — launcher records only, never curation-* or
+        # human-named records such as session-2026-retro.md.
         with open(out_dir / f"{session_record_id(run_id)}.md", "x", encoding="utf-8", newline="\n") as f:
             f.write(text)
     except Exception as e:  # noqa: BLE001 — record writes must never fail the run
@@ -464,6 +466,14 @@ def main(argv=None):
     parser.add_argument("target_repo", nargs="?", default=".")
     args = parser.parse_args(argv)
 
+    # Identity first: a bad System_Config/identity.json stops the run before
+    # any lock, log, branch or commit exists.
+    try:
+        ident = identity.load_identity()
+    except identity.IdentityError as e:
+        print(f"[run.py] invalid identity: {e}", file=sys.stderr)
+        return 1
+
     target_repo = Path(os.path.abspath(args.target_repo))
     (PIPELINE_DIR / "logs").mkdir(parents=True, exist_ok=True)
 
@@ -474,13 +484,13 @@ def main(argv=None):
         if not held:
             print(f"[run.py] another pipeline run holds the lock for {target_repo} ({lock_dir}) — refusing to run concurrently.", file=sys.stderr)
             return 1
-        return _run(args.task_desc, target_repo)
+        return _run(args.task_desc, target_repo, ident)
 
 
-def _run(task_desc, target_repo):
+def _run(task_desc, target_repo, ident):
     run_id = f"{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}"
     run_log_path = PIPELINE_DIR / "logs" / f"{run_id}.log"
-    branch_name = f"agentic-light/{run_id}"
+    branch_name = f"{ident['slug']}/{run_id}"
 
     log_f = open(run_log_path, "ab")
     real_stdout, real_stderr = sys.stdout, sys.stderr
@@ -493,7 +503,7 @@ def _run(task_desc, target_repo):
     rc = None
     exc = None
     try:
-        rc = _run_body(task_desc, target_repo, run_id, run_log_path, branch_name, events, state)
+        rc = _run_body(task_desc, target_repo, run_id, run_log_path, branch_name, events, state, ident)
         return rc
     except BaseException as e:  # captured for the session record only; always re-raised
         exc = e
@@ -509,7 +519,7 @@ def _run(task_desc, target_repo):
         log_f.close()
 
 
-def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name, events, state):
+def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name, events, state, ident):
     coder_cmd = os.environ.get("PIPELINE_CODER_CMD")
     provider = "override" if coder_cmd else _resolve_provider_quietly()
     events.emit("run_start", task=task_desc, target_repo=str(target_repo), branch=branch_name,
@@ -523,7 +533,7 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name, events,
 
     state["stage"] = "preflight"
     print("=" * 50)
-    print(" Agentic Light Pipeline — run " + run_id)
+    print(f" {ident['name']} Pipeline — run " + run_id)
     print(" Task:        " + task_desc)
     print(" Target repo: " + str(target_repo))
     print(" Branch:      " + branch_name)
@@ -679,7 +689,7 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name, events,
         return 1
 
     print("  committing coder's changes")
-    commit = subprocess.run([git, "-C", str(target_repo), "commit", "-q", "-m", f"Agentic Light: {task_desc}"], encoding="utf-8")
+    commit = subprocess.run([git, "-C", str(target_repo), "commit", "-q", "-m", f"{ident['name']}: {task_desc}"], encoding="utf-8")
     if commit.returncode != 0:
         print(f"FAILED: could not commit coder's changes in {target_repo}")
         return 1

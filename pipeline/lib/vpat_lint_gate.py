@@ -16,6 +16,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "System_Config"))
+import identity  # noqa: E402  load_identity() — the workspace name in the manual reference
+
 ITI_LABELS = {"Supports", "Partially Supports", "Does Not Support", "Not Applicable"}
 DEFECT_WORDS = ["fail", "missing", "violat", "defect", "bug", "lacks", "lack of",
                 "broken", "inaccessible", "not accessible", "unsupported"]
@@ -119,7 +122,12 @@ def main():
     target = Path(args.target_repo)
     draft_rel = os.environ.get("VPAT_DRAFT_PATH", "accessibility/vpat-draft.json")
     draft_path = target / draft_rel
-    manual_ref = "skills/vpat-authoring/SKILL.md (in the Agentic Light workspace)"
+    try:
+        name = identity.load_identity()["name"]
+    except identity.IdentityError as e:
+        print(f"[vpat_lint_gate] FAIL — invalid identity: {e}")
+        return 1
+    manual_ref = f"skills/vpat-authoring/SKILL.md (in the {name} workspace)"
 
     if not draft_path.is_file():
         print(f"[vpat_lint_gate] WARN — no VPAT draft found at {draft_rel} (override with VPAT_DRAFT_PATH); see {manual_ref}. Skipping.")

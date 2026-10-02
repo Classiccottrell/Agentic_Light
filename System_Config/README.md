@@ -5,12 +5,34 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
 
 ## Scripts (this batch)
 
+- **`identity.json` / `identity.py`** — the fork's identity, the one file a
+  white-label rename starts with: `{"name": "Agentic Light", "slug":
+  "agentic-light"}`. `identity.load_identity()` (stdlib, no import-time
+  side effects, re-read per call) returns the defaults when the file is
+  absent and raises `IdentityError` naming the file when it is unreadable,
+  not UTF-8, not JSON, has keys other than `name`/`slug`, a blank name or
+  one with control/format (incl. bidi) or line/paragraph-separator
+  characters, or a slug that does not fully match `[a-z0-9]+(-[a-z0-9]+)*`
+  within 64 chars (git-ref- and dotfile-safe). `healthcheck.py` reports a
+  bad file as an `Identity` FAIL; `dashboard.py`, `daily_ingest.py`,
+  `gen_governance.py`, `bootstrap.py` and `specialize.py` print one
+  `invalid identity:` line and exit 1. Read by
+  `pipeline/run.py` (branch `<slug>/<run-id>`, commit prefix `<name>: `,
+  run banner — validated before the lock/branch, rc 1 on error),
+  `pipeline/lib/pr_create.py` (default PR title/body), `axe_gate.py`/
+  `vpat_lint_gate.py` (manual-reference text), `specialize.py` (banner),
+  `gen_governance.py` (conf filename), and `config.py` (`.<slug>.conf`).
+  A separate module, not part of `config.py`, so the standalone
+  `pipeline/lib/` scripts can read it without the provider machinery.
 - **`config.py`** — shared, relocatable configuration module (a library, not
   a CLI); every script that needs it imports it (`import config`, or, from
   outside `System_Config/`, `sys.path.insert(0, ".../System_Config"); import
   config`). Derives `WORKSPACE`, `BRAIN`, `RAW`, `LOG_DIR` from its own file
   location (`Path(__file__)`). Reads the bootstrap-generated, non-secret
-  `.agentic-light.conf` without evaluating it; `resolve_agent_provider()`
+  `.<slug>.conf` (slug from `identity.json`; `.agentic-light.conf` here)
+  without evaluating it — `agent_config_path()` is the write target,
+  `agent_config_read_path()` falls back to `LEGACY_AGENT_CONFIG` (the
+  pre-`identity.json` filename) when only that exists; `resolve_agent_provider()`
   then selects the first enabled, installed provider in explicit priority
   order: Claude, Gemini (`agy` command alias supported), Codex, or Ollama —
   called explicitly by whichever script actually needs a resolved provider
@@ -20,7 +42,7 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `AGENTIC_LIGHT_MODEL_<PROVIDER>`. Bootstrap collects the same values with
   terminal checkbox-style yes/no prompts, a comma-separated priority text
   field, and one optional model text field per enabled provider, then writes
-  them to ignored `../.agentic-light.conf` with mode `600`. The config is
+  them to ignored `../.<slug>.conf` with mode `600`. The config is
   parsed as text, never evaluated. Legacy `AGENT_TYPE` and `config.CLAUDE`
   consumers remain supported; after resolution, `config.CLAUDE` aliases the
   selected executable even when the provider is not Claude.
@@ -292,12 +314,14 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `--acceptance [--preset P]` (default: `design-harness`, `wcag-harness`,
   `cli-tool`; also run by `--self-test`) is the end-to-end acceptance
   fixture. `_build_acceptance_fork()` copies this repo's tracked tree into a
-  temp dir and walks the `microsite/whitelabel.html` procedure: specialize,
-  delete inactive role files and unselected skills, prune `presets.json`,
-  rename every non-`.py` file plus the generators' identity prose (runtime
-  filenames such as `.agentic-light.conf` are protected), then regenerate.
+  temp dir and walks the `microsite/whitelabel.html` procedure: write the
+  new name/slug to `System_Config/identity.json`, specialize, delete
+  inactive role files and unselected skills, prune `presets.json`, rename
+  every non-`.py` file plus the generators' identity prose (the conf
+  filename follows the slug to `.<slug>.conf`), then regenerate.
   It then checks five things:
-  1. Specialize output is valid and `audit()` passes.
+  1. `identity.json` loads in the fork (provider config `.<slug>.conf`),
+     specialize output is valid, and `audit()` passes.
   2. The fork's own `pipeline/run.py` runs against a scratch git repo through
      the real `run_agent` path. The provider is a fake `codex` on `PATH`,
      because `PIPELINE_CODER_CMD` never assembles a prompt. `gh` is faked and
@@ -305,7 +329,8 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
      launch-time roster/capability check, inject the fork's renamed
      `agents/coder.md` as ROLE CONTRACT plus a TASK section, run exactly the
      preset's gates, and end `pass`.
-  3. `context_packet.py` builds in the fork, within budget.
+  3. `context_packet.py` builds in the fork; its provenance headers survive
+     truncation and its Active Preset section names the fork's preset.
   4. Exactly one session record exists; it validates with the fork's
      `context_validate.py`, and its provenance paths exist.
   5. No `Agentic Light`/`agentic-light`/`Agentic_Light` text (case-sensitive)
@@ -316,12 +341,21 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
 
   It also evaluates `prompt_assembly.check_launch("coder", "claude")` in the
   fork. Provider mirrors are reported as not implemented, with the
-  role-contract-in-prompt check as the substitute. Each finding is keyed by
-  (kind, surface) and printed with its cause from `KNOWN_FINDINGS`.
+  role-contract-in-prompt check as the substitute. Each finding is matched
+  against `KNOWN_FINDINGS` by (kind, surface) *and* its exact normalized
+  offending samples (a multiset), so a new leak on a known surface — or the
+  known line repeated — is unknown; `--self-test` proves this with a
+  duplicated-line case and a leak planted in the fork's packet.
   `--acceptance` exits 1 while any finding remains. `--self-test` fails only
-  on a failing check or a finding not in `KNOWN_FINDINGS`. Everything runs
-  under a temp dir that is always removed: no network, no real provider, no
-  real `gh`.
+  on a failing check or a finding not in `KNOWN_FINDINGS`. The known
+  findings left are the `coder@claude` capability gap (pending owner
+  sign-off on `agent-roster.example.json`) and the context packet's
+  hardcoded header, surfaced in both the packet and the coder prompt
+  (pending PR #32, which owns `context_packet.py`). Everything runs
+  under a temp dir that is always removed, SIGTERM included (it takes
+  SIGINT's `KeyboardInterrupt` path): no network, no real provider, no real
+  `gh`, and no global/system git config (`GIT_CONFIG_GLOBAL` → null device,
+  `GIT_CONFIG_NOSYSTEM=1`).
 - **`daily_ingest.py`** — runs `config.resolve_agent_provider()`/
   `config.validate_config()` first (warn-only — same explicit equivalent of
   bash's automatic `source`-time diagnostic noted under `config.py` above;
@@ -468,8 +502,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   likely-exposed secrets (provider key prefixes, bare `Bearer <token>`,
   non-placeholder `*_KEY`/`*_TOKEN`/`*_SECRET` values) — always `WARN`, never
   `FAIL`, and skips any file already covered by `.gitignore` (expected local
-  config, not a leak risk). Separately `WARN`s if `.mcp.json`,
-  `.agentic-light.conf`, or `System_Config/.notify.env` — each documented
+  config, not a leak risk). Separately `WARN`s if `.mcp.json`, the
+  `.<slug>.conf` provider config (plus the legacy filename when it
+  differs), or `System_Config/.notify.env` — each documented
   elsewhere as local-only — isn't actually gitignored. The pattern set lives
   once, in `config.py`'s `looks_like_secret`, shared with
   `pipeline/run.py`'s pre-commit secret scan (see `pipeline/README.md`) —
@@ -581,7 +616,7 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   Every section degrades to a "not yet configured" / "none yet" message
   on a fresh, unspecialized clone rather than erroring. Provider read
   goes through `config.py`'s `config_value()` (a plain-text line scan;
-  `.agentic-light.conf` is never sourced/evaluated). JSON parsed directly
+  the `.<slug>.conf` provider config is never sourced/evaluated). JSON parsed directly
   with the stdlib `json` module — this script IS Python, so there's no
   generated-source/heredoc/argv-injection concern to route around (the bash
   original had to shell out to `python3 -c "..."` just to get JSON support

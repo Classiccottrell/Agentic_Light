@@ -264,6 +264,7 @@ def self_test():
         (ws / "brain" / "weekly_logs").mkdir(parents=True)
         shutil.copy(Path(__file__), syscfg / "monday_init.py")
         shutil.copy(Path(__file__).parent / "config.py", syscfg / "config.py")
+        shutil.copy(Path(__file__).parent / "identity.py", syscfg / "identity.py")
         (ws / "brain" / "weekly_logs" / "Weekly_Note_Template.md").write_text(
             "# W{{WEEK_NUM}} {{YEAR}} — Sprint {{SPRINT}} Q{{QUARTER}}\n"
             "{{DATE_START}} to {{DATE_END}} ({{WEEK_LABEL}}), init {{INIT_DATE}}\n"
