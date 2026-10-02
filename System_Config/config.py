@@ -17,11 +17,20 @@ import sys
 import time
 from pathlib import Path
 
+import identity
+
 WORKSPACE = Path(os.path.abspath(__file__)).parent.parent
 BRAIN = WORKSPACE / "brain"
 RAW = BRAIN / "raw"
 LOG_DIR = WORKSPACE / "System_Config" / "logs"
-AGENT_CONFIG = WORKSPACE / ".agentic-light.conf"
+# Machine-local provider config, written by bootstrap.py: WORKSPACE/.<slug>.conf,
+# slug from System_Config/identity.json. None = derive on use (so a bad
+# identity.json fails when the config is needed, not on import); tests may
+# point it — and LEGACY_AGENT_CONFIG — elsewhere.
+AGENT_CONFIG = None
+# Pre-identity.json filename, still read when .<slug>.conf is absent so
+# installs bootstrapped before a rename keep working.
+LEGACY_AGENT_CONFIG = WORKSPACE / ".agentic-light.conf"
 
 # Captured once at import time, never re-read live afterward — resolve_agent_
 # provider() re-exports AGENT_TYPE (below) to the resolved provider on every
@@ -42,12 +51,28 @@ AGENT_TYPE = None
 CLAUDE = None
 
 
+def agent_config_path():
+    """Where bootstrap.py writes the provider config: WORKSPACE/.<slug>.conf.
+    Raises identity.IdentityError on a bad identity.json."""
+    return AGENT_CONFIG or WORKSPACE / f".{identity.load_identity()['slug']}.conf"
+
+
+def agent_config_read_path():
+    """The provider config to read: .<slug>.conf, else the legacy filename if
+    only that exists, else .<slug>.conf (absent)."""
+    path = agent_config_path()
+    if not path.is_file() and LEGACY_AGENT_CONFIG and LEGACY_AGENT_CONFIG.is_file():
+        return LEGACY_AGENT_CONFIG
+    return path
+
+
 def config_value(key):
-    """Return the last `KEY=value` line in .agentic-light.conf, or "" if the
-    file is unreadable or the key is absent. Parsed as plain text (matches
-    bash's sed -n "s/^${key}=//p" | tail -1) — never evaluated as shell."""
+    """Return the last `KEY=value` line in the provider config
+    (agent_config_read_path()), or "" if the file is unreadable or the key is
+    absent. Parsed as plain text (matches bash's sed -n "s/^${key}=//p" |
+    tail -1) — never evaluated as shell."""
     try:
-        text = AGENT_CONFIG.read_text(encoding="utf-8")
+        text = agent_config_read_path().read_text(encoding="utf-8")
     except OSError:
         return ""
     prefix = f"{key}="

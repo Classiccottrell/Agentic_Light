@@ -465,9 +465,13 @@ def run(report):
         for f in sorted(WORKSPACE.glob(pattern)):
             if f.is_file():
                 _add_scan_file(f)
-    conf = WORKSPACE / ".agentic-light.conf"
-    if conf.is_file():
-        _add_scan_file(conf)
+    # Provider config: .<slug>.conf (System_Config/identity.json) plus the
+    # legacy filename config.py still falls back to — one entry when equal.
+    conf_names = list(dict.fromkeys([config.agent_config_path().name, config.LEGACY_AGENT_CONFIG.name]))
+    for name in conf_names:
+        conf = WORKSPACE / name
+        if conf.is_file():
+            _add_scan_file(conf)
 
     git_bin = shutil.which("git")
 
@@ -483,7 +487,7 @@ def run(report):
     if secret_hits == 0:
         report.check("PASS", "Config secret scan", "no likely-exposed secrets in tracked config surface")
 
-    local_only_files = (".mcp.json", ".agentic-light.conf", "System_Config/.notify.env")
+    local_only_files = (".mcp.json", *conf_names, "System_Config/.notify.env")
     for rel in local_only_files:
         f = WORKSPACE / rel
         if _git_check_ignore(git_bin, f):

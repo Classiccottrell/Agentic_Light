@@ -12,7 +12,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-MANUAL_REF = "skills/wcag-audit/references/running-axe.md (in the Agentic Light workspace)"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "System_Config"))
+import identity  # noqa: E402  load_identity() — the workspace name in the manual reference
+
+MANUAL_REF = "skills/wcag-audit/references/running-axe.md (in the {name} workspace)"
 
 
 def extract_script(key, package_json_path):
@@ -37,6 +40,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("target_repo")
     args = parser.parse_args()
+    try:
+        manual_ref = MANUAL_REF.format(name=identity.load_identity()["name"])
+    except identity.IdentityError as e:
+        print(f"[axe_gate] FAIL — invalid identity: {e}")
+        return 1
     target = Path(args.target_repo)
 
     package_json = target / "package.json"
@@ -72,11 +80,11 @@ def main():
         # runs those). The repo knows its own URL/server — this gate
         # doesn't guess.
         print(f"[axe_gate] WARN — {a11y_dep} is listed in package.json but there is no scripts.test:a11y or scripts.a11y to run it; no automated accessibility check ran.")
-        print(f"[axe_gate]   Add a test:a11y script that starts/targets the app and runs {a11y_dep}, or see {MANUAL_REF} for the manual path. Skipping.")
+        print(f"[axe_gate]   Add a test:a11y script that starts/targets the app and runs {a11y_dep}, or see {manual_ref} for the manual path. Skipping.")
         return 0
 
     print("[axe_gate] WARN — no automated accessibility check ran: no scripts.test:a11y/a11y and no @axe-core/cli, @axe-core/playwright, or pa11y dependency found.")
-    print(f"[axe_gate]   See {MANUAL_REF} for the manual path. Skipping.")
+    print(f"[axe_gate]   See {manual_ref} for the manual path. Skipping.")
     return 0
 
 

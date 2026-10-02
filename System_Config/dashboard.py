@@ -7,7 +7,7 @@ handling, prints and exits.
 Reads (all optional — a fresh, unspecialized clone must print cleanly):
   System_Config/agent-roster.json   (written by specialize.py)
   pipeline/gate-config.json         (written by specialize.py)
-  .agentic-light.conf               (written by bootstrap.py; parsed as
+  .<slug>.conf                      (written by bootstrap.py; parsed as
                                       data via config.py's config_value,
                                       never sourced/exec'd — security
                                       convention)
@@ -129,7 +129,7 @@ def preset_summary(roster_file):
 
 
 def provider_summary():
-    """Active provider from .agentic-light.conf, or "not configured". Uses
+    """Active provider from the .<slug>.conf provider config, or "not configured". Uses
     config.py's config_value (plain-text parse, never sources the file) per
     the established security convention."""
     priority = config.config_value("PRIORITY") or config.config_value("PROVIDERS")

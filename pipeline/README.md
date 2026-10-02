@@ -80,7 +80,10 @@ python3 pipeline/run.py --help   # print usage and exit
    packet interface; without it, the legacy Agentic Light packet remains the
    compatibility path.
 1. **Code Patch** — `run.py` itself creates the feature branch
-   (`git checkout -b agentic-light/<run-id>`) in the target repo, then
+   (`git checkout -b <slug>/<run-id>`, i.e. `agentic-light/<run-id>` for
+   this repo's `System_Config/identity.json`; the commit message is
+   `<name>: <task>`, and a malformed `identity.json` stops `run.py` with
+   rc 1 before the lock, run log, or branch exist) in the target repo, then
    invokes the `coder` step via `System_Config/run_agent.py`, scoped to the
    target repo (cwd), with a prompt assembled by
    `System_Config/prompt_assembly.py` (see "Coder prompt contract" below).
@@ -308,7 +311,7 @@ untouched. A concurrency-lock refusal returns before a run id exists, so it
 produces no events file and no record.
 
 Launcher session records are **machine-local and gitignored**
-(`.gitignore`: `brain/records/sessions/session-[0-9]*.md`) — their
+(`.gitignore` matches only the launcher's `session-YYYYMMDD-HHMMSS-<pid>.md` shape) — their
 provenance is the gitignored `pipeline/logs/` files, and without the rule a
 run that targets the workspace itself would sweep the previous run's record
 into its commit via `git add -A` (fixture 14g). `context_catalog.py` reads
