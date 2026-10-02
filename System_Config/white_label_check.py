@@ -223,7 +223,7 @@ _BRANCH_CAUSE = ('pipeline/run.py hardcodes the branch prefix (branch_name = f"a
 KNOWN_FINDINGS = {
     ("identity", "target repo branch names"): _BRANCH_CAUSE,
     ("identity", "pipeline/logs/<run-id>.events.jsonl"): _BRANCH_CAUSE + " in the run_start event",
-    ("identity", "brain/records/sessions/<run-id>.md"): _BRANCH_CAUSE + " in the session record's Branch line",
+    ("identity", "brain/records/sessions/session-<run-id>.md"): _BRANCH_CAUSE + " in the session record's Branch line",
     ("identity", "target repo commit messages"):
         'pipeline/run.py hardcodes the commit message prefix (git commit -m f"Agentic Light: {task_desc}")',
     ("identity", "run.py console output"):
