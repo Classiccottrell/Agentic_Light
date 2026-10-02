@@ -302,7 +302,11 @@ def main(argv=None):
         print(f"unknown arg: {arg}", file=sys.stderr)
         print(USAGE, file=sys.stderr)
         return 1
-    print(render(ROSTER_FILE, GATE_FILE, config.BRAIN, PLOGS))
+    try:
+        print(render(ROSTER_FILE, GATE_FILE, config.BRAIN, PLOGS))
+    except config.identity.IdentityError as e:
+        print(f"dashboard.py: invalid identity: {e}", file=sys.stderr)
+        return 1
     return 0
 
 

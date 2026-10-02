@@ -245,10 +245,13 @@ def restore_roster():
 
 
 def set_identity(content):
-    """content: dict (written as JSON), str (written verbatim), or None
-    (file removed). restore_identity() puts the exact original bytes back."""
+    """content: dict (written as JSON), str (written verbatim), bytes
+    (written raw), or None (file removed). restore_identity() puts the exact
+    original bytes back."""
     if content is None:
         REAL_IDENTITY.unlink(missing_ok=True)
+    elif isinstance(content, bytes):
+        REAL_IDENTITY.write_bytes(content)
     else:
         REAL_IDENTITY.write_text(content if isinstance(content, str) else json.dumps(content), encoding="utf-8")
 
@@ -1075,7 +1078,14 @@ def fixture_15():
                                ("e", {"name": "Bad", "slug": "-lead"}, "slug '-lead'"),
                                ("f", {"name": "two\nlines", "slug": "ok"}, "name 'two\\nlines'"),
                                ("g", {"name": "X", "slug": "x", "extra": 1}, 'exactly the keys "name" and "slug"'),
-                               ("h", "{not json", "not valid JSON")):
+                               ("h", "{not json", "not valid JSON"),
+                               ("j", {"name": "Bad", "slug": "abc\n"}, "slug 'abc\\n'"),
+                               ("k", {"name": "Bad", "slug": "a" * 65}, "at most 64"),
+                               ("l", b'{"name": "\xff", "slug": "x"}', "not valid UTF-8"),
+                               ("m", {"name": "A\u2028B", "slug": "x"}, "name 'A\\u2028B'"),
+                               ("n", {"name": "A\u202eB", "slug": "x"}, "name 'A\\u202eB'"),
+                               ("o", {"name": "A\u0085B", "slug": "x"}, "name 'A\\x85B'"),
+                               ("p", {"name": "A\u2066B", "slug": "x"}, "name 'A\\u2066B'")):
             set_identity(bad)
             try:
                 identity.load_identity()
@@ -1084,19 +1094,24 @@ def fixture_15():
                 check(f"fixture15{tag}: loader rejects {bad!r} naming the file",
                       want in str(e) and "identity.json" in str(e), str(e))
 
-        set_identity({"name": "Bad", "slug": "Bad Slug"})
-        repo = new_target_repo("repo15i")
-        reset_calls()
-        proc = run_pipeline(task, repo, human_gate_cmd=APPROVE_STUB)
-        branches = subprocess.run([GIT, "-C", str(repo), "for-each-ref", "--format=%(refname:short)", "refs/heads"],
-                                  capture_output=True, encoding="utf-8").stdout.split()
-        check("fixture15i (invalid slug): rc 1", proc.returncode == 1, proc.returncode)
-        check("fixture15i (invalid slug): clear error naming identity.json",
-              "[run.py] invalid identity:" in proc.stderr and "identity.json" in proc.stderr
-              and "slug 'Bad Slug'" in proc.stderr, proc.stderr)
-        check("fixture15i (invalid slug): no branch created", branches == ["main"], branches)
-        check("fixture15i (invalid slug): nothing committed, gh not called",
-              git_log_count(repo, "main") == 1 and not calls_nonempty(), proc.stdout)
+        logs_dir = ROOT / "pipeline" / "logs"
+        for tag, bad_slug, want in (("i", "Bad Slug", "slug 'Bad Slug'"), ("q", "abc\n", "slug 'abc\\n'")):
+            set_identity({"name": "Bad", "slug": bad_slug})
+            repo = new_target_repo(f"repo15{tag}")
+            reset_calls()
+            logs_before = set(logs_dir.iterdir())
+            proc = run_pipeline(task, repo, human_gate_cmd=APPROVE_STUB)
+            new_logs = sorted(p.name for p in set(logs_dir.iterdir()) - logs_before)
+            branches = subprocess.run([GIT, "-C", str(repo), "for-each-ref", "--format=%(refname:short)", "refs/heads"],
+                                      capture_output=True, encoding="utf-8").stdout.split()
+            check(f"fixture15{tag} (invalid slug {bad_slug!r}): rc 1", proc.returncode == 1, proc.returncode)
+            check(f"fixture15{tag} (invalid slug {bad_slug!r}): clear error naming identity.json",
+                  "[run.py] invalid identity:" in proc.stderr and "identity.json" in proc.stderr
+                  and want in proc.stderr, proc.stderr)
+            check(f"fixture15{tag} (invalid slug {bad_slug!r}): no lock, log or events file", new_logs == [], new_logs)
+            check(f"fixture15{tag} (invalid slug {bad_slug!r}): no branch created", branches == ["main"], branches)
+            check(f"fixture15{tag} (invalid slug {bad_slug!r}): nothing committed, gh not called",
+                  git_log_count(repo, "main") == 1 and not calls_nonempty(), proc.stdout)
     finally:
         restore_identity()
     print("fixture 15 (identity.json: defaults byte-identical, custom, invalid): PASS")

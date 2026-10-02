@@ -425,7 +425,11 @@ def main():
     check_mode = '--check' in sys.argv
     dry_run = '--dry-run' in sys.argv
 
-    new_md = build_markdown()
+    try:
+        new_md = build_markdown()
+    except identity.IdentityError as e:
+        print(f"gen_governance: invalid identity: {e}", file=sys.stderr)
+        sys.exit(1)
 
     original = None
     if os.path.exists(OUT_PATH):

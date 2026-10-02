@@ -9,9 +9,14 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   white-label rename starts with: `{"name": "Agentic Light", "slug":
   "agentic-light"}`. `identity.load_identity()` (stdlib, no import-time
   side effects, re-read per call) returns the defaults when the file is
-  absent and raises `IdentityError` naming the file when it is malformed,
-  has keys other than `name`/`slug`, has a multi-line/blank name, or a slug
-  outside `^[a-z0-9]+(-[a-z0-9]+)*$` (git-ref- and dotfile-safe). Read by
+  absent and raises `IdentityError` naming the file when it is unreadable,
+  not UTF-8, not JSON, has keys other than `name`/`slug`, a blank name or
+  one with control/format (incl. bidi) or line/paragraph-separator
+  characters, or a slug that does not fully match `[a-z0-9]+(-[a-z0-9]+)*`
+  within 64 chars (git-ref- and dotfile-safe). `healthcheck.py` reports a
+  bad file as an `Identity` FAIL; `dashboard.py`, `daily_ingest.py`,
+  `gen_governance.py`, `bootstrap.py` and `specialize.py` print one
+  `invalid identity:` line and exit 1. Read by
   `pipeline/run.py` (branch `<slug>/<run-id>`, commit prefix `<name>: `,
   run banner — validated before the lock/branch, rc 1 on error),
   `pipeline/lib/pr_create.py` (default PR title/body), `axe_gate.py`/

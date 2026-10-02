@@ -15,6 +15,7 @@ every call (it is tiny), so a test can swap the file between runs.
 """
 import json
 import re
+import unicodedata
 from pathlib import Path
 
 IDENTITY_FILE = Path(__file__).resolve().parent / "identity.json"
@@ -22,7 +23,8 @@ DEFAULT_IDENTITY = {"name": "Agentic Light", "slug": "agentic-light"}
 # Lowercase alphanumeric runs joined by single hyphens: safe as a git branch
 # prefix (no leading "-", no "..", no "/", no ".lock" suffix possible) and as
 # a dotfile name (.<slug>.conf).
-SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+SLUG_RE = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")  # used with fullmatch(): "$" alone would admit a trailing "\n"
+SLUG_MAX = 64
 
 
 class IdentityError(ValueError):
@@ -37,6 +39,8 @@ def load_identity(path=None):
         raw = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return dict(DEFAULT_IDENTITY)
+    except UnicodeDecodeError as e:
+        raise IdentityError(f"{path}: not valid UTF-8: {e}") from e
     except OSError as e:
         raise IdentityError(f"{path}: unreadable: {e}") from e
     try:
@@ -46,11 +50,14 @@ def load_identity(path=None):
     if not isinstance(data, dict) or set(data) != {"name", "slug"}:
         raise IdentityError(f'{path}: must be a JSON object with exactly the keys "name" and "slug"')
     name, slug = data["name"], data["slug"]
+    # Category C* covers control, format (incl. bidi overrides/isolates U+202A-
+    # U+202E, U+2066-U+2069), and unassigned code points; Zl/Zp are the
+    # Unicode line/paragraph separators. U+0085 is Cc.
     if not isinstance(name, str) or not name.strip() or name != name.strip() \
-            or any(ord(c) < 32 or ord(c) == 127 for c in name):
-        raise IdentityError(f"{path}: name {name!r} must be a non-empty single-line string "
-                            "with no leading/trailing whitespace or control characters")
-    if not isinstance(slug, str) or not SLUG_RE.match(slug):
-        raise IdentityError(f"{path}: slug {slug!r} must be lowercase letters/digits in "
+            or any(unicodedata.category(c)[0] == "C" or unicodedata.category(c) in ("Zl", "Zp") for c in name):
+        raise IdentityError(f"{path}: name {name!r} must be a non-empty single-line string with no "
+                            "leading/trailing whitespace, control, format/bidi, or line-separator characters")
+    if not isinstance(slug, str) or len(slug) > SLUG_MAX or not SLUG_RE.fullmatch(slug):
+        raise IdentityError(f"{path}: slug {slug!r} must be at most {SLUG_MAX} lowercase letters/digits in "
                             "hyphen-separated runs (e.g. \"northwind-harness\")")
     return {"name": name, "slug": slug}
