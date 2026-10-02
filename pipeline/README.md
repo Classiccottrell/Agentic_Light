@@ -88,7 +88,8 @@ python3 pipeline/run.py --help   # print usage and exit
    because the `claude` invocation in `run_agent.py` runs with
    `--disallowedTools "Bash,..."` and can't do either. Exactly one call to
    `System_Config/log_session.py` follows the coder process, logging
-   provider/role/exit-status/reason (success, timeout, or refusal alike) —
+   provider/role/exit-status/reason plus run id, session-record id and a
+   short task summary (success, timeout, or refusal alike) —
    see "Session logging" below. A `64` exit only maps to `refused` when the
    resolved provider for that run was `ollama`; any other provider exiting
    64 is logged as a generic `exit`. `run.py` then stages the coder's
@@ -263,15 +264,55 @@ changes the run's outcome. Records carry explicit fields only, never the
 environment, the prompt or the diff. `AGENTIC_LIGHT_EVENTS_PATH` redirects
 the file only when `AGENTIC_LIGHT_TEST_MODE=1` is set.
 
+## Session records
+
+When a run ends — every exit path inside the run, from the same `finally`
+that writes `run_end`, preflight refusals included — `run.py` writes one typed
+`type: session` record to `brain/records/sessions/<run-id>.md` (id
+`session-<run-id>`), valid under `System_Config/context_validate.py`. It is
+the durable, curatable summary of the run; the events file stays the record
+of truth and is the record's `source:` provenance, with the run log
+(repo-relative paths; both are gitignored, so provenance resolves only on the
+machine that ran it). Body sections are built deterministically from the
+run's own data — no LLM call:
+
+- **Task** — task text (one line), run id, target repo, branch,
+  provider/role, preset, routed skills.
+- **Outcome** — `run_end` status/stage/exit, coder exit, each gate result,
+  human-gate decision, PR outcome.
+- **Changed** — files in the pipeline's own commit, read from git in the
+  target repo after the commit (capped at 50), or "No commit made by the
+  pipeline."
+- **Unresolved** — the failing stage and reason (failed gate, refused
+  preflight check, coder exit, declined/pending human gate, PR failure), or
+  "None recorded."
+
+Never included: the environment, the prompt, the diff body. Task text is
+collapsed to one line with `[[`/`]]` neutralized so no input can produce an
+invalid record (one bad record would fail `context_catalog build` for the
+whole layer). The write is exclusive-create — an existing record with the
+same id is never overwritten — and best-effort: any failure prints one
+`WARNING:` and never changes the run's outcome. `AGENTIC_LIGHT_SESSIONS_DIR`
+redirects the directory only when `AGENTIC_LIGHT_TEST_MODE=1` is set. A
+concurrency-lock refusal returns before a run id exists, so it produces no
+events file and no record;
+`test_pipeline.py` always sets it and asserts the real `brain/records/` is
+untouched.
+
 ## Session logging
 
 After the coder step completes (success, watchdog timeout, or an Ollama
 write-workflow refusal), `run.py` calls `System_Config/log_session.py`
 exactly once with the resolved provider, `--role coder`, the exit status,
-and a reason (`exit`/`timeout`/`signal`/`refused`). This is the sole
+and a reason (`exit`/`timeout`/`signal`/`refused`), plus `--run-id`,
+`--record session-<run-id>` and `--task=<text>`. The line stays one line and
+keeps its original prefix; the new fields follow `(reason)`:
+`- <ts>: <provider> / <role> — exit <n> (<reason>) · run <id> · record <record-id> · <task ≤60 chars>`.
+This is the sole
 launcher-level call site — `run_agent()` itself is not instrumented, since
-it's also called once per clip by `daily_ingest.py`, which already logs its
-own line per clip.
+it's also called once per clip by `daily_ingest.py`, whose per-clip session
+line is currently written by the ingesting LLM itself (its prompt asks for
+it), not by deterministic code.
 
 ## Contract: 100% pass before the patch is even shown to a human
 

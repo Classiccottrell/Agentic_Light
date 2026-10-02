@@ -62,6 +62,18 @@ REAL_ROSTER = ROOT / "System_Config" / "agent-roster.json"
 ROSTER_BACKUP = TMP_ROOT / "agent-roster.json.bak"
 ROSTER_TOUCHED = [False]
 
+# Session records: every run is pointed at a temp dir (test-mode override);
+# the real brain/records/ is snapshotted and asserted unchanged at the end.
+SESSIONS_DIR = TMP_ROOT / "sessions"
+REAL_RECORDS = ROOT / "brain" / "records"
+
+
+def records_snapshot():
+    return sorted((str(p), p.stat().st_mtime_ns) for p in REAL_RECORDS.rglob("*") if p.is_file()) if REAL_RECORDS.is_dir() else []
+
+
+PRE_RECORDS = records_snapshot()
+
 PRE_LOGS = set((ROOT / "pipeline" / "logs").glob("*.log")) | set((ROOT / "pipeline" / "logs").glob("*.events.jsonl"))
 
 
@@ -172,6 +184,7 @@ def run_pipeline(task, target_repo, coder_cmd=CODER_STUB, human_gate_cmd=None, e
     env["CALLS"] = str(CALLS)
     env["AGENTIC_LIGHT_TEST_MODE"] = "1"
     env["LOG_SESSION_NOTE"] = str(LOG_SESSION_NOTE)
+    env["AGENTIC_LIGHT_SESSIONS_DIR"] = str(SESSIONS_DIR)
     env["PYTHONUTF8"] = "1"
     if coder_cmd is not None:
         env["PIPELINE_CODER_CMD"] = str(coder_cmd)
@@ -254,6 +267,7 @@ def run_direct(repo, extra_env=None, task="task"):
     env["AGENTIC_LIGHT_TEST_MODE"] = "1"
     env["PIPELINE_HUMAN_GATE_CMD"] = str(APPROVE_STUB)
     env["LOG_SESSION_NOTE"] = str(LOG_SESSION_NOTE)
+    env["AGENTIC_LIGHT_SESSIONS_DIR"] = str(SESSIONS_DIR)
     env["PYTHONUTF8"] = "1"
     env.update(extra_env or {})
     return subprocess.run([sys.executable, str(RUN), task, str(repo)],
@@ -760,6 +774,109 @@ def fixture_13():
     print("fixture 13c (unwritable events path does not fail the run): PASS")
 
 
+def session_records(d):
+    return sorted(Path(d).glob("*.md")) if Path(d).is_dir() else []
+
+
+def validate_record(path):
+    proc = subprocess.run([sys.executable, str(ROOT / "System_Config" / "context_validate.py"), "validate", str(path)],
+                          capture_output=True, encoding="utf-8", env={**BASE_ENV, "PYTHONDONTWRITEBYTECODE": "1"})
+    return proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def record_section(text, name):
+    return text.split(f"## {name}\n", 1)[-1].split("\n## ", 1)[0]
+
+
+def fixture_14():
+    # 14a: passing run (default events path) -> exactly one valid record,
+    # provenance paths repo-relative and present, Changed read from git.
+    d = TMP_ROOT / "sessions14a"
+    repo = new_target_repo("repo14a")
+    reset_calls()
+    proc = run_pipeline("add a widget", repo, human_gate_cmd=APPROVE_STUB,
+                        extra_env={"AGENTIC_LIGHT_SESSIONS_DIR": str(d)})
+    recs = session_records(d)
+    check("fixture14a: rc == 0", proc.returncode == 0, proc.returncode)
+    check("fixture14a: exactly one record", len(recs) == 1, recs)
+    if len(recs) == 1:
+        text = recs[0].read_text(encoding="utf-8")
+        run_id = recs[0].stem
+        ok, detail = validate_record(recs[0])
+        check("fixture14a: record validates", ok, detail)
+        check("fixture14a: id from run id", f"id: session-{run_id}\n" in text, text)
+        src = f"source: [pipeline/logs/{run_id}.events.jsonl, pipeline/logs/{run_id}.log]"
+        check("fixture14a: provenance paths", src in text, text)
+        check("fixture14a: provenance files exist", (ROOT / "pipeline" / "logs" / f"{run_id}.events.jsonl").is_file()
+              and (ROOT / "pipeline" / "logs" / f"{run_id}.log").is_file())
+        check("fixture14a: Changed from git", "`PATCHED.txt`" in record_section(text, "Changed"), text)
+        check("fixture14a: Unresolved none", record_section(text, "Unresolved").strip() == "None recorded.", text)
+        check("fixture14a: outcome pass + PR created", "Run end: pass" in text and "PR: created" in text, text)
+        check("fixture14a: no env / diff", "PATH" not in text and "+++" not in text, text)
+        note = LOG_SESSION_NOTE.read_text(encoding="utf-8")
+        check("fixture14a: weekly line carries run + record id",
+              f"(exit) · run {run_id} · record session-{run_id} · add a widget" in note, note)
+    print("fixture 14a (session record, passing run): PASS")
+
+    # 14b: gate failure -> Unresolved names the failing gate.
+    d = TMP_ROOT / "sessions14b"
+    repo = new_target_repo("repo14b")
+    add_package_json(repo, {"lint": "exit 1"})
+    proc = run_pipeline("task", repo, human_gate_cmd=APPROVE_STUB, extra_env={"AGENTIC_LIGHT_SESSIONS_DIR": str(d)})
+    recs = session_records(d)
+    check("fixture14b: rc == 1", proc.returncode == 1, proc.returncode)
+    check("fixture14b: one record", len(recs) == 1, recs)
+    if recs:
+        text = recs[0].read_text(encoding="utf-8")
+        check("fixture14b: record validates", *validate_record(recs[0]))
+        unresolved = record_section(text, "Unresolved")
+        check("fixture14b: Unresolved names failing gate", "gate 1 (eslint) failed" in unresolved and "`gates`" in unresolved, text)
+    print("fixture 14b (session record, gate failure): PASS")
+
+    # 14c: preflight refusal still writes a record (every run_end does).
+    d = TMP_ROOT / "sessions14c"
+    repo = new_target_repo("repo14c")
+    (repo / "staged.txt").write_text("x\n", encoding="utf-8")
+    subprocess.run([GIT, "-C", str(repo), "add", "staged.txt"], check=True, env=BASE_ENV, encoding="utf-8")
+    proc = run_pipeline("task", repo, human_gate_cmd=APPROVE_STUB, extra_env={"AGENTIC_LIGHT_SESSIONS_DIR": str(d)})
+    recs = session_records(d)
+    check("fixture14c: rc == 1", proc.returncode == 1, proc.returncode)
+    check("fixture14c: one record", len(recs) == 1, recs)
+    if recs:
+        text = recs[0].read_text(encoding="utf-8")
+        check("fixture14c: record validates", *validate_record(recs[0]))
+        check("fixture14c: Unresolved names preflight check", "preflight check clean_index" in record_section(text, "Unresolved"), text)
+        check("fixture14c: no commit -> Changed says so", "No commit made" in record_section(text, "Changed"), text)
+    print("fixture 14c (session record, preflight refusal): PASS")
+
+    # 14d: unwritable records path (a regular file) does not fail the run.
+    blocker = TMP_ROOT / "sessions14d"
+    blocker.write_text("not a dir\n", encoding="utf-8")
+    repo = new_target_repo("repo14d")
+    reset_calls()
+    proc = run_pipeline("add a widget", repo, human_gate_cmd=APPROVE_STUB,
+                        extra_env={"AGENTIC_LIGHT_SESSIONS_DIR": str(blocker)})
+    out = proc.stdout + proc.stderr
+    check("fixture14d: rc == 0", proc.returncode == 0, proc.returncode)
+    check("fixture14d: warned once", out.count("WARNING: session record not written") == 1, out)
+    print("fixture 14d (unwritable session records path does not fail the run): PASS")
+
+    # 14e: hostile task text still yields a valid record (one bad record
+    # would fail context_catalog build for the whole layer).
+    d = TMP_ROOT / "sessions14e"
+    repo = new_target_repo("repo14e")
+    proc = run_pipeline("[[x]] fix\n## Outcome\n---\n--flag \"q\"", repo, human_gate_cmd=APPROVE_STUB,
+                        extra_env={"AGENTIC_LIGHT_SESSIONS_DIR": str(d)})
+    recs = session_records(d)
+    check("fixture14e: one record", len(recs) == 1, recs)
+    if recs:
+        check("fixture14e: hostile task record validates", *validate_record(recs[0]))
+        lines = LOG_SESSION_NOTE.read_text(encoding="utf-8").splitlines()
+        check("fixture14e: weekly line one line, brackets neutralized",
+              any(l.startswith("- ") and l.endswith('· [ [x] ] fix ## Outcome --- --flag "q"') for l in lines), lines[-3:])
+    print("fixture 14e (session record, hostile task text): PASS")
+
+
 def main():
     try:
         fixture_1()
@@ -778,7 +895,9 @@ def main():
         fixture_11()
         fixture_12()
         fixture_13()
+        fixture_14()
     finally:
+        check("real brain/records/ untouched", records_snapshot() == PRE_RECORDS)
         cleanup()
 
     if _FAILURES:

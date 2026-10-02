@@ -18,13 +18,29 @@ scope: workspace | project | session
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 author: human | ai | mixed
-source:
-  - path/to/source.md
+source: [path/to/source.md]
 ---
 ```
 
+List values use the inline `[a, b]` form — `context_validate.py`'s parser
+does not accept YAML block lists (`- item` lines).
+
 Optional fields include `projects`, `tags`, and `related`. Use body wikilinks
 for readable connections and frontmatter relations for machine retrieval.
+
+## Session records
+
+`sessions/` holds `type: session` records, written by tools, never by hand:
+
+- `sessions/<run-id>.md` — one per `pipeline/run.py` launcher run (id
+  `session-<run-id>`, tag `launcher-run`), written when the run ends on every
+  exit path. Provenance is the run's `pipeline/logs/<run-id>.events.jsonl`
+  (the audit trail of record) and `.log`. See `pipeline/README.md`'s
+  "Session records".
+- `sessions/curation-*.md` — one per `context_curate.py --apply`.
+
+Both are indexed by `context_catalog.py` like any record and can be linked to
+projects, decisions, and learnings with `context.py curate`.
 
 ## Write rules
 

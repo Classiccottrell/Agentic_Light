@@ -85,11 +85,13 @@ class EventLog:
     def __init__(self, path, run_id):
         self.path = path
         self.run_id = run_id
+        self.history = []  # in-memory copy — the session record is built from this, not the file
         self._warned = False
 
     def emit(self, event, **fields):
         record = {"v": 1, "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                   "run_id": self.run_id, "event": event, **fields}
+        self.history.append(record)
         try:
             with open(self.path, "a", encoding="utf-8", newline="\n") as f:
                 f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
@@ -107,6 +109,151 @@ def _events_path(run_id):
     if override and os.environ.get("AGENTIC_LIGHT_TEST_MODE") == "1":
         return Path(override)
     return PIPELINE_DIR / "logs" / f"{run_id}.events.jsonl"
+
+
+def _sessions_dir():
+    """brain/records/sessions/; AGENTIC_LIGHT_SESSIONS_DIR overrides it only
+    under AGENTIC_LIGHT_TEST_MODE=1 (same contract as _events_path())."""
+    override = os.environ.get("AGENTIC_LIGHT_SESSIONS_DIR")
+    if override and os.environ.get("AGENTIC_LIGHT_TEST_MODE") == "1":
+        return Path(override)
+    return ROOT / "brain" / "records" / "sessions"
+
+
+def session_record_id(run_id):
+    return f"session-{run_id}"
+
+
+def _one_line(text, limit):
+    """Task text made safe for one frontmatter/body line: whitespace
+    collapsed (no '## ' heading or '---' line can form), wikilink brackets
+    neutralized (no broken-link validator findings), list/quote framing
+    stripped (parse_value would read '[...]' as a list), then truncated."""
+    text = " ".join(str(text).split()).replace("[[", "[ [").replace("]]", "] ]")
+    text = text.strip("'\" ").lstrip("[ ").strip("'\" ") or "untitled task"
+    return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
+
+
+def _rel(path):
+    p = Path(path)
+    try:
+        return p.resolve().relative_to(ROOT.resolve()).as_posix()
+    except ValueError:
+        return str(p)
+
+
+def build_session_record(run_id, task_desc, events, state, run_log_path):
+    """Deterministic `type: session` record for one launcher run, built from
+    the in-memory event history + state (never env, prompt, or diff)."""
+    by = {}
+    for e in events.history:
+        by.setdefault(e["event"], []).append(e)
+    first = lambda name: (by.get(name) or [{}])[0]  # noqa: E731
+    last = lambda name: (by.get(name) or [{}])[-1]  # noqa: E731
+    start, end, pr = first("run_start"), last("run_end"), last("pr")
+    task = _one_line(task_desc, 400)
+    today = time.strftime("%Y-%m-%d")
+
+    skills = ", ".join(f"{s['skill']}{'' if s.get('injected') else ' (not injected)'}"
+                       for s in first("skills_routed").get("skills", [])) or "none"
+    gates = by.get("gate", [])
+    gate_txt = "; ".join(f"{g['n']}. {g.get('script') or g['gate']}: {g['result']}" for g in gates) or "none run"
+    coder = first("coder_exit")
+    coder_txt = f"exit {coder['status']} ({coder['reason']})" if coder else "not launched"
+    hg = first("human_gate").get("decision", "not reached")
+    pr_txt = "created" if pr.get("created") else f"not created ({pr.get('reason') or 'unknown'})"
+    status, stage = end.get("status", "error"), end.get("stage", state.get("stage"))
+
+    if status == "pass":
+        unresolved = "None recorded."
+    elif status == "pending":
+        unresolved = "Human gate pending — awaiting interactive review; no PR created."
+    else:
+        failed_gate = next((g for g in gates if g["result"] == "fail"), None)
+        pf = next((e for e in by.get("preflight", []) if e.get("result") == "fail"), None)
+        if failed_gate:
+            reason = f"gate {failed_gate['n']} ({failed_gate.get('script') or failed_gate['gate']}) failed, rc {failed_gate['rc']}"
+        elif pf:
+            reason = f"preflight check {pf['check']} refused the run"
+        elif coder and coder.get("status") != 0:
+            reason = f"coder {coder_txt}"
+        elif hg == "declined":
+            reason = "human gate declined"
+        elif stage == "pr":
+            reason = f"PR creation failed, rc {pr.get('rc')}"
+        else:
+            reason = f"halted at stage {stage}"
+        unresolved = f"Run {status} at stage `{stage}`: {reason}."
+
+    changed = state.get("changed") or []
+    changed_txt = ("\n".join(f"- `{_one_line(f, 200)}`" for f in changed)
+                   + ("\n- … (list truncated)" if state.get("changed_truncated") else "")
+                   if changed else "No commit made by the pipeline.")
+    sources = [_rel(events.path), _rel(run_log_path)]
+    lines = [
+        "---",
+        f"id: {session_record_id(run_id)}",
+        "type: session",
+        f"title: {_one_line(task_desc, 80)}",
+        "status: active",
+        "scope: session",
+        f"created: {today}",
+        f"updated: {today}",
+        "author: ai",
+        f"source: [{', '.join(sources)}]",
+        "tags: [launcher-run]",
+        "---",
+        "## Task",
+        task,
+        "",
+        f"- Run: `{run_id}`",
+        f"- Target repo: `{_one_line(start.get('target_repo', ''), 300)}`",
+        f"- Branch: `{start.get('branch', '')}`",
+        f"- Provider / role: {start.get('provider') or 'unresolved'} / {start.get('role', 'coder')}",
+        f"- Preset: {start.get('preset') or 'unspecialized'}",
+        f"- Routed skills: {skills}",
+        "",
+        "## Outcome",
+        f"- Run end: {status} (stage `{stage}`, exit {end.get('exit_code')})",
+        f"- Coder: {coder_txt}",
+        f"- Gates: {gate_txt}",
+        f"- Human gate: {hg}",
+        f"- PR: {pr_txt}",
+        "",
+        "## Changed",
+        changed_txt,
+        "",
+        "## Unresolved",
+        unresolved,
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def write_session_record(run_id, task_desc, events, state, run_log_path):
+    """Best-effort, like EventLog: one WARNING on any failure, never raises.
+    Exclusive create — an existing record with the same id is never
+    overwritten (skipped with a warning)."""
+    try:
+        text = build_session_record(run_id, task_desc, events, state, run_log_path)
+        out_dir = _sessions_dir()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        with open(out_dir / f"{run_id}.md", "x", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+    except Exception as e:  # noqa: BLE001 — record writes must never fail the run
+        print(f"WARNING: session record not written for run {run_id} ({type(e).__name__}) — continuing.", file=sys.stderr)
+
+
+def _committed_files(git, target_repo, cap=50):
+    """Files in the pipeline's own commit (HEAD), read from git — not from
+    the coder. Best-effort; returns (files, truncated)."""
+    try:
+        proc = subprocess.run([git, "-C", str(target_repo), "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
+                              capture_output=True, encoding="utf-8", errors="replace")
+        files = [l for l in proc.stdout.splitlines() if l.strip()] if proc.returncode == 0 else []
+    except Exception:  # noqa: BLE001
+        files = []
+    return files[:cap], len(files) > cap
 
 
 def _resolve_provider_quietly():
@@ -321,6 +468,7 @@ def _run(task_desc, target_repo):
         events.emit("run_end", exit_code=rc, stage=state["stage"],
                     status="error" if rc is None else "pass" if rc == 0
                     else "pending" if rc == 2 and state["stage"] == "human_gate" else "fail")
+        write_session_record(run_id, task_desc, events, state, run_log_path)
         sys.stdout, sys.stderr = real_stdout, real_stderr
         log_f.close()
 
@@ -460,7 +608,8 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name, events,
 
     subprocess.run([sys.executable, str(ROOT / "System_Config" / "log_session.py"),
                      "--provider", coder_provider, "--role", "coder",
-                     "--status", str(coder_rc), "--reason", reason_for_status(coder_rc, coder_provider)],
+                     "--status", str(coder_rc), "--reason", reason_for_status(coder_rc, coder_provider),
+                     "--run-id", run_id, "--record", session_record_id(run_id), f"--task={task_desc}"],
                     env=_child_env())
     events.emit("coder_exit", provider=coder_provider, status=coder_rc,
                 reason=reason_for_status(coder_rc, coder_provider))
@@ -498,6 +647,7 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name, events,
     if commit.returncode != 0:
         print(f"FAILED: could not commit coder's changes in {target_repo}")
         return 1
+    state["changed"], state["changed_truncated"] = _committed_files(git, target_repo)
     print("  code patch step complete")
     print()
 

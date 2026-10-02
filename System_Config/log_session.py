@@ -6,7 +6,15 @@ of config.py (matches log_session.sh, which never sourced config.sh — it
 derives its own ROOT/BRAIN directly).
 
 Usage: log_session.py --provider <name> --role <role> --status <exit-code> --reason <exit|timeout|signal|refused> [--note <path>]
+                      [--run-id <id>] [--record <record-id>] [--task=<text>]
        log_session.py --self-test
+
+Line format (one line, append-only; optional fields only appear when given,
+always AFTER "(reason)" so readers matching the original
+"- <ts>: <provider> / <role> — exit <n> (<reason>)" prefix keep working):
+  - <ts>: <provider> / <role> — exit <n> (<reason>) · run <id> · record <record-id> · <task, ≤60 chars>
+The task goes last and is collapsed to one line. Pass it as --task=<text>
+(the `=` form) so a task starting with '-' isn't parsed as an option.
 
 Appends one line under the current ISO week's weekly note's
 '## Agent Sessions' heading (brain/weekly_logs/YYYY/YYYY-Www.md). Also
@@ -54,9 +62,25 @@ def _atomic_write(path, text):
         raise
 
 
-def append_session_line(note_path, provider, role, status, reason):
-    ts = _now_str()
+def _short_task(task, limit=60):
+    text = " ".join(str(task).split()).replace("[[", "[ [").replace("]]", "] ]")  # no dangling wikilinks in the note
+    return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
+
+
+def format_session_line(ts, provider, role, status, reason, run_id="", record="", task=""):
     line = f"- {ts}: {provider} / {role} — exit {status} ({reason})"
+    if run_id:
+        line += f" · run {' '.join(run_id.split())}"
+    if record:
+        line += f" · record {' '.join(record.split())}"
+    if task and _short_task(task):
+        line += f" · {_short_task(task)}"
+    return line
+
+
+def append_session_line(note_path, provider, role, status, reason, run_id="", record="", task=""):
+    ts = _now_str()
+    line = format_session_line(ts, provider, role, status, reason, run_id, record, task)
     text = note_path.read_text(encoding="utf-8")
     raw_lines = text.splitlines()
 
@@ -115,6 +139,14 @@ def self_test():
     check("no duplicate heading", text.count("## Agent Sessions") == 1)
     check("two runs yield two lines", len(re.findall(r'^- \d{4}', text, re.MULTILINE)) == 2)
     tmp.unlink()
+
+    # Old-args-only calls keep the exact original line; new fields append
+    # after "(reason)" on the same single line.
+    check("old format unchanged", format_session_line("T", "claude", "coder", "0", "exit") == "- T: claude / coder — exit 0 (exit)")
+    rich = format_session_line("T", "claude", "coder", "0", "exit", "20261001-1-2", "session-20261001-1-2",
+                               "--fix  the\nwidget " + "x" * 80)
+    check("enriched keeps old prefix", rich.startswith("- T: claude / coder — exit 0 (exit) · run 20261001-1-2 · record session-20261001-1-2 · --fix the widget"), rich)
+    check("enriched is one line, task truncated", "\n" not in rich and rich.endswith("…") and len(rich.split(" · ")[-1]) == 60, rich)
 
     # Legacy-heading compat.
     tmp = Path(tempfile.mkstemp(suffix=".md")[1])
@@ -199,6 +231,9 @@ def main():
     parser.add_argument("--status", default="")
     parser.add_argument("--reason", default="")
     parser.add_argument("--note", default=os.environ.get("LOG_SESSION_NOTE", ""))
+    parser.add_argument("--run-id", default="")
+    parser.add_argument("--record", default="")
+    parser.add_argument("--task", default="")
     parser.add_argument("-h", "--help", action="store_true")
     args = parser.parse_args()
 
@@ -239,7 +274,8 @@ def main():
                 print(f"log_session.py: weekly note still missing at {note} after monday_init.py — skipping", file=sys.stderr)
                 return 0
 
-    append_session_line(note, args.provider, args.role, args.status, args.reason)
+    append_session_line(note, args.provider, args.role, args.status, args.reason,
+                        args.run_id, args.record, args.task)
     return 0
 
 

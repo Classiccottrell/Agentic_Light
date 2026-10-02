@@ -130,8 +130,12 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   microsite regen and no GitHub Pages publish here.
 - **`log_session.py`** — launcher-level session logger (deterministic, no
   AI call). `log_session.py --provider <name> --role <role> --status
-  <exit-code> --reason <exit|timeout|signal|refused> [--note <path>]`
-  appends one line under the current week's `## Agent Sessions` heading
+  <exit-code> --reason <exit|timeout|signal|refused> [--note <path>]
+  [--run-id <id>] [--record <record-id>] [--task=<text>]` appends one line
+  (`- <ts>: <provider> / <role> — exit <n> (<reason>)`, then
+  ` · run <id> · record <record-id> · <task ≤60 chars>` when those are
+  given — appended after `(reason)` so existing prefix readers keep working;
+  `--task=` form so a leading `-` isn't parsed as an option) under the current week's `## Agent Sessions` heading
   (also matches the legacy `## Claude Sessions` heading). If the default
   current-week note doesn't exist yet, it runs `monday_init.py` first
   (stdout redirected to stderr) to create the full templated note — plus
@@ -149,7 +153,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   workspace scripts for the auto-init path; the real vault is never
   touched). Called once by `pipeline/run.py` after the coder step completes.
   Compatibility output: the run's audit trail of record is
-  `pipeline/logs/<run-id>.events.jsonl` (see `pipeline/README.md`).
+  `pipeline/logs/<run-id>.events.jsonl`, and its durable typed summary is
+  `brain/records/sessions/<run-id>.md` (see `pipeline/README.md`'s
+  "Session records").
 - **`prompt_assembly.py`** — library module, the role launch contract
   (`--self-test` runs its own fixtures). `assemble(role, task_block,
   skill_texts, packet_text)` returns the one prompt `pipeline/run.py` hands

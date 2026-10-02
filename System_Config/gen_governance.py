@@ -348,9 +348,19 @@ pipeline, enforced structurally, not by convention:
 - **`System_Config/log_session.py`** — compatibility output, called exactly
   once per coder invocation, after the coder step, regardless of outcome
   (success, watchdog timeout, or an Ollama write-workflow refusal). Appends
-  one line — provider, role, exit status, reason — under `## Agent Sessions`
+  one line — provider, role, exit status, reason, run id, session-record id,
+  short task summary — under `## Agent Sessions`
   in the current ISO week's weekly note
   (`brain/weekly_logs/YYYY/YYYY-Www.md`).
+- **`brain/records/sessions/<run-id>.md`** — the durable, curatable summary
+  of the run: one typed `type: session` record written when the run ends (on
+  every exit path), with the events file and run log as its `source:`
+  provenance. Built deterministically from the run's own data (task, target,
+  branch, provider, gates, human-gate decision, PR outcome, committed files,
+  the failing stage if any) — no LLM call, no environment, prompt or diff.
+  The events file stays the record of truth; this record is what the context
+  layer indexes and the curator links to projects, decisions and learnings.
+  Best-effort, like the events file.
 - **`pipeline/logs/<run-id>.log`** — the full run, gate output included, is
   teed to a per-run log file (run id `YYYYmmdd-HHMMSS-<pid>`). This is the
   human-readable transcript: what ran, in what order, and its output.
