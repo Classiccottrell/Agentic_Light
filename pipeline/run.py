@@ -124,14 +124,32 @@ def session_record_id(run_id):
     return f"session-{run_id}"
 
 
-def _one_line(text, limit):
-    """Task text made safe for one frontmatter/body line: whitespace
-    collapsed (no '## ' heading or '---' line can form), wikilink brackets
-    neutralized (no broken-link validator findings), list/quote framing
-    stripped (parse_value would read '[...]' as a list), then truncated."""
+def _one_line(text, limit, empty="untitled task"):
+    """Free text squeezed onto ONE line: whitespace collapsed (so no marker
+    can start a line mid-text), wikilink brackets neutralized (no broken-link
+    validator findings), outer quotes and a leading '[' stripped
+    (parse_value would read '[...]' as a list), then truncated. It does NOT
+    neutralize a marker at the START of the text ('## x', '---', '> q') —
+    callers must place the result after a fixed prefix (see the Task line
+    and _yaml_title())."""
     text = " ".join(str(text).split()).replace("[[", "[ [").replace("]]", "] ]")
-    text = text.strip("'\" ").lstrip("[ ").strip("'\" ") or "untitled task"
+    text = text.strip("'\" ").lstrip("[ ").strip("'\" ") or empty
     return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
+
+
+def _yaml_title(text):
+    """Single-quoted title: context_validate.parse_value strips the outer
+    quotes, and real YAML reads a leading '#', '-', '|', '>' or ':' as text,
+    not a comment/block scalar. Inner "'" becomes "’" (no escaping needed)."""
+    return "'" + _one_line(text, 80).replace("'", "’") + "'"
+
+
+def _exc_text(exc, limit=200):
+    """'Type' or 'Type: message' (one line, truncated) for an exception."""
+    if exc is None:
+        return ""
+    msg = _one_line(exc, limit, empty="")
+    return type(exc).__name__ + (f": {msg}" if msg else "")
 
 
 def _rel(path):
@@ -142,9 +160,10 @@ def _rel(path):
         return str(p)
 
 
-def build_session_record(run_id, task_desc, events, state, run_log_path):
+def build_session_record(run_id, task_desc, events, state, run_log_path, exc=None):
     """Deterministic `type: session` record for one launcher run, built from
-    the in-memory event history + state (never env, prompt, or diff)."""
+    the in-memory event history + state (never env, prompt, or diff). `exc`
+    is the exception that escaped the run body, if any (crash/interrupt)."""
     by = {}
     for e in events.history:
         by.setdefault(e["event"], []).append(e)
@@ -159,15 +178,25 @@ def build_session_record(run_id, task_desc, events, state, run_log_path):
     gates = by.get("gate", [])
     gate_txt = "; ".join(f"{g['n']}. {g.get('script') or g['gate']}: {g['result']}" for g in gates) or "none run"
     coder = first("coder_exit")
-    coder_txt = f"exit {coder['status']} ({coder['reason']})" if coder else "not launched"
-    hg = first("human_gate").get("decision", "not reached")
+    if coder:
+        coder_txt = f"exit {coder['status']} ({coder['reason']})"
+    elif by.get("coder_launch"):
+        coder_txt = "launched, no exit recorded (interrupted)"
+    else:
+        coder_txt = "not launched"
     pr_txt = "created" if pr.get("created") else f"not created ({pr.get('reason') or 'unknown'})"
     status, stage = end.get("status", "error"), end.get("stage", state.get("stage"))
+    hg = first("human_gate").get("decision") or (
+        "interrupted before a decision" if stage == "human_gate" else "not reached")
 
     if status == "pass":
         unresolved = "None recorded."
     elif status == "pending":
         unresolved = "Human gate pending — awaiting interactive review; no PR created."
+    elif status == "error":
+        what = "interrupted" if isinstance(exc, KeyboardInterrupt) else "crashed"
+        unresolved = (f"Run {what} at stage `{stage}`"
+                      + (f": {_exc_text(exc)}." if exc is not None else " (no exception captured)."))
     else:
         failed_gate = next((g for g in gates if g["result"] == "fail"), None)
         pf = next((e for e in by.get("preflight", []) if e.get("result") == "fail"), None)
@@ -194,7 +223,7 @@ def build_session_record(run_id, task_desc, events, state, run_log_path):
         "---",
         f"id: {session_record_id(run_id)}",
         "type: session",
-        f"title: {_one_line(task_desc, 80)}",
+        f"title: {_yaml_title(task_desc)}",
         "status: active",
         "scope: session",
         f"created: {today}",
@@ -204,7 +233,7 @@ def build_session_record(run_id, task_desc, events, state, run_log_path):
         "tags: [launcher-run]",
         "---",
         "## Task",
-        task,
+        f"Task: {task}",
         "",
         f"- Run: `{run_id}`",
         f"- Target repo: `{_one_line(start.get('target_repo', ''), 300)}`",
@@ -214,7 +243,8 @@ def build_session_record(run_id, task_desc, events, state, run_log_path):
         f"- Routed skills: {skills}",
         "",
         "## Outcome",
-        f"- Run end: {status} (stage `{stage}`, exit {end.get('exit_code')})",
+        f"- Run end: {status} (stage `{stage}`, exit "
+        f"{'none (crashed)' if end.get('exit_code') is None else end.get('exit_code')})",
         f"- Coder: {coder_txt}",
         f"- Gates: {gate_txt}",
         f"- Human gate: {hg}",
@@ -230,15 +260,17 @@ def build_session_record(run_id, task_desc, events, state, run_log_path):
     return "\n".join(lines)
 
 
-def write_session_record(run_id, task_desc, events, state, run_log_path):
+def write_session_record(run_id, task_desc, events, state, run_log_path, exc=None):
     """Best-effort, like EventLog: one WARNING on any failure, never raises.
     Exclusive create — an existing record with the same id is never
     overwritten (skipped with a warning)."""
     try:
-        text = build_session_record(run_id, task_desc, events, state, run_log_path)
+        text = build_session_record(run_id, task_desc, events, state, run_log_path, exc)
         out_dir = _sessions_dir()
         out_dir.mkdir(parents=True, exist_ok=True)
-        with open(out_dir / f"{run_id}.md", "x", encoding="utf-8", newline="\n") as f:
+        # File stem == record id, so .gitignore's `session-[0-9]*.md` rule
+        # matches launcher records only (never curation-* or human records).
+        with open(out_dir / f"{session_record_id(run_id)}.md", "x", encoding="utf-8", newline="\n") as f:
             f.write(text)
     except Exception as e:  # noqa: BLE001 — record writes must never fail the run
         print(f"WARNING: session record not written for run {run_id} ({type(e).__name__}) — continuing.", file=sys.stderr)
@@ -459,16 +491,20 @@ def _run(task_desc, target_repo):
     # stage: last step reached; pr_done: a "pr" event was already emitted.
     state = {"stage": "start", "pr_done": False}
     rc = None
+    exc = None
     try:
         rc = _run_body(task_desc, target_repo, run_id, run_log_path, branch_name, events, state)
         return rc
+    except BaseException as e:  # captured for the session record only; always re-raised
+        exc = e
+        raise
     finally:
         if not state["pr_done"]:
             events.emit("pr", created=False, reason=f"run halted at {state['stage']}")
         events.emit("run_end", exit_code=rc, stage=state["stage"],
                     status="error" if rc is None else "pass" if rc == 0
                     else "pending" if rc == 2 and state["stage"] == "human_gate" else "fail")
-        write_session_record(run_id, task_desc, events, state, run_log_path)
+        write_session_record(run_id, task_desc, events, state, run_log_path, exc)
         sys.stdout, sys.stderr = real_stdout, real_stderr
         log_f.close()
 

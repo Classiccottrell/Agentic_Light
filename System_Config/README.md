@@ -154,7 +154,7 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   touched). Called once by `pipeline/run.py` after the coder step completes.
   Compatibility output: the run's audit trail of record is
   `pipeline/logs/<run-id>.events.jsonl`, and its durable typed summary is
-  `brain/records/sessions/<run-id>.md` (see `pipeline/README.md`'s
+  `brain/records/sessions/session-<run-id>.md` (machine-local, gitignored; see `pipeline/README.md`'s
   "Session records").
 - **`prompt_assembly.py`** — library module, the role launch contract
   (`--self-test` runs its own fixtures). `assemble(role, task_block,

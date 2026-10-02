@@ -14,6 +14,10 @@ System_Config/logs/*.log
 pipeline/logs/*.log
 pipeline/logs/*.events.jsonl
 
+# Launcher session records (pipeline/run.py) — machine-local: their provenance
+# is the gitignored pipeline/logs/ files. Curated/human records stay committed.
+brain/records/sessions/session-[0-9]*.md
+
 # OS cruft
 .DS_Store
 

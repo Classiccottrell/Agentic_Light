@@ -268,36 +268,52 @@ the file only when `AGENTIC_LIGHT_TEST_MODE=1` is set.
 
 When a run ends — every exit path inside the run, from the same `finally`
 that writes `run_end`, preflight refusals included — `run.py` writes one typed
-`type: session` record to `brain/records/sessions/<run-id>.md` (id
-`session-<run-id>`), valid under `System_Config/context_validate.py`. It is
+`type: session` record to `brain/records/sessions/session-<run-id>.md` (id
+`session-<run-id>`, same as the file stem), valid under `System_Config/context_validate.py`. It is
 the durable, curatable summary of the run; the events file stays the record
 of truth and is the record's `source:` provenance, with the run log
 (repo-relative paths; both are gitignored, so provenance resolves only on the
 machine that ran it). Body sections are built deterministically from the
 run's own data — no LLM call:
 
-- **Task** — task text (one line), run id, target repo, branch,
+- **Task** — `Task: <text>` (one line, behind that fixed prefix), run id, target repo, branch,
   provider/role, preset, routed skills.
-- **Outcome** — `run_end` status/stage/exit, coder exit, each gate result,
-  human-gate decision, PR outcome.
+- **Outcome** — `run_end` status/stage/exit (`none (crashed)` when the run
+  raised), coder exit (`launched, no exit recorded (interrupted)` when the
+  coder started but the run died first), each gate result, human-gate
+  decision (`interrupted before a decision` when the run died inside the
+  gate), PR outcome.
 - **Changed** — files in the pipeline's own commit, read from git in the
   target repo after the commit (capped at 50), or "No commit made by the
   pipeline."
 - **Unresolved** — the failing stage and reason (failed gate, refused
-  preflight check, coder exit, declined/pending human gate, PR failure), or
-  "None recorded."
+  preflight check, coder exit, declined/pending human gate, PR failure), for
+  a crash/Ctrl-C the stage plus the exception type and single-lined,
+  truncated message (`Run crashed at stage …: RuntimeError: …` / `Run
+  interrupted …`), or "None recorded."
 
 Never included: the environment, the prompt, the diff body. Task text is
-collapsed to one line with `[[`/`]]` neutralized so no input can produce an
-invalid record (one bad record would fail `context_catalog build` for the
-whole layer). The write is exclusive-create — an existing record with the
+collapsed to one line with `[[`/`]]` neutralized, written in the body only
+after the fixed `Task: ` prefix and in frontmatter as a single-quoted
+`title:`, so no body line can start a heading, rule, quote or table row and
+the four sections stay exactly Task/Outcome/Changed/Unresolved (fixtures
+14e/14f). That is the guarantee — it covers task text, the only free-form
+input; it is not a general sanitizer (one bad record would fail
+`context_catalog build` for the whole layer). The write is exclusive-create — an existing record with the
 same id is never overwritten — and best-effort: any failure prints one
 `WARNING:` and never changes the run's outcome. `AGENTIC_LIGHT_SESSIONS_DIR`
-redirects the directory only when `AGENTIC_LIGHT_TEST_MODE=1` is set. A
-concurrency-lock refusal returns before a run id exists, so it produces no
-events file and no record;
+redirects the directory only when `AGENTIC_LIGHT_TEST_MODE=1` is set;
 `test_pipeline.py` always sets it and asserts the real `brain/records/` is
-untouched.
+untouched. A concurrency-lock refusal returns before a run id exists, so it
+produces no events file and no record.
+
+Launcher session records are **machine-local and gitignored**
+(`.gitignore`: `brain/records/sessions/session-[0-9]*.md`) — their
+provenance is the gitignored `pipeline/logs/` files, and without the rule a
+run that targets the workspace itself would sweep the previous run's record
+into its commit via `git add -A` (fixture 14g). `context_catalog.py` reads
+the filesystem, so ignored records are still indexed locally. Curated
+(`curation-*`) and human records are committed as usual.
 
 ## Session logging
 

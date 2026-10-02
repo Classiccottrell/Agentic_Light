@@ -178,7 +178,8 @@ def git_log_count(repo, range_spec):
     return len([l for l in proc.stdout.splitlines() if l.strip()])
 
 
-def run_pipeline(task, target_repo, coder_cmd=CODER_STUB, human_gate_cmd=None, extra_env=None, stdin=None):
+def run_pipeline(task, target_repo, coder_cmd=CODER_STUB, human_gate_cmd=None, extra_env=None, stdin=None,
+                 end_of_options=False):
     env = dict(BASE_ENV)
     env["PATH"] = f"{FAKE_BIN}{os.pathsep}{env.get('PATH', '')}"
     env["CALLS"] = str(CALLS)
@@ -192,7 +193,8 @@ def run_pipeline(task, target_repo, coder_cmd=CODER_STUB, human_gate_cmd=None, e
         env["PIPELINE_HUMAN_GATE_CMD"] = str(human_gate_cmd)
     if extra_env:
         env.update(extra_env)
-    return subprocess.run([sys.executable, str(RUN), task, str(target_repo)],
+    # end_of_options: a task like '---' would otherwise parse as an option.
+    return subprocess.run([sys.executable, str(RUN)] + (["--"] if end_of_options else []) + [task, str(target_repo)],
                            capture_output=True, encoding="utf-8", errors="replace",
                            env=env, stdin=stdin)
 
@@ -801,7 +803,7 @@ def fixture_14():
     check("fixture14a: exactly one record", len(recs) == 1, recs)
     if len(recs) == 1:
         text = recs[0].read_text(encoding="utf-8")
-        run_id = recs[0].stem
+        run_id = recs[0].stem.removeprefix("session-")
         ok, detail = validate_record(recs[0])
         check("fixture14a: record validates", ok, detail)
         check("fixture14a: id from run id", f"id: session-{run_id}\n" in text, text)
@@ -875,6 +877,96 @@ def fixture_14():
         check("fixture14e: weekly line one line, brackets neutralized",
               any(l.startswith("- ") and l.endswith('· [ [x] ] fix ## Outcome --- --flag "q"') for l in lines), lines[-3:])
     print("fixture 14e (session record, hostile task text): PASS")
+
+    # 14f: task text that STARTS with a heading/rule/quote/table marker must
+    # not add a body heading or break the title (QA regression: task
+    # '## Unresolved' produced a fifth heading and a wrong record_section()).
+    from context_validate import parse_frontmatter
+    from context_catalog import excerpt
+    pending_stub = TMP_ROOT / "pending_stub.py"
+    write_fake(pending_stub, "import sys\nsys.exit(2)\n")
+    for i, task in enumerate(["## Unresolved", "# x", "---", "> quote", "| pipe"]):
+        d = TMP_ROOT / f"sessions14f-{i}"
+        repo = new_target_repo(f"repo14f-{i}")
+        proc = run_pipeline(task, repo, human_gate_cmd=pending_stub, end_of_options=True,
+                            extra_env={"AGENTIC_LIGHT_SESSIONS_DIR": str(d)})
+        recs = session_records(d)
+        check(f"fixture14f[{task}]: one record", len(recs) == 1, (recs, proc.stdout[-500:], proc.stderr[-500:]))
+        if len(recs) != 1:
+            continue
+        text = recs[0].read_text(encoding="utf-8")
+        check(f"fixture14f[{task}]: validates", *validate_record(recs[0]))
+        meta, body = parse_frontmatter(recs[0])
+        check(f"fixture14f[{task}]: title round-trips", meta.get("title") == task, meta.get("title"))
+        heads = [l for l in body.splitlines() if l.startswith("#")]
+        check(f"fixture14f[{task}]: exactly four headings in order",
+              heads == ["## Task", "## Outcome", "## Changed", "## Unresolved"], heads)
+        bad = [l for l in body.splitlines() if l.startswith(("#", ">", "---", "|")) and not l.startswith("## ")]
+        check(f"fixture14f[{task}]: no body line starts a marker", not bad, bad)
+        check(f"fixture14f[{task}]: Task section carries the task",
+              record_section(text, "Task").splitlines()[0] == f"Task: {task}", record_section(text, "Task"))
+        check(f"fixture14f[{task}]: catalog excerpt keeps the task", excerpt(body).startswith("Task:"), excerpt(body))
+    print("fixture 14f (session record, leading-marker task text): PASS")
+
+    # 14g: self-targeting (sessions dir inside the target repo, the same
+    # .gitignore rule as the workspace) — run 2's commit must not sweep in
+    # run 1's launcher record (QA regression: `git add -A` committed it).
+    rule = next((l for l in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+                 if l.startswith("brain/records/sessions/")), None)
+    check("fixture14g: workspace .gitignore has a launcher-record rule", rule is not None)
+    repo = new_target_repo("repo14g")
+    (repo / ".gitignore").write_text(f"{rule}\n", encoding="utf-8")
+    subprocess.run([GIT, "-C", str(repo), "add", ".gitignore"], check=True, env=BASE_ENV, encoding="utf-8")
+    subprocess.run([GIT, "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True, env=BASE_ENV, encoding="utf-8")
+    d = repo / "brain" / "records" / "sessions"
+    env14g = {"AGENTIC_LIGHT_SESSIONS_DIR": str(d)}
+    proc1 = run_pipeline("first run", repo, human_gate_cmd=APPROVE_STUB, extra_env=env14g)
+    first = session_records(d)
+    check("fixture14g: run 1 rc == 0", proc1.returncode == 0, proc1.stdout[-500:])
+    check("fixture14g: run 1 record on disk", len(first) == 1, first)
+    if len(first) == 1:
+        rel = first[0].relative_to(repo).as_posix()
+        ign = subprocess.run([GIT, "-C", str(repo), "check-ignore", "-q", rel], encoding="utf-8")
+        check("fixture14g: run 1 record is ignored in the target", ign.returncode == 0, rel)
+        proc2 = run_pipeline("second run", repo, human_gate_cmd=APPROVE_STUB, extra_env=env14g)
+        check("fixture14g: run 2 rc == 0", proc2.returncode == 0, proc2.stdout[-500:])
+        files = subprocess.run([GIT, "-C", str(repo), "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
+                               capture_output=True, encoding="utf-8").stdout.split()
+        check("fixture14g: run 2 committed the coder's change", "seed.txt" in files, files)
+        check("fixture14g: run 2 commit excludes run 1's record", rel not in files, files)
+        check("fixture14g: two records on disk", len(session_records(d)) == 2, session_records(d))
+    print("fixture 14g (self-targeting run does not commit the previous run's record): PASS")
+
+    # 14h: interrupted/crashed runs are described accurately (built directly
+    # from a synthetic event history — signals are not portable).
+    import importlib.util
+    from types import SimpleNamespace
+    spec = importlib.util.spec_from_file_location("al_run_under_test", RUN)
+    run_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(run_mod)
+    start = {"event": "run_start", "target_repo": "/r", "branch": "b", "provider": "override"}
+    launch = {"event": "coder_launch"}
+    cases = [
+        ("coder-interrupt", [start, launch, {"event": "run_end", "status": "error", "stage": "coder", "exit_code": None}],
+         KeyboardInterrupt(), ["Coder: launched, no exit recorded (interrupted)", "exit none (crashed)",
+                               "Run interrupted at stage `coder`: KeyboardInterrupt."]),
+        ("gate-crash", [start, launch, {"event": "coder_exit", "status": 0, "reason": "exit"},
+                        {"event": "run_end", "status": "error", "stage": "human_gate", "exit_code": None}],
+         RuntimeError("boom [[x]]\nline2 " + "y" * 400),
+         ["Human gate: interrupted before a decision", "Run crashed at stage `human_gate`: RuntimeError: boom [ [x] ] line2"]),
+    ]
+    for name, hist, exc, wants in cases:
+        ev = SimpleNamespace(history=hist, path=TMP_ROOT / "x.events.jsonl")
+        text = run_mod.build_session_record("20261001-000000-1", "t", ev, {"stage": hist[-1]["stage"]},
+                                            TMP_ROOT / "x.log", exc)
+        for w in wants:
+            check(f"fixture14h[{name}]: has {w!r}", w in text, text)
+        unresolved = record_section(text, "Unresolved").strip()
+        check(f"fixture14h[{name}]: Unresolved one line, truncated", "\n" not in unresolved and len(unresolved) < 300, unresolved)
+        out = TMP_ROOT / f"rec14h-{name}.md"
+        out.write_text(text, encoding="utf-8")
+        check(f"fixture14h[{name}]: validates", *validate_record(out))
+    print("fixture 14h (session record, interrupted/crashed runs): PASS")
 
 
 def main():

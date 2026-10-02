@@ -352,7 +352,7 @@ pipeline, enforced structurally, not by convention:
   short task summary — under `## Agent Sessions`
   in the current ISO week's weekly note
   (`brain/weekly_logs/YYYY/YYYY-Www.md`).
-- **`brain/records/sessions/<run-id>.md`** — the durable, curatable summary
+- **`brain/records/sessions/session-<run-id>.md`** — the durable, curatable summary
   of the run: one typed `type: session` record written when the run ends (on
   every exit path), with the events file and run log as its `source:`
   provenance. Built deterministically from the run's own data (task, target,
@@ -360,7 +360,8 @@ pipeline, enforced structurally, not by convention:
   the failing stage if any) — no LLM call, no environment, prompt or diff.
   The events file stays the record of truth; this record is what the context
   layer indexes and the curator links to projects, decisions and learnings.
-  Best-effort, like the events file.
+  Best-effort, like the events file. Machine-local and gitignored, like
+  the logs it cites; curated and human records are committed.
 - **`pipeline/logs/<run-id>.log`** — the full run, gate output included, is
   teed to a per-run log file (run id `YYYYmmdd-HHMMSS-<pid>`). This is the
   human-readable transcript: what ran, in what order, and its output.
