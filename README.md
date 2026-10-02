@@ -80,15 +80,21 @@ python3 pipeline/run.py "<task description>" /path/to/target/repo
 ```
 
 `run.py` targets an **external repo**, not Agentic_Light itself. Flow:
-skill routing (`route_skill.py` prepends matching `SKILL.md` guidance to the
-coder prompt) → coder step (one provider, foreground, no retry) → gates
+roster/capability check (a specialized fork's `agent-roster.json` must have
+`coder` active, with capabilities the provider grants) → skill routing
+(`route_skill.py` picks matching `SKILL.md` guidance) → coder step (one
+provider, foreground, no retry; its prompt is `agents/coder.md` + skills +
+optional context packet + task, assembled by
+`System_Config/prompt_assembly.py`) → gates
 (the ordered list in `pipeline/gate-config.json` if present — `eslint`,
 `playwright`, `axe`, or a `custom` script; falls back to the hardcoded
 eslint+playwright pair on an unspecialized fork) → human approval gate
 (`[y/N]` on the committed diff) → `gh pr create --draft`. Every gate must
 pass (or WARN-skip when the target repo has no lint/e2e/a11y setup) before the
-diff is ever shown to a human. See `pipeline/README.md` for the full
-contract (concurrency lock, exit codes, WARN-vs-hard-stop rules).
+diff is ever shown to a human. Each run writes
+`pipeline/logs/<run-id>.events.jsonl`, the provider-neutral audit trail. See
+`pipeline/README.md` for the full contract (concurrency lock, exit codes,
+WARN-vs-hard-stop rules, prompt sections, event schema).
 
 ## Check on it
 

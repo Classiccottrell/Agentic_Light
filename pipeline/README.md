@@ -41,17 +41,32 @@ python3 pipeline/run.py --help   # print usage and exit
    `cwd`/`args` optional, no unknown fields). A malformed config prints a
    `FAILED: ...` message and exits 1 immediately — no coder run, no gates,
    no opaque mid-run failure under `set -u`. See "Gate configuration" below.
+0. **Roster/capability check** — if `System_Config/agent-roster.json` exists
+   (a specialized fork), `prompt_assembly.check_launch()` refuses with
+   `FAILED: ...` and exit 1, before the feature branch is created or the
+   coder runs, when the roster is unreadable or invalid, when `coder` is
+   inactive, or when `roles.coder.capabilities` names a capability the
+   selected provider adapter does not grant. The adapter grants come from
+   `run_agent.py`'s real flags (`prompt_assembly.PROVIDER_CAPABILITIES`):
+   claude `read`/`write` (Bash and Task denied), gemini `read`/`write`
+   (`auto_edit` approves edits only; derived from flags, not verified at
+   runtime), codex `read`/`write`/`shell`
+   (`workspace-write` sandbox), ollama nothing; no adapter grants
+   `delegate`. With `PIPELINE_CODER_CMD` set the capability half is skipped
+   (an arbitrary executable isn't in the table) but the active check still
+   runs. No roster file = no check, unchanged behavior. `risk:` frontmatter
+   is not enforced at launch.
 0. **Skill routing** — `System_Config/route_skill.py "<task description>"`
-   runs before the coder step. Each matched skill's `SKILL.md` is prepended
-   to the coder prompt (capped at the first `AGENTIC_LIGHT_SKILL_MATCH_LIMIT`
+   runs before the coder step. Each matched skill's `SKILL.md` goes into the
+   coder prompt's SKILL GUIDANCE section (capped at the first `AGENTIC_LIGHT_SKILL_MATCH_LIMIT`
    matches, default 3 — the router returns matches ranked by relevance, so
    the cap keeps the most relevant N and stops the prompt from ballooning). Override with `AGENTIC_LIGHT_SKILL_MATCH_LIMIT=<N>` (a
    non-negative integer; `0` injects no skill context); a malformed or unset
    value falls back to 3 with a stderr note. No match, or the router being
    unavailable, is a silent no-op.
 0. **Context packet (opt-in)** — `System_Config/context_packet.py` (run from
-   `$ROOT`, never from inside `$TARGET_REPO`) is prepended to the coder
-   prompt, labeled `Resume context packet:`, only when
+   `$ROOT`, never from inside `$TARGET_REPO`) goes into the coder prompt's
+   CONTEXT PACKET section, labeled `Resume context packet:`, only when
    `AGENTIC_LIGHT_CONTEXT_PACKET=1` is set, or automatically when
    `$TARGET_REPO` resolves (symlink-safe, `Path(...).resolve()` on both
    sides, matching bash's `pwd -P`) to this
@@ -67,9 +82,9 @@ python3 pipeline/run.py --help   # print usage and exit
 1. **Code Patch** — `run.py` itself creates the feature branch
    (`git checkout -b agentic-light/<run-id>`) in the target repo, then
    invokes the `coder` step via `System_Config/run_agent.py`, scoped to the
-   target repo (cwd), with the task description (plus any routed skill
-   guidance from step 0) as the prompt. The prompt tells the coder to
-   implement the change only — it does not ask it to branch or commit,
+   target repo (cwd), with a prompt assembled by
+   `System_Config/prompt_assembly.py` (see "Coder prompt contract" below).
+   The prompt tells the coder to implement the change only — it does not ask it to branch or commit,
    because the `claude` invocation in `run_agent.py` runs with
    `--disallowedTools "Bash,..."` and can't do either. Exactly one call to
    `System_Config/log_session.py` follows the coder process, logging
@@ -204,6 +219,50 @@ evidence capped below `Supports`/`Does Not Support`. Full rule list:
   a missing interpreter when a draft actually exists to check is a real
   gap, not an absent-tool no-op).
 
+## Coder prompt contract
+
+`prompt_assembly.assemble()` builds one prompt, identical for every
+provider, from these sections in this order, each wrapped in
+`----- BEGIN <NAME> -----` / `----- END <NAME> -----` lines (empty sections
+are omitted):
+
+1. `ROLE CONTRACT` — `agents/coder.md` with its frontmatter stripped, plus
+   the active preset's `role_notes` line for `coder` when
+   `System_Config/.active-preset` names a preset that has one.
+2. `SKILL GUIDANCE` — routed `SKILL.md` files, ranked order, capped (step 0).
+3. `CONTEXT PACKET` — the opt-in packet (step 0).
+4. `TASK` — the target repo and task, plus `run.py`'s runtime constraints
+   (no shell, no branch, no commit). A fixed first line states that these
+   constraints override anything conflicting in sections 1-3, because role
+   text is written for interactive use and can say more than the launcher
+   allows.
+
+## Audit events
+
+`run.py` appends one JSON object per line to
+`pipeline/logs/<run-id>.events.jsonl` (gitignored), next to the run log.
+This file is the audit trail of record; `log_session.py`'s weekly-note line
+below is compatibility output, and provider hooks may only adapt to this
+file. Every record has `v` (schema version, `1`), `ts` (UTC ISO 8601),
+`run_id` and `event`, plus:
+
+| `event` | Fields |
+|---|---|
+| `run_start` | `task`, `target_repo`, `branch`, `provider` (`override` under `PIPELINE_CODER_CMD`, `null` if none resolves), `role`, `preset`, `log` |
+| `preflight` | `result` (`pass`/`fail`); on fail `check` (`gate_config`, `roster`, `sensitive_files`, `git`, `clean_index`); on pass `roster` (check summary), `sensitive_files` (count) |
+| `skills_routed` | `cap`, `skills` (`[{skill, score, injected}]`) |
+| `coder_launch` | `provider`, `role`, `via` (`run_agent`/`PIPELINE_CODER_CMD`), `prompt_sections` (`[{name, bytes}]`, `run_agent` only) |
+| `coder_exit` | `provider`, `status`, `reason` (same vocabulary as session logging) |
+| `gate` | `n`, `gate`, `script` (custom only), `rc`, `result` |
+| `human_gate` | `rc`, `decision` (`approved`/`declined`/`pending`) |
+| `pr` | `created`; `rc` when attempted; `reason` when not created (`run halted at <stage>` or `pr_create.py failed`) |
+| `run_end` | `exit_code`, `stage`, `status` (`pass`/`fail`/`pending`/`error`) |
+
+Writes are best-effort: a failed write prints one `WARNING:` and never
+changes the run's outcome. Records carry explicit fields only, never the
+environment, the prompt or the diff. `AGENTIC_LIGHT_EVENTS_PATH` redirects
+the file only when `AGENTIC_LIGHT_TEST_MODE=1` is set.
+
 ## Session logging
 
 After the coder step completes (success, watchdog timeout, or an Ollama
@@ -301,7 +360,15 @@ each → hard stop before the human gate, with the stubbed `gh` never
 receiving a `pr create` call; and a `Supports` row using legitimate
 compliant language containing "does not" → PASS (regression test proving
 the narrowed `no_supports_contradiction` word list doesn't false-positive
-on genuine compliant remarks).
+on genuine compliant remarks). Fixture 11 drives the real `run_agent.py`
+path and asserts the four prompt sections arrive in contract order with
+`agents/coder.md`'s body (and not its frontmatter). Fixtures 12a-12d write a
+temporary `System_Config/agent-roster.json` (backed up and restored on
+exit): an inactive coder, a `shell` capability on the claude adapter, and
+an unreadable roster each fail before branch creation with the coder never
+invoked; satisfiable capabilities launch normally. Fixtures 13a-13c check
+the events file's sequence for a passing run and for a gate-failure run,
+and that an unwritable events path doesn't fail the run.
 
 `python3 System_Config/test_context_packet.py` — fixture coverage for
 `System_Config/context_packet.py` directly: a tiny
@@ -325,4 +392,4 @@ contains every provenance header (`# Agentic Light Context Packet`,
 | `lib/human_gate.py` | Renders summary/diff, blocks on `[y/N]` |
 | `lib/pr_create.py` | Guarded `gh pr create --draft` wrapper |
 | `test_pipeline.py` | Fixture tests — see Tests above |
-| `logs/` | One timestamped log per run (`<run-id>.log`) |
+| `logs/` | Per run: `<run-id>.log` (transcript) and `<run-id>.events.jsonl` (audit events) |
