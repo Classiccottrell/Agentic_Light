@@ -457,16 +457,17 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   philosophy; missing selection file = scan everything). `--preset
   web-app|cli-tool|data-pipeline|design-harness|server-harness|wcag-harness`
   expands a named entry from `System_Config/presets.json` non-interactively
-  (`web-app`: full team + eslint/playwright + `react-doctor`/`shadcn` skills;
+  (`web-app`: full team + eslint/playwright + `react-doctor`/`shadcn`/`honest-thinking-partner`
+  skills;
   `cli-tool`: coder+qa, no gates, `systematic-debugging`/
-  `managing-python-dependencies` skills; `data-pipeline`: architect+coder+qa,
+  `managing-python-dependencies`/`honest-thinking-partner` skills; `data-pipeline`: architect+coder+qa,
   no default gate, `gcp-data-pipelines`/`dbt-bigquery`/
-  `discovering-gcp-data-assets` skills; `design-harness`:
+  `discovering-gcp-data-assets`/`honest-thinking-partner` skills; `design-harness`:
   architect+coder+creative-director+qa, playwright gate only, all skills,
   plus `"requires": ["figma-mcp"]`;
-  `server-harness`: architect+coder+qa, no default gates, `server-review`
-  skill; `wcag-harness`: architect+coder+creative-director+qa, playwright
-  + axe + vpat-lint gates, `wcag-audit`/`vpat-authoring` skills —
+  `server-harness`: architect+coder+qa, no default gates, `server-review`/
+  `honest-thinking-partner` skills; `wcag-harness`: architect+coder+creative-director+qa, playwright
+  + axe + vpat-lint gates, `wcag-audit`/`vpat-authoring`/`honest-thinking-partner` skills —
   `design-harness` and `wcag-harness` also
   carry a `role_notes` field in `presets.json`, giving `architect`/
   `creative-director`/`qa` harness-specific scope text additive to their
@@ -478,8 +479,11 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   empty gate lists because a project's test command varies too much to guess;
   add a repo-root-relative custom gate only when the target project defines
   one. `server-harness`
-  ships `"skills": ["server-review"]` (see `skills/server-review/SKILL.md`) and
-  `wcag-harness` ships `["wcag-audit", "vpat-authoring"]`; a preset only carries a
+  ships `"skills": ["server-review", "honest-thinking-partner"]` (see
+  `skills/server-review/SKILL.md`) and `wcag-harness` ships `["wcag-audit",
+  "vpat-authoring", "honest-thinking-partner"]`; every explicit skill list
+  also carries the vendored `honest-thinking-partner` (`design-harness`
+  gets it via `"*"`); a preset only carries a
   `skills_gap_note` field when its listed skill selection is a genuinely
   known content gap, not by default — neither preset sets one now that both
   have a shipped skill dir. A preset may also carry an optional `requires`

@@ -102,6 +102,8 @@ Agentic_Light/
 │   │   drafting + the vpat-lint gate's discipline
 │   ├── server-review/ (authored in-repo) — server-harness skill
 │   ├── react-doctor/, shadcn/ (vendored, no license metadata) — web-app skill
+│   ├── honest-thinking-partner/ (vendored, no license metadata — see its
+│   │   NOTICE) — all presets
 │   ├── systematic-debugging/, managing-python-dependencies/ (vendored;
 │   │   managing-python-dependencies is Apache-2.0/Google — see its NOTICE)
 │   │   — cli-tool skills

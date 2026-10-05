@@ -54,12 +54,12 @@ A11Y_GATES = ("axe", "vpat-lint")
 HELP_TEXT = """Usage: python3 System_Config/specialize.py [--preset web-app|cli-tool|data-pipeline|design-harness|server-harness|wcag-harness]
   (no args)        interactive checkbox prompts
   --preset <name>  non-interactive, expand a named preset from System_Config/presets.json
-                   web-app: full team + eslint/playwright gates + react-doctor/shadcn skills
-                   cli-tool: coder+qa, no gates, systematic-debugging/managing-python-dependencies skills
-                   data-pipeline: architect+coder+qa, no default gate, curated data skills
+                   web-app: full team + eslint/playwright gates + react-doctor/shadcn/honest-thinking-partner skills
+                   cli-tool: coder+qa, no gates, systematic-debugging/managing-python-dependencies/honest-thinking-partner skills
+                   data-pipeline: architect+coder+qa, no default gate, curated data skills + honest-thinking-partner
                    design-harness: architect+coder+creative-director+qa, playwright gate, all skills
-                   server-harness: architect+coder+qa, no default gates, server-review skill
-                   wcag-harness: architect+coder+creative-director+qa, playwright+axe+vpat-lint gates, wcag-audit+vpat-authoring skills
+                   server-harness: architect+coder+qa, no default gates, server-review+honest-thinking-partner skills
+                   wcag-harness: architect+coder+creative-director+qa, playwright+axe+vpat-lint gates, wcag-audit+vpat-authoring+honest-thinking-partner skills
   --help           this message
 
 Env overrides (non-interactive): AGENTIC_LIGHT_ROLES, AGENTIC_LIGHT_GATES,

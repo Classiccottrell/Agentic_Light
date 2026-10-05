@@ -1,0 +1,23 @@
+NOTICE
+======
+
+This directory (skills/honest-thinking-partner/) contains third-party skill
+content vendored verbatim.
+
+Provenance: vendored from
+https://github.com/aiskilloftheweek/claude-ai-skill-of-the-week/blob/main/skills/010-honest-thinking-partner/SKILL.md
+@ commit f3b155c774b34bbc625b3cf29e114838135d535b, published via the
+"AI Skill of the Week" newsletter (https://www.aiskilloftheweek.com/).
+
+License status
+--------------
+The upstream repository ships no LICENSE file, and SKILL.md carries no
+license metadata in its frontmatter (the same situation as this repo's
+vendored react-doctor/ and shadcn/ skills). No license is granted or implied
+by its inclusion here. Copyright remains with the upstream authors.
+
+SKILL.md is vendored unmodified (byte-identical to the upstream file at the
+commit above). It is included in every preset's skill selection.
+
+If the upstream owner objects to this redistribution, or publishes license
+terms that do not permit it, remove or replace this directory.

@@ -49,12 +49,12 @@ Presets (from `System_Config/presets.json`):
 
 | Preset | Description |
 |---|---|
-| `web-app` | full team + eslint/playwright gates + react-doctor/shadcn skills |
-| `cli-tool` | coder+qa, no gates, systematic-debugging/managing-python-dependencies skills |
-| `data-pipeline` | architect+coder+qa, no default gate, gcp-data-pipelines/dbt-bigquery/discovering-gcp-data-assets skills |
+| `web-app` | full team + eslint/playwright gates + react-doctor/shadcn/honest-thinking-partner skills |
+| `cli-tool` | coder+qa, no gates, systematic-debugging/managing-python-dependencies/honest-thinking-partner skills |
+| `data-pipeline` | architect+coder+qa, no default gate, gcp-data-pipelines/dbt-bigquery/discovering-gcp-data-assets/honest-thinking-partner skills |
 | `design-harness` | architect+coder+creative-director+qa, playwright gate, all skills (requires Figma MCP) |
-| `server-harness` | architect+coder+qa, no default gates, server-review skill |
-| `wcag-harness` | architect+coder+creative-director+qa, playwright+axe+vpat-lint gates, wcag-audit+vpat-authoring skills |
+| `server-harness` | architect+coder+qa, no default gates, server-review+honest-thinking-partner skills |
+| `wcag-harness` | architect+coder+creative-director+qa, playwright+axe+vpat-lint gates, wcag-audit+vpat-authoring+honest-thinking-partner skills |
 
 Specializing writes `System_Config/agent-roster.json` (active roles),
 `pipeline/gate-config.json` (gate list), and
