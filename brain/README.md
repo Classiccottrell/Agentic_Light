@@ -32,8 +32,9 @@ and turns new clips into wiki pages under `brain/wiki/`. See
 When its ignored `System_Config/context-sources.local.json` exists,
 `daily_ingest.sh` also collects explicitly configured AI sessions and Web
 Clipper files. It writes only hashes and labels beneath ignored
-`brain/context/`, then the weekly note links to its gathered-context archive.
-The raw files and the private MemPalace index stay outside normal vault notes.
+`brain/context/`, then the weekly note links separately to its AI-session and
+gathered-context archives. Friday publishes a count-based overview there. The
+raw files and the private MemPalace index stay outside normal vault notes.
 
 ## Semantic search
 `System_Config/memory_index.py --root <workspace>` builds a gitignored,
@@ -54,7 +55,9 @@ The durable record contract and curation safety rules are defined in
 
 ## Weekly cycle
 - `System_Config/monday_init.sh` — starts the week's note + raw folder. Also runs automatically the first time `log_session.sh` logs a session in a week with no note yet; sessions are appended after initialization succeeds, while initialization failure emits a warning and skips the append.
-- `System_Config/friday_process.sh` — closes out the week.
+- `System_Config/friday_process.sh` — collects opted-in context, optionally
+  refreshes MemPalace when `CONTEXT_MEMPALACE_BIN` is set, publishes the
+  count-based overview, then closes out the week.
 
 Run `System_Config/install_context_cadence.sh` (or accept the bootstrap
 prompt) to schedule daily collection, Monday spin-up, and Friday closeout.

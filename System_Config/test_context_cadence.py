@@ -21,7 +21,8 @@ class ContextCadenceFixtures(unittest.TestCase):
         self.brain = self.root / "brain"
         self.system.mkdir()
         self.brain.mkdir()
-        for name in ("daily_ingest.sh", "monday_init.sh", "friday_process.sh", "context_weekly.py"):
+        for name in ("daily_ingest.sh", "monday_init.sh", "friday_process.sh", "context_weekly.py",
+                     "context_auto_summary.py"):
             shutil.copy2(HERE / name, self.system / name)
         (self.system / "context_collect.sh").write_text(
             '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$WORKSPACE/collector.trace"\n')
@@ -63,9 +64,12 @@ class ContextCadenceFixtures(unittest.TestCase):
         result = self.invoke("monday_init.sh")
         self.assertEqual(result.returncode, 0, result.stderr)
         note = weekly / year / f"{self.week()}.md"
+        self.assertIn(f"[[context/weekly-sessions/{self.week()}|", note.read_text())
         self.assertIn(f"[[context/weekly-sources/{self.week()}|", note.read_text())
         result = self.invoke("friday_process.sh", self.week())
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.brain / f"context/weekly-overviews/{self.week()}.md").is_file())
+        self.assertIn(f"[[context/weekly-sessions/{self.week()}|", note.read_text())
         self.assertIn(f"[[context/weekly-sources/{self.week()}|", note.read_text())
 
 

@@ -49,6 +49,9 @@ class ContextWeeklyFixtures(unittest.TestCase):
     def archive(self):
         return self.vault / "context/weekly-sources/2026-W42.md"
 
+    def sessions(self):
+        return self.vault / "context/weekly-sessions/2026-W42.md"
+
     def test_groups_current_week_links_records_and_preserves_human_note(self):
         work = self.record("codex", "work", "2026-10-12")
         personal = self.record("web-clipper", "personal", "2026-10-14")
@@ -67,7 +70,11 @@ class ContextWeeklyFixtures(unittest.TestCase):
         note = self.note.read_text()
         self.assertIn("Keep these words exactly.", note)
         self.assertIn("<!-- context-weekly-link:start -->", note)
+        self.assertIn("[[context/weekly-sessions/2026-W42|", note)
         self.assertIn("[[context/weekly-sources/2026-W42|", note)
+        sessions = self.sessions().read_text()
+        self.assertIn(f"[[source-records/{work.stem}|", sessions)
+        self.assertNotIn(f"[[source-records/{personal.stem}|", sessions)
         archive_before, note_before = self.archive().read_bytes(), self.note.read_bytes()
         self.invoke("--note", "brain/weekly_logs/2026/2026-W42.md", documented=True)
         self.assertEqual(self.archive().read_bytes(), archive_before)

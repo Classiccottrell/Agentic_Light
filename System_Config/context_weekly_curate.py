@@ -59,7 +59,8 @@ def publish(vault_path, week, summary_path, stems):
     archive = vault / "context" / "weekly-sources" / (week + ".md")
     prior_archive = weekly.generated_archive(archive)
     weekly.write_generated(output, prior, render(week, summary, records), MARKER, "weekly context")
-    weekly.write_generated(archive, prior_archive, weekly.archive_text(week, weekly.selected_records(vault, week), output))
+    weekly.write_generated(archive, prior_archive, weekly.archive_text(
+        week, weekly.selected_records(vault, week), output, weekly.automatic_overview(vault, week)))
     return {"week": week, "sources": len(records)}
 
 

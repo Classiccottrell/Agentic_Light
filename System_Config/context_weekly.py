@@ -12,13 +12,16 @@ import tempfile
 
 
 ARCHIVE_MARKER = b"<!-- context-weekly: generated v1 -->\n"
+SESSIONS_MARKER = b"<!-- context-weekly-sessions: generated v1 -->\n"
 CURATED_MARKER = b"<!-- context-curated-summary: generated v1 -->\n"
+AUTO_SUMMARY_MARKER = b"<!-- context-auto-summary: generated v1 -->\n"
 LINK_START = b"<!-- context-weekly-link:start -->"
 LINK_END = b"<!-- context-weekly-link:end -->"
 INTAKE_MARKER = b"<!-- generated-context-intake-v1 -->"
 TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 HASH = re.compile(r"^[0-9a-f]{64}$")
 CLASSIFICATIONS = ("work", "personal", "unsorted")
+AI_PROVIDERS = {"claude", "codex", "antigravity"}
 
 
 def fail(message):
@@ -138,7 +141,18 @@ def curated_summary(vault, week):
     return path
 
 
-def archive_text(week, records, curated=None):
+def automatic_overview(vault, week):
+    path = vault / "context" / "weekly-overviews" / (week + ".md")
+    if not os.path.lexists(path):
+        return None
+    data = read_bytes(path, "weekly overview")
+    heading = ("# Weekly context overview — " + week + "\n").encode()
+    if not data.startswith(AUTO_SUMMARY_MARKER + heading):
+        fail("weekly overview conflicts with human file")
+    return path
+
+
+def archive_text(week, records, curated=None, overview=None):
     lines = [ARCHIVE_MARKER.decode().rstrip(), f"# Gathered context sources — {week}", "",
              "Generated links point to hash-only source records; raw sources remain private.", ""]
     for classification in CLASSIFICATIONS:
@@ -161,15 +175,42 @@ def archive_text(week, records, curated=None):
     if curated is not None:
         lines.extend(("## Curated summary", "",
                       "- [[weekly-context/" + week + "|Read the English weekly context]]", ""))
+    if overview is not None:
+        lines.extend(("## Automatic overview", "",
+                      "- [[weekly-overviews/" + week + "|Read the automatic weekly overview]]", ""))
     return ("\n".join(lines) + "\n").encode()
 
 
-def generated_archive(path):
+def sessions_text(week, records):
+    lines = [SESSIONS_MARKER.decode().rstrip(), f"# Extracted AI sessions — {week}", "",
+             "Generated links point to hash-only session records; raw sessions remain private.", ""]
+    for classification in CLASSIFICATIONS:
+        lines.extend(("## " + classification.title(), ""))
+        grouped = [record for record in records if record["classification"] == classification and
+                   record["provider"] in AI_PROVIDERS]
+        if grouped:
+            displayed = {}
+            for record in grouped:
+                displayed.setdefault((record["provider"], record["hash"], record["status"]), []).append(record)
+            for records_for_source in displayed.values():
+                record = records_for_source[0]
+                dates = sorted(item["date"].isoformat() for item in records_for_source)
+                observed = dates[0] if len(dates) == 1 else dates[0] + " to " + dates[-1]
+                lines.append("- [[source-records/" + record["stem"] + "|" + record["provider"] +
+                             " session record]] · " + record["hash"][:12] + " · " + record["status"] +
+                             " · observed " + observed)
+        else:
+            lines.append("- No " + classification + " AI session records.")
+        lines.append("")
+    return ("\n".join(lines) + "\n").encode()
+
+
+def generated_archive(path, marker=ARCHIVE_MARKER, label="weekly archive"):
     if not os.path.lexists(path):
         return None
-    data = read_bytes(path, "weekly archive")
-    if not data.startswith(ARCHIVE_MARKER):
-        fail("weekly archive conflicts with human file")
+    data = read_bytes(path, label)
+    if not data.startswith(marker):
+        fail(label + " conflicts with human file")
     return data
 
 
@@ -211,7 +252,9 @@ def note_update(vault, week, note):
     ends = [match.start() for match in re.finditer(re.escape(LINK_END), original)]
     if len(starts) != len(ends) or len(starts) > 1 or (starts and starts[0] > ends[0]):
         fail("weekly note link block conflicts with human text")
-    block = LINK_START + b"\n" + ("[[context/weekly-sources/" + week +
+    block = LINK_START + b"\n" + ("[[context/weekly-sessions/" + week +
+                                    "|Extracted AI sessions for " + week + "]]" ).encode() + b"\n" + (
+                                    "[[context/weekly-sources/" + week +
                                     "|Gathered context sources for " + week + "]]" ).encode() + b"\n" + LINK_END + b"\n"
     if starts:
         end = ends[0] + len(LINK_END)
@@ -245,9 +288,13 @@ def publish(vault_path, week, note=None):
     records = selected_records(vault, week)
     archive = vault / "context" / "weekly-sources" / (week + ".md")
     expected_archive = generated_archive(archive)
+    sessions = vault / "context" / "weekly-sessions" / (week + ".md")
+    expected_sessions = generated_archive(sessions, SESSIONS_MARKER, "weekly sessions archive")
     curated = curated_summary(vault, week)
+    overview = automatic_overview(vault, week)
     note_plan = note_update(vault, week, Path(note)) if note is not None else None
-    write_generated(archive, expected_archive, archive_text(week, records, curated))
+    write_generated(archive, expected_archive, archive_text(week, records, curated, overview))
+    write_generated(sessions, expected_sessions, sessions_text(week, records), SESSIONS_MARKER, "weekly sessions archive")
     if note_plan is not None:
         write_note(*note_plan)
     return {"week": week, "records": len(records), "linked": note_plan is not None}

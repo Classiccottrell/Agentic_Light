@@ -52,6 +52,23 @@ fi
 # Ensure the weekly note retains its separate gathered-context link even when
 # a prior Friday close-out made this run otherwise idempotent.
 if [[ "${DRY_RUN:-0}" != "1" ]]; then
+  CONTEXT_CONFIG="$WORKSPACE/System_Config/context-sources.local.json"
+  if [[ -f "$CONTEXT_CONFIG" && ! -L "$CONTEXT_CONFIG" ]]; then
+    if ! bash "$WORKSPACE/System_Config/context_collect.sh" "$TODAY" >> "$LOG" 2>&1; then
+      log "WARN: private context collection failed; Friday close-out continues"
+    fi
+  fi
+  if [[ -n "${CONTEXT_MEMPALACE_BIN:-}" && -f "$WORKSPACE/System_Config/context-manifest.local.json" ]]; then
+    if ! python3 "$WORKSPACE/System_Config/context_mempalace.py" --vault "$BRAIN" \
+         --manifest "$WORKSPACE/System_Config/context-manifest.local.json" \
+         --bin "$CONTEXT_MEMPALACE_BIN" >> "$LOG" 2>&1; then
+      log "WARN: private MemPalace update failed; Friday close-out continues"
+    fi
+  fi
+  if ! python3 "$WORKSPACE/System_Config/context_auto_summary.py" --vault "$BRAIN" \
+       --week "$WEEK_TAG" >> "$LOG" 2>&1; then
+    log "WARN: automatic weekly context overview failed; Friday close-out continues"
+  fi
   if ! python3 "$WORKSPACE/System_Config/context_weekly.py" --vault "$BRAIN" \
        --week "$WEEK_TAG" --note "$NOTE_ABS" >> "$LOG" 2>&1; then
     log "WARN: gathered context link was not published"
@@ -68,7 +85,7 @@ if [[ "${DRY_RUN:-0}" == "1" ]]; then
   echo "── DRY RUN — would process weekly_logs/${YEAR}/${WEEK_TAG}.md ──"
   echo "  -> append close-out line to '## Agent Sessions' (or legacy '## Claude Sessions')"
   echo "  -> fill the Master Note row's Summary cell for [[${WEEK_TAG}]] (backup + validate + rollback)"
-  echo "  -> refresh the gathered-context archive and weekly-note link"
+  echo "  -> collect configured context and refresh the automatic overview plus weekly links"
   log "dry run"; exit 0
 fi
 

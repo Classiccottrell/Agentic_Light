@@ -125,9 +125,10 @@ typed records under `brain/records/` capture projects, decisions, learnings,
 references, and sessions. `context.sh` validates, catalogs, searches, curates,
 and builds profile-scoped packets; FTS5 works offline and Ollama embeddings
 are optional. `daily_ingest.sh` still wikifies raw clips into `brain/wiki/`.
-Private context collection keeps hash-only records and weekly source links in
-ignored `brain/context/`; the weekly note links out to that archive and its
-curated English summary.
+Private context collection keeps hash-only records and separate weekly AI-session
+and gathered-context links in ignored `brain/context/`; Friday also publishes a
+count-based overview there. The weekly note links out instead of carrying raw
+sessions or local paths.
 All source is plain text/stdlib, with zero Obsidian dependency. `.obsidian/` is
 shipped for zero-setup Obsidian viewing but is not required by the pipeline.
 See `brain/README.md`.
