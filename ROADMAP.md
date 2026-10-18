@@ -21,6 +21,7 @@ Last reviewed: 2026-09-23
 - **Microsite integrity and polish** — dashboard preset cards and roster tables now regenerate from source, invalid placeholder gate copy was removed, favicon loading is local, preset task flow is semantic, and shared typography, contrast, borders, and status motion were tightened.
 - **Microsite field redesign** — dashboard is now the canonical home reached from `index.html`, all generated pages share the dark field system, and a local reduced-motion-aware contour canvas replaces the old grain backdrop and striped preset-card texture.
 - **App-agnostic context layer** — typed Markdown records, disposable catalog/link projections, offline FTS5 search with optional Ollama embeddings, profile-scoped packets, and conservative agent curation of human records are now available through `context.sh`; raw inputs remain immutable.
+- **Private session continuity** — explicit Claude, Codex, Antigravity JSONL, and Web Clipper sources can be indexed locally by MemPalace; generated hash-only records stay under ignored `brain/context/`, while weekly notes link separately to the gathered archive and curated English summary. Bootstrap can install the daily, Monday, and Friday cadence.
 
 ## Next
 

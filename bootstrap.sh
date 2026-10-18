@@ -23,7 +23,7 @@ case "${1:-}" in
     echo "  (no args)    run the interactive setup"
     echo "  --check      read-only doctor: report tool status"
     echo "  --check-deps alias for --check"
-    echo "  --uninstall  explain there is no background automation to remove"
+    echo "  --uninstall  remove the optional context cadence"
     exit 0
     ;;
   --check|--check-deps)
@@ -56,7 +56,7 @@ case "${1:-}" in
     fi
     echo
     echo "→ Automation:"
-    echo "  No background automation (Agentic Light is manual-trigger only)."
+    echo "  Optional context cadence: daily 07:00, Monday 08:00, Friday 19:00."
     exit 0
     ;;
   --uninstall)
@@ -64,17 +64,17 @@ case "${1:-}" in
     echo " Agentic Light — uninstall"
     echo "=================================================="
     echo
-    echo "Agentic Light has no background automation to remove; delete the"
-    echo "Agentic_Light/ folder to uninstall."
-    echo
     if [ ! -t 0 ]; then
-      echo "Non-interactive session — nothing to confirm, exiting."
+      bash "$SYSCFG/install_context_cadence.sh" --uninstall
+      echo "The optional context cadence was removed. Delete the Agentic_Light/"
+      echo "folder to remove the workspace."
       exit 0
     fi
-    printf "Acknowledge? [y/N]: "
+    printf "Remove the optional context cadence? [y/N]: "
     read -r UNINSTALL_REPLY || UNINSTALL_REPLY=""
     case "$UNINSTALL_REPLY" in
-      [yY]*) echo "→ Nothing removed (no automation installed). Delete Agentic_Light/ manually to uninstall." ;;
+      [yY]*) bash "$SYSCFG/install_context_cadence.sh" --uninstall
+             echo "→ Context cadence removed. Delete Agentic_Light/ manually to uninstall." ;;
       *)     echo "→ Aborted. No changes made." ;;
     esac
     exit 0
@@ -84,7 +84,7 @@ case "${1:-}" in
     echo "Usage: ./bootstrap.sh [--check|--uninstall|--help]"
     echo "  (no args)    run the interactive setup"
     echo "  --check      read-only doctor: report tool status"
-    echo "  --uninstall  explain there is no background automation to remove"
+    echo "  --uninstall  remove the optional context cadence"
     exit 1
     ;;
 esac
@@ -286,6 +286,22 @@ if [ -t 0 ]; then
   esac
 else
   echo "  Non-interactive session — skipped. Configure later by editing System_Config/.notify.env."
+fi
+
+# ---------------------------------------------------------------------------
+# 6. Optional daily and weekly context cadence.
+# ---------------------------------------------------------------------------
+echo
+echo "→ Context cadence: daily 07:00, Monday 08:00, Friday 19:00."
+if [ -t 0 ]; then
+  printf "  Install this launchd cadence? [Y/n]: "
+  read -r reply || reply=""
+  case "${reply:-Y}" in
+    y|Y|yes|YES) bash "$SYSCFG/install_context_cadence.sh" --install ;;
+    *) echo "  [--] skipped. Run System_Config/install_context_cadence.sh later." ;;
+  esac
+else
+  echo "  Non-interactive session — skipped. Run System_Config/install_context_cadence.sh later."
 fi
 
 echo

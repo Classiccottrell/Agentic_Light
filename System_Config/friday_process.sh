@@ -49,6 +49,15 @@ if [[ ! -f "$NOTE_ABS" ]]; then
   log "no weekly note for $WEEK_TAG at $NOTE_ABS — nothing to process; exiting"; exit 0
 fi
 
+# Ensure the weekly note retains its separate gathered-context link even when
+# a prior Friday close-out made this run otherwise idempotent.
+if [[ "${DRY_RUN:-0}" != "1" ]]; then
+  if ! python3 "$WORKSPACE/System_Config/context_weekly.py" --vault "$BRAIN" \
+       --week "$WEEK_TAG" --note "$NOTE_ABS" >> "$LOG" 2>&1; then
+    log "WARN: gathered context link was not published"
+  fi
+fi
+
 # ── IDEMPOTENCY GUARD ────────────────────────────────────────────────────
 if grep -qF "${TODAY}: Friday close-out" "$NOTE_ABS"; then
   log "already closed out for ${TODAY} — nothing to do; exiting"; exit 0
@@ -59,6 +68,7 @@ if [[ "${DRY_RUN:-0}" == "1" ]]; then
   echo "── DRY RUN — would process weekly_logs/${YEAR}/${WEEK_TAG}.md ──"
   echo "  -> append close-out line to '## Agent Sessions' (or legacy '## Claude Sessions')"
   echo "  -> fill the Master Note row's Summary cell for [[${WEEK_TAG}]] (backup + validate + rollback)"
+  echo "  -> refresh the gathered-context archive and weekly-note link"
   log "dry run"; exit 0
 fi
 

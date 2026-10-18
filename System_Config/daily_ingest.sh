@@ -31,6 +31,17 @@ WEEK=$(date +%V)
 TODAY=$(date +%Y-%m-%d)
 WEEKLY_NOTE="weekly_logs/${YEAR}/${YEAR}-W${WEEK}.md"
 
+# Private session and clip collection is an explicit local opt-in. It must not
+# block normal Obsidian clip ingestion when the private collector has a gap.
+CONTEXT_CONFIG="$WORKSPACE/System_Config/context-sources.local.json"
+if [[ "${DRY_RUN:-0}" != "1" && -f "$CONTEXT_CONFIG" && ! -L "$CONTEXT_CONFIG" ]]; then
+  if ! bash "$WORKSPACE/System_Config/context_collect.sh" "$TODAY" >> "$LOG" 2>&1; then
+    log "WARN: private context collection failed; normal ingestion continues"
+  fi
+elif [[ -e "$CONTEXT_CONFIG" || -L "$CONTEXT_CONFIG" ]]; then
+  log "WARN: private context config is not a regular file; collection skipped"
+fi
+
 # Self-heal: ensure this week's raw/ folder exists even if monday_init.sh
 # hasn't run yet this week, so a note always has somewhere to land.
 ensure_current_week_raw_folder

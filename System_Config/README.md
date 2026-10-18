@@ -1,7 +1,8 @@
 # System_Config
 
-Scripts and configuration for Agentic Light. **No launchd/cron — every
-script here runs by hand; that's the only way it runs in Agentic Light.**
+Scripts and configuration for Agentic Light. `bootstrap.sh` can install the
+optional context cadence: daily 07:00 collection, Monday 08:00 spin-up, and
+Friday 19:00 closeout. All other scripts run on demand.
 
 ## Scripts (this batch)
 
@@ -81,13 +82,26 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   recently logged week is more than 7 days behind the current week, inserts
   exactly one synthetic catch-up row (`catch-up`, weeks-skipped count) before
   resuming normal weekly notes. `acquire_lock` (10 min stale-reclaim);
-  `DRY_RUN=1` preview.
+  `DRY_RUN=1` preview. Also publishes the note's separate gathered-context
+  link without copying private source material into the note.
 - **`friday_process.sh`** — weekly close-out. Appends a close-out line to
   the week's `## Agent Sessions` section (or the legacy `## Claude Sessions`
   heading, matched for compatibility with pre-rename notes), fills the
   Master Note row's Summary cell (backup → awk rewrite → validate →
-  rollback). `acquire_lock` (10 min stale-reclaim); `DRY_RUN=1` preview. No
-  microsite regen and no GitHub Pages publish here.
+  rollback). `acquire_lock` (10 min stale-reclaim); `DRY_RUN=1` preview.
+  It refreshes the separate gathered-context archive/link before closeout.
+  No microsite regen and no GitHub Pages publish here.
+- **`context_collect.sh`** — reads an ignored, explicit
+  `context-sources.local.json`, stores hash-only source records under ignored
+  `brain/context/`, and refreshes the weekly gathered-context archive. It
+  accepts Claude, Codex, Antigravity JSONL, and Web Clipper Markdown only when
+  the local manifest explicitly names them; raw sessions never enter the vault.
+- **`context_weekly.py`** / **`context_weekly_curate.py`** — write the
+  weekly source archive and an English curated summary with source links.
+- **`context_mempalace.py`** — manually mines explicit sources into the
+  private local MemPalace store.
+- **`install_context_cadence.sh`** — installs or removes the three macOS
+  launchd jobs; `--dry-run` prints the schedule without writing.
 - **`log_session.sh`** — launcher-level session logger (deterministic, no
   AI call). `log_session.sh --provider <name> --role <role> --status
   <exit-code> --reason <exit|timeout|signal|refused> [--note <path>]`

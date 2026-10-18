@@ -184,10 +184,18 @@ update_master_index() {
   fi
 }
 
+publish_context_link() {
+  if ! python3 "$WORKSPACE/System_Config/context_weekly.py" --vault "$BRAIN" \
+       --week "${YEAR}-W${WEEK_NUM}" --note "$NOTE_FILE"; then
+    echo "[monday_init] WARNING: gathered context link was not published." >&2
+  fi
+}
+
 # ── GUARD: note already exists — backfill index row(s), else skip body ─────
 if [[ -f "$NOTE_FILE" ]]; then
   echo "[monday_init] Note already exists: $NOTE_FILE — skipping note body."
   update_master_index
+  publish_context_link
   echo "[monday_init] Done — $(date)"
   exit 0
 fi
@@ -215,4 +223,5 @@ echo "[monday_init] Note created: $NOTE_FILE"
 
 # ── UPDATE MASTER NOTE WEEKLY INDEX ─────────────────────────────────────────
 update_master_index
+publish_context_link
 echo "[monday_init] Done — $(date)"

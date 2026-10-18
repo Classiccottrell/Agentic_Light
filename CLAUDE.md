@@ -1,12 +1,12 @@
 # Agentic Light — Orchestrator Context
 
 Lighter sibling of the parent workspace: Obsidian second brain + dev pipeline
-+ self-bootstrapping. No background automation.
++ self-bootstrapping.
 
 ## Build / Run
 
 - `bash bootstrap.sh` — interactive, idempotent scaffold and provider configuration.
-- `bash bootstrap.sh --check` — read-only doctor (tools + provider + no-automation note).
+- `bash bootstrap.sh --check` — read-only doctor (tools, provider, and context cadence).
 - `bash System_Config/test_providers.sh` — fake-provider check for ordered pre-launch fallback, one invocation, and no retry after failure.
 - `bash pipeline/run.sh` — Task Input → coder → ESLint gate → Playwright gate → Human Gate → `gh pr create`.
 - `bash skills/skills.sh list` — list available skills.
@@ -20,6 +20,10 @@ Lighter sibling of the parent workspace: Obsidian second brain + dev pipeline
 - `python3 System_Config/memory_search.py "<query>" [--top N]` — cosine semantic search over the `memory_index.py` cache; prints top-N matching `brain/wiki/` page paths to stdout.
 - `bash System_Config/context_packet.sh [query]` — print a bounded resume packet from the roadmap, active preset, recent session facts, and optional semantic matches. Byte-exact truncation (`LC_ALL=C head -c`), not a character slice. `pipeline/run.sh` prepends its output to the coder prompt opt-in only (`AGENTIC_LIGHT_CONTEXT_PACKET=1`, or automatically when the target repo is this workspace's own root) — never injected into an unrelated external target repo by default.
 - `bash System_Config/test_context_packet.sh` — fixture tests proving the packet respects a tiny `AGENTIC_LIGHT_CONTEXT_MAX_LINES`/`_MAX_BYTES` budget against dense multi-byte (em dash) content, and that the default budget preserves every provenance header.
+- `bash System_Config/context_collect.sh [YYYY-MM-DD]` — collect only explicit private Claude, Codex, Antigravity, or Web Clipper sources into hash-only records and a weekly archive.
+- `python3 System_Config/context_weekly_curate.py --vault brain --week YYYY-Www --summary summary.md --source <record>` — publish a source-linked English weekly summary.
+- `python3 System_Config/context_mempalace.py --vault brain --manifest System_Config/context-manifest.local.json` — manually update the private MemPalace index.
+- `bash System_Config/install_context_cadence.sh` — install daily 07:00, Monday 08:00, and Friday 19:00 launchd jobs; use `--dry-run` to inspect them.
 - `python3 System_Config/preset_audit.py` — validate preset role, gate, skill, and focused role-note contracts, including `design-harness`/`wcag-harness`'s `role_capabilities`/`role_handoff` overlays.
 - `python3 System_Config/white_label_check.py <fork> --name <name> --preset <preset>` — audit a pruned fork's identity, active role files, selected skills, and (via each generator's own `--check` mode) that generated output isn't stale, without modifying it.
 - `bash System_Config/dashboard.sh` — read-only terminal status readout: preset, provider, roster, gates, last agent session, recent pipeline runs.
@@ -62,13 +66,17 @@ Agentic_Light/
 ├── System_Config/
 │   ├── config.sh · test_providers.sh · mcp.defaults.json · new_agent.sh · README.md · logs/.gitkeep
 │   ├── monday_init.sh · friday_process.sh · daily_ingest.sh · run_agent.sh · test_run_agent.sh
+│   ├── context_collect.sh · context_discover.py · context_intake.py · context_weekly.py · context_weekly_curate.py · context_mempalace.py
+│   ├── install_context_cadence.sh · test_context_cadence.py · test_context_collect.py · test_context_discover.py · test_context_intake.py · test_context_weekly.py · test_context_weekly_curate.py · test_context_mempalace.py · test_context_schedule.sh
 │   ├── log_session.sh · route_skill.sh
 │   ├── specialize.sh · presets.json
 │   ├── agent-roster.schema.json · agent-roster.example.json
 │   ├── gate-config.schema.json · gate-config.example.json
 │   ├── memory_index.py · memory_search.py · context_packet.sh · test_context_packet.sh · preset_audit.py · white_label_check.py
+│   ├── context.sh · context_catalog.py · context_curate.py · context_validate.py · test_context_catalog.sh · test_context_curate.sh · test_context_layer.sh · test_context_packet_profiles.sh · test_context_search.sh
 │   ├── gen_site.py · gen_preset_pages.py · gen_governance.py · healthcheck.sh · dashboard.sh
 │   ├── notify.sh · .notify.env.example
+│   ├── context-sources.example.json
 ├── agents/
 │   └── architect.md · coder.md · creative-director.md · curator.md · eng-manager.md · qa.md · README.md
 ├── skills/

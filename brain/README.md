@@ -29,6 +29,12 @@ that week's folder (or configure a template that writes there). See
 and turns new clips into wiki pages under `brain/wiki/`. See
 `brain/CLAUDE.md` for the full schema.
 
+When its ignored `System_Config/context-sources.local.json` exists,
+`daily_ingest.sh` also collects explicitly configured AI sessions and Web
+Clipper files. It writes only hashes and labels beneath ignored
+`brain/context/`, then the weekly note links to its gathered-context archive.
+The raw files and the private MemPalace index stay outside normal vault notes.
+
 ## Semantic search
 `System_Config/memory_index.py --root <workspace>` builds a gitignored,
 rebuildable SQLite cache over records, wiki pages, and weekly logs. FTS5 works
@@ -50,4 +56,5 @@ The durable record contract and curation safety rules are defined in
 - `System_Config/monday_init.sh` — starts the week's note + raw folder. Also runs automatically the first time `log_session.sh` logs a session in a week with no note yet; sessions are appended after initialization succeeds, while initialization failure emits a warning and skips the append.
 - `System_Config/friday_process.sh` — closes out the week.
 
-Both are manual-trigger only — Agentic Light has no background scheduler.
+Run `System_Config/install_context_cadence.sh` (or accept the bootstrap
+prompt) to schedule daily collection, Monday spin-up, and Friday closeout.
