@@ -38,7 +38,7 @@ def context_dir(vault):
 def sources(manifest):
     regular_file(manifest)
     try:
-        data = json.loads(manifest.read_text())
+        data = json.loads(manifest.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         fail("malformed manifest")
     if not isinstance(data, dict) or set(data) != {"sources"} or not isinstance(data["sources"], list):
@@ -111,7 +111,7 @@ def publish(vault_path, manifest_path, binary):
         try:
             initialized = subprocess.run([binary, "--palace", str(palace), "init", str(palace.parent),
                                          "--yes", "--no-llm", "--direct"], stdin=subprocess.DEVNULL,
-                                        text=True, capture_output=True, timeout=300)
+                                        text=True, encoding="utf-8", capture_output=True, timeout=300)
         except (OSError, subprocess.TimeoutExpired):
             fail("MemPalace initialization failed")
         if initialized.returncode:
@@ -129,7 +129,7 @@ def publish(vault_path, manifest_path, binary):
         try:
             result = subprocess.run([binary, "--palace", str(palace), "mine", str(staged),
                                      "--mode", selected, "--wing", row["classification"], "--direct"],
-                                    stdin=subprocess.DEVNULL, text=True, capture_output=True, timeout=300)
+                                    stdin=subprocess.DEVNULL, text=True, encoding="utf-8", capture_output=True, timeout=300)
         except (OSError, subprocess.TimeoutExpired):
             fail("MemPalace mine failed")
         if result.returncode:
@@ -153,5 +153,7 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     raise SystemExit(main())
 

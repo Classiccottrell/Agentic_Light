@@ -17,6 +17,11 @@ fi
 AGENTS="$HOME/Library/LaunchAgents"
 LOG_DIR="$ROOT/System_Config/logs"
 USER_ID="$(id -u)"
+PYTHON_BIN="$(command -v python3 || true)"
+if [[ -z "$PYTHON_BIN" ]]; then
+  echo "context cadence: python3 is required" >&2
+  exit 1
+fi
 if [[ "$MODE" == "--uninstall" ]]; then
   for name in daily-ingest monday-init friday-process; do
     destination="$AGENTS/com.${USER}.agentic-light.${name}.plist"
@@ -34,17 +39,17 @@ write_job() {
     return
   fi
   mkdir -p "$AGENTS" "$LOG_DIR"
-  python3 - "$destination" "com.${USER}.agentic-light.${name}" "$script" "$LOG_DIR" "$hour" "$minute" "$weekday" <<'PY'
+  python3 - "$destination" "com.${USER}.agentic-light.${name}" "$PYTHON_BIN" "$script" "$LOG_DIR" "$hour" "$minute" "$weekday" <<'PY'
 import plistlib
 import sys
 
-destination, label, script, log_dir, hour, minute, weekday = sys.argv[1:]
+destination, label, python_bin, script, log_dir, hour, minute, weekday = sys.argv[1:]
 calendar = {"Hour": int(hour), "Minute": int(minute)}
 if weekday:
     calendar["Weekday"] = int(weekday)
 payload = {
     "Label": label,
-    "ProgramArguments": ["/bin/bash", script],
+    "ProgramArguments": [python_bin, script],
     "StartCalendarInterval": calendar,
     "StandardOutPath": f"{log_dir}/{label}.out",
     "StandardErrorPath": f"{log_dir}/{label}.err",
@@ -57,6 +62,6 @@ PY
   echo "installed ${name}"
 }
 
-write_job daily-ingest 7 0 "" "$ROOT/System_Config/daily_ingest.sh"
-write_job monday-init 8 0 2 "$ROOT/System_Config/monday_init.sh"
-write_job friday-process 19 0 6 "$ROOT/System_Config/friday_process.sh"
+write_job daily-ingest 7 0 "" "$ROOT/System_Config/daily_ingest.py"
+write_job monday-init 8 0 2 "$ROOT/System_Config/monday_init.py"
+write_job friday-process 19 0 6 "$ROOT/System_Config/friday_process.py"

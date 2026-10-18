@@ -2,6 +2,7 @@
 name: coder
 description: Implementation engineer for Agentic Light. Use to write or modify code against an existing stack or an architect's blueprint, fix bugs, and run builds/tests. Returns diffs of changed lines. Not for high-level design (use architect) or knowledge notes (use curator).
 tools: Read, Glob, Grep, Edit, Write, Bash
+risk: {read_only: false, destructive: true, idempotent: false, external_side_effects: false}
 model: inherit
 ---
 

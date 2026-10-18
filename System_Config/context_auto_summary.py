@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import sys
 
 import context_weekly as weekly
 
@@ -53,10 +54,12 @@ def main(argv=None):
         weekly.week_bounds(args.week)
         print(json.dumps(publish(args.vault, args.week), sort_keys=True))
     except ValueError as error:
-        print("context auto summary failed: " + str(error), file=__import__("sys").stderr)
+        print("context auto summary failed: " + str(error), file=sys.stderr)
         return 1
     return 0
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     raise SystemExit(main())

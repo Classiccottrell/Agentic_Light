@@ -2,6 +2,7 @@
 name: architect
 description: System designer for Agentic Light. Use for high-level architecture, schemas, folder structures, API contracts, and data-model design — before any implementation. Produces specs and Mermaid diagrams; hands blueprints to the coder agent. Not for writing feature code.
 tools: Read, Glob, Grep, Write, Edit
+risk: {read_only: false, destructive: false, idempotent: false, external_side_effects: false}
 model: inherit
 ---
 

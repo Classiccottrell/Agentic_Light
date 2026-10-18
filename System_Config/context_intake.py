@@ -132,7 +132,7 @@ def replace_generated(path, data):
 def parse_manifest(path, date):
     regular_file(path)
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         fail("malformed manifest")
     if not isinstance(data, dict) or set(data) != {"sources"} or not isinstance(data["sources"], list):
@@ -206,5 +206,7 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     raise SystemExit(main())
 

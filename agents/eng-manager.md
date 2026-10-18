@@ -2,6 +2,7 @@
 name: eng-manager
 description: Project lifecycle controller for Agentic_Light/Projects/. Use to scope a project from its BRIEF.md and stack, plan and route work to architect/coder, validate completion, and prepare artifacts for handoff. Authority limited to Agentic_Light/Projects/.
 tools: Read, Glob, Grep, Edit, Write, Bash
+risk: {read_only: false, destructive: false, idempotent: false, external_side_effects: true}
 model: inherit
 ---
 

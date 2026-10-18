@@ -149,7 +149,7 @@ h1,h2,.hero h1{font-family:var(--sans);font-weight:700;letter-spacing:-.035em}
         <p><a class="btn alt" href="health.html">Full health report →</a></p>
 
         <h2>Presets</h2>
-        <p>All specialization presets declared in <code>System_Config/presets.json</code>. Apply one with <code>System_Config/specialize.sh --preset &lt;name&gt;</code>.</p>
+        <p>All specialization presets declared in <code>System_Config/presets.json</code>. Apply one with <code>System_Config/specialize.py --preset &lt;name&gt;</code>.</p>
         <div class="preset-grid">
             <!-- gen:dashboard-presets-start -->
             <a class="preset-card" href="presets/cli-tool.html">
@@ -180,7 +180,7 @@ h1,h2,.hero h1{font-family:var(--sans);font-weight:700;letter-spacing:-.035em}
         </div>
 
         <h2>Roster by preset</h2>
-        <p>This fork ships no <code>System_Config/agent-roster.json</code> on a fresh clone, so there is no single "currently active" roster to report. The table below is the fixed 6-role roster's shape across all 6 presets, from <code>System_Config/presets.json</code> — run <code>specialize.sh</code> to write a real <code>agent-roster.json</code> and make one of these columns the live state.</p>
+        <p>This fork ships no <code>System_Config/agent-roster.json</code> on a fresh clone, so there is no single "currently active" roster to report. The table below is the fixed 6-role roster's shape across all 6 presets, from <code>System_Config/presets.json</code> — run <code>specialize.py</code> to write a real <code>agent-roster.json</code> and make one of these columns the live state.</p>
         <table class="roster-table">
           <thead>
             <tr>
@@ -237,7 +237,7 @@ h1,h2,.hero h1{font-family:var(--sans);font-weight:700;letter-spacing:-.035em}
   }
 
   if (!data || !data.checks || !data.checks.length) {
-    mount.innerHTML = '<div class="card">No snapshot yet — run <code>bash System_Config/healthcheck.sh</code>, then reload.</div>';
+    mount.innerHTML = '<div class="card">No snapshot yet — run <code>python3 System_Config/healthcheck.py</code>, then reload.</div>';
     return;
   }
 

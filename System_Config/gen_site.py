@@ -31,7 +31,7 @@ ROSTER_SCHEMA_PATH = os.path.join(SCRIPT_DIR, 'agent-roster.schema.json')
 
 
 def read_frontmatter(path):
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         content = f.read()
     if not content.startswith('---'):
         return None
@@ -71,12 +71,12 @@ def get_skills():
 
 
 def get_presets():
-    with open(PRESETS_PATH) as f:
+    with open(PRESETS_PATH, encoding="utf-8") as f:
         return json.load(f)
 
 
 def get_roles():
-    with open(ROSTER_SCHEMA_PATH) as f:
+    with open(ROSTER_SCHEMA_PATH, encoding="utf-8") as f:
         schema = json.load(f)
     return list(schema['properties']['roles']['properties'].keys())
 
@@ -163,7 +163,7 @@ def main():
     check_mode = '--check' in sys.argv
     dry_run = '--dry-run' in sys.argv
 
-    with open(DASHBOARD_PATH) as f:
+    with open(DASHBOARD_PATH, encoding="utf-8") as f:
         dashboard_original = f.read()
 
     presets = get_presets()
@@ -187,7 +187,7 @@ def main():
         sys.exit(0)
 
     if dashboard != dashboard_original:
-        with open(DASHBOARD_PATH, 'w') as f:
+        with open(DASHBOARD_PATH, 'w', encoding="utf-8", newline="\n") as f:
             f.write(dashboard)
     print('gen_site: updated generated microsite pages')
     print('  dashboard: ' + DASHBOARD_PATH)
@@ -195,4 +195,6 @@ def main():
 
 
 if __name__ == '__main__':
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     main()

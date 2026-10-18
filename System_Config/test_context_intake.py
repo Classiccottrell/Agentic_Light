@@ -41,11 +41,11 @@ class ContextIntakeFixtures(unittest.TestCase):
 
     def source(self, name, content=SECRET):
         path = self.data / name
-        path.write_text(content)
+        path.write_text(content, encoding="utf-8")
         return path
 
     def write_manifest(self, sources):
-        self.manifest.write_text(json.dumps({"sources": sources}))
+        self.manifest.write_text(json.dumps({"sources": sources}), encoding="utf-8")
 
     def row(self, path, provider="codex", age="current", classification="work", status="captured"):
         return {"path": str(path), "provider": provider, "age": age,
@@ -54,7 +54,7 @@ class ContextIntakeFixtures(unittest.TestCase):
     def invoke(self, expected=0, date="2026-10-16"):
         result = subprocess.run([sys.executable, str(SCRIPT), "--vault", str(self.vault),
                                  "--manifest", str(self.manifest), "--date", date],
-                                text=True, capture_output=True, timeout=10)
+                                text=True, encoding="utf-8", capture_output=True, timeout=10)
         self.assertEqual(result.returncode, expected, result.stderr)
         self.assertNotIn(SECRET, result.stdout + result.stderr)
         self.assertNotIn(str(self.root), result.stdout + result.stderr)
@@ -69,13 +69,13 @@ class ContextIntakeFixtures(unittest.TestCase):
         self.invoke()
         records = self.vault / "context/source-records"
         self.assertEqual(len(list(records.glob("*.md"))), 3)
-        contents = "\n".join(path.read_text() for path in records.glob("*.md"))
+        contents = "\n".join(path.read_text(encoding="utf-8") for path in records.glob("*.md"))
         self.assertNotIn(SECRET, contents)
         self.assertNotIn(str(self.root), contents)
         for path in (work, personal, unsorted):
             self.assertIn("private-source:sha256:" + hashlib.sha256(path.read_bytes()).hexdigest(), contents)
         queue = self.vault / "context/unsorted-context-2026-10-16.md"
-        queue_text = queue.read_text()
+        queue_text = queue.read_text(encoding="utf-8")
         self.assertIn("human classification required", queue_text)
         self.assertIn("web-clipper", queue_text)
         self.assertIn(hashlib.sha256(unsorted.read_bytes()).hexdigest()[:12], queue_text)
@@ -88,7 +88,7 @@ class ContextIntakeFixtures(unittest.TestCase):
         self.assertEqual(tree_bytes(self.vault), first)
         self.write_manifest([self.row(work), self.row(personal, provider="claude", classification="personal")])
         self.invoke()
-        cleared = queue.read_text()
+        cleared = queue.read_text(encoding="utf-8")
         self.assertIn("No unsorted sources", cleared)
         self.assertNotIn("web-clipper", cleared)
         self.assertNotIn(SECRET, cleared)
@@ -99,7 +99,7 @@ class ContextIntakeFixtures(unittest.TestCase):
         self.write_manifest([self.row(source)])
         self.invoke()
         first = sorted((self.vault / "context/source-records").glob("*.md"))
-        source.write_text("second " + SECRET)
+        source.write_text("second " + SECRET, encoding="utf-8")
         self.invoke()
         second = sorted((self.vault / "context/source-records").glob("*.md"))
         self.assertEqual(len(first), 1)
@@ -144,7 +144,7 @@ class ContextIntakeFixtures(unittest.TestCase):
         digest = hashlib.sha256(source.read_bytes()).hexdigest()
         record = self.vault / "context/source-records" / f"codex-{digest[:12]}-2026-10-16.md"
         record.parent.mkdir(parents=True)
-        record.write_text("human note\n")
+        record.write_text("human note\n", encoding="utf-8")
         self.write_manifest([self.row(source)])
         before = tree_bytes(self.vault)
         self.invoke(expected=1)
@@ -152,7 +152,7 @@ class ContextIntakeFixtures(unittest.TestCase):
 
         record.unlink()
         queue = self.vault / "context/unsorted-context-2026-10-16.md"
-        queue.write_text("human queue\n")
+        queue.write_text("human queue\n", encoding="utf-8")
         self.write_manifest([self.row(source, classification="unsorted")])
         before = tree_bytes(self.vault)
         self.invoke(expected=1)
@@ -160,5 +160,7 @@ class ContextIntakeFixtures(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     unittest.main()
 

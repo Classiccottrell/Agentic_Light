@@ -24,7 +24,7 @@ class ContextDiscoverFixtures(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.home = self.root / "home"
         self.home.mkdir()
-        (self.home / "default.jsonl").write_text(SECRET)
+        (self.home / "default.jsonl").write_text(SECRET, encoding="utf-8")
         self.data = self.root / "opted-in"
         self.data.mkdir()
         self.config = self.root / "PRIVATE-config.json"
@@ -33,7 +33,7 @@ class ContextDiscoverFixtures(unittest.TestCase):
     def source(self, relative, text=SECRET):
         path = self.data / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text)
+        path.write_text(text, encoding="utf-8")
         return path
 
     def entry(self, provider, root, suffix, age="current", classification="work", status="captured"):
@@ -41,13 +41,13 @@ class ContextDiscoverFixtures(unittest.TestCase):
                 "classification": classification, "status": status}
 
     def write_config(self, entries):
-        self.config.write_text(json.dumps({"sources": entries}))
+        self.config.write_text(json.dumps({"sources": entries}), encoding="utf-8")
 
     def invoke(self, expected=0):
         result = subprocess.run([sys.executable, str(SCRIPT), "--config", str(self.config),
                                  "--out", str(self.out), "--date", "2026-10-17"],
                                 text=True, capture_output=True, timeout=10,
-                                env=dict(os.environ, HOME=str(self.home), PYTHONDONTWRITEBYTECODE="1"))
+                                env=dict(os.environ, HOME=str(self.home), PYTHONDONTWRITEBYTECODE="1"), encoding="utf-8")
         self.assertEqual(result.returncode, expected, result.stderr)
         self.assertNotIn(SECRET, result.stdout + result.stderr)
         self.assertNotIn(str(self.root), result.stdout + result.stderr)
@@ -70,7 +70,7 @@ class ContextDiscoverFixtures(unittest.TestCase):
             self.entry("web-clipper", clipper.parent.parent, ".md", classification="personal"),
         ])
         self.invoke()
-        rows = json.loads(self.out.read_text())["sources"]
+        rows = json.loads(self.out.read_text(encoding="utf-8"))["sources"]
         self.assertEqual(len(rows), 4)
         self.assertEqual({row["provider"] for row in rows}, {"claude", "codex", "antigravity", "web-clipper"})
         self.assertNotIn(str(self.home / "default.jsonl"), {row["path"] for row in rows})
@@ -92,10 +92,10 @@ class ContextDiscoverFixtures(unittest.TestCase):
         self.invoke()
         self.write_config([self.entry("codex", second, ".jsonl")])
         self.invoke()
-        self.assertEqual({row["path"] for row in json.loads(self.out.read_text())["sources"]}, {str(second)})
+        self.assertEqual({row["path"] for row in json.loads(self.out.read_text(encoding="utf-8"))["sources"]}, {str(second)})
         self.out.unlink()
         self.marker().unlink()
-        self.out.write_text("human manifest\n")
+        self.out.write_text("human manifest\n", encoding="utf-8")
         before = self.out.read_bytes()
         self.invoke(expected=1)
         self.assertEqual(self.out.read_bytes(), before)
@@ -148,5 +148,7 @@ class ContextDiscoverFixtures(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     unittest.main()
 

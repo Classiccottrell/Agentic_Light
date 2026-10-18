@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -37,7 +38,7 @@ class ContextCollectFixtures(unittest.TestCase):
 
     def source(self, name):
         path = self.sources / name
-        path.write_text(SECRET)
+        path.write_text(SECRET, encoding="utf-8")
         return path
 
     def entry(self, provider, root, suffix, classification, status="captured"):
@@ -45,12 +46,12 @@ class ContextCollectFixtures(unittest.TestCase):
                 "classification": classification, "status": status}
 
     def config(self, entries):
-        (self.system / "context-sources.local.json").write_text(json.dumps({"sources": entries}))
+        (self.system / "context-sources.local.json").write_text(json.dumps({"sources": entries}), encoding="utf-8")
 
     def invoke(self, *args, expected=0):
         result = subprocess.run(["bash", str(self.system / "context_collect.sh"), *args],
                                 text=True, capture_output=True, timeout=10,
-                                env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"))
+                                env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"), encoding="utf-8")
         self.assertEqual(result.returncode, expected, result.stderr)
         self.assertNotIn(SECRET, result.stdout + result.stderr)
         self.assertNotIn(str(self.workspace), result.stdout + result.stderr)
@@ -67,16 +68,16 @@ class ContextCollectFixtures(unittest.TestCase):
         ])
         note = self.vault / "weekly_logs/2026/2026-W42.md"
         note.parent.mkdir(parents=True)
-        note.write_text("# Handwritten note\n")
+        note.write_text("# Handwritten note\n", encoding="utf-8")
         self.invoke("2026-10-17")
         records = sorted((self.vault / "context/source-records").glob("*.md"))
         self.assertEqual(len(records), 3)
         queue = self.vault / "context/unsorted-context-2026-10-17.md"
-        self.assertIn("antigravity", queue.read_text())
+        self.assertIn("antigravity", queue.read_text(encoding="utf-8"))
         archive = self.vault / "context/weekly-sources/2026-W42.md"
         self.assertTrue(archive.is_file())
-        self.assertIn("[[context/weekly-sources/2026-W42|", note.read_text())
-        vault_text = "\n".join(path.read_text() for path in records + [queue, archive])
+        self.assertIn("[[context/weekly-sources/2026-W42|", note.read_text(encoding="utf-8"))
+        vault_text = "\n".join(path.read_text(encoding="utf-8") for path in records + [queue, archive])
         self.assertNotIn(SECRET, vault_text)
         self.assertNotIn(str(self.workspace), vault_text)
 
@@ -102,5 +103,7 @@ class ContextCollectFixtures(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     unittest.main()
 

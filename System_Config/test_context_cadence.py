@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-"""Fixture coverage for the daily, Monday, and Friday context cadence."""
-import datetime as dt
+"""Fixtures for Python daily, Monday, and Friday private-context hooks."""
 import os
 from pathlib import Path
-import shutil
-import subprocess
+import sys
 import tempfile
 import unittest
 
-
-HERE = Path(__file__).parent
+import config
+import context_cadence
 
 
 class ContextCadenceFixtures(unittest.TestCase):
@@ -21,57 +19,62 @@ class ContextCadenceFixtures(unittest.TestCase):
         self.brain = self.root / "brain"
         self.system.mkdir()
         self.brain.mkdir()
-        for name in ("daily_ingest.sh", "monday_init.sh", "friday_process.sh", "context_weekly.py",
-                     "context_auto_summary.py"):
-            shutil.copy2(HERE / name, self.system / name)
-        (self.system / "context_collect.sh").write_text(
-            '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$WORKSPACE/collector.trace"\n')
-        (self.system / "context_collect.sh").chmod(0o755)
-        (self.system / "context-sources.local.json").write_text('{"sources": []}\n')
-        (self.system / "config.sh").write_text(
-            f'WORKSPACE="{self.root}"\nBRAIN="$WORKSPACE/brain"\nRAW="$BRAIN/raw"\n'
-            'LOG_DIR="$WORKSPACE/logs"\n'
-            'ensure_current_week_raw_folder() { :; }\n'
-            'acquire_lock() { return 0; }\n'
-            'date_offset() { local shift="$2"; case "$shift" in -*) ;; *) shift="+$shift" ;; esac; if [[ -n "$1" ]]; then date -j -v"$shift"d -f "%Y-%m-%d" "$1" +"$3"; else date -j -v"$shift"d +"$3"; fi; }\n')
+        self.trace = self.root / "trace"
+        self.old_workspace, self.old_brain = config.WORKSPACE, config.BRAIN
+        config.WORKSPACE, config.BRAIN = self.root, self.brain
+        self.addCleanup(self.restore_config)
+        self.old_trace = os.environ.get("CONTEXT_TRACE")
+        os.environ["CONTEXT_TRACE"] = str(self.trace)
+        self.addCleanup(self.restore_trace)
+        script = (
+            "import os, pathlib, sys\n"
+            "pathlib.Path(os.environ['CONTEXT_TRACE']).open('a', encoding='utf-8').write("
+            "pathlib.Path(sys.argv[0]).name + ' ' + ' '.join(sys.argv[1:]) + '\\n')\n"
+        )
+        for name in ("context_weekly.py", "context_auto_summary.py", "context_mempalace.py"):
+            (self.system / name).write_text(script, encoding="utf-8")
+        collector = self.system / "context_collect.sh"
+        collector.write_text('#!/usr/bin/env bash\nprintf "context_collect.sh %s\\n" "$*" >> "$CONTEXT_TRACE"\n', encoding="utf-8")
+        collector.chmod(0o755)
 
-    def invoke(self, name, *args, **env):
-        return subprocess.run(["/bin/bash", str(self.system / name), *args],
-                              text=True, capture_output=True, timeout=10,
-                              env=dict(os.environ, WORKSPACE=str(self.root),
-                                       PYTHONDONTWRITEBYTECODE="1", **env))
+    def restore_config(self):
+        config.WORKSPACE, config.BRAIN = self.old_workspace, self.old_brain
 
-    def week(self):
-        value = dt.date.today().isocalendar()
-        return f"{value.year}-W{value.week:02d}"
+    def restore_trace(self):
+        if self.old_trace is None:
+            os.environ.pop("CONTEXT_TRACE", None)
+        else:
+            os.environ["CONTEXT_TRACE"] = self.old_trace
 
-    def test_daily_collection_is_opt_in_and_dry_run_safe(self):
-        result = self.invoke("daily_ingest.sh")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertRegex((self.root / "collector.trace").read_text(), r"^\d{4}-\d{2}-\d{2}$")
-        (self.root / "collector.trace").unlink()
-        result = self.invoke("daily_ingest.sh", DRY_RUN="1")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertFalse((self.root / "collector.trace").exists())
+    def lines(self):
+        return self.trace.read_text(encoding="utf-8").splitlines() if self.trace.exists() else []
 
-    def test_monday_and_friday_keep_the_generated_context_link(self):
-        year = self.week()[:4]
-        weekly = self.brain / "weekly_logs"
-        (weekly / "Weekly_Note_Template.md").parent.mkdir()
-        shutil.copy2(HERE.parent / "brain/weekly_logs/Weekly_Note_Template.md",
-                     weekly / "Weekly_Note_Template.md")
-        (weekly / f"{year} Master Note.md").write_text("<!-- WEEKLY-INDEX-INSERT -->\n")
-        result = self.invoke("monday_init.sh")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        note = weekly / year / f"{self.week()}.md"
-        self.assertIn(f"[[context/weekly-sessions/{self.week()}|", note.read_text())
-        self.assertIn(f"[[context/weekly-sources/{self.week()}|", note.read_text())
-        result = self.invoke("friday_process.sh", self.week())
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertTrue((self.brain / f"context/weekly-overviews/{self.week()}.md").is_file())
-        self.assertIn(f"[[context/weekly-sessions/{self.week()}|", note.read_text())
-        self.assertIn(f"[[context/weekly-sources/{self.week()}|", note.read_text())
+    def test_collection_requires_regular_explicit_config(self):
+        logs = []
+        self.assertFalse(context_cadence.collect("2026-10-16", logs.append))
+        self.assertEqual(self.lines(), [])
+        (self.system / "context-sources.local.json").write_text('{"sources": []}\n', encoding="utf-8")
+        self.assertTrue(context_cadence.collect("2026-10-16", logs.append))
+        self.assertEqual(self.lines(), ["context_collect.sh 2026-10-16"])
+
+    def test_friday_refreshes_collection_overview_and_weekly_links(self):
+        (self.system / "context-sources.local.json").write_text('{"sources": []}\n', encoding="utf-8")
+        (self.system / "context-manifest.local.json").write_text("context-discover-v1\n", encoding="utf-8")
+        old_bin = os.environ.get("CONTEXT_MEMPALACE_BIN")
+        os.environ["CONTEXT_MEMPALACE_BIN"] = "/private/mempalace"
+        self.addCleanup(lambda: os.environ.pop("CONTEXT_MEMPALACE_BIN", None) if old_bin is None else os.environ.__setitem__("CONTEXT_MEMPALACE_BIN", old_bin))
+        logs = []
+        note = self.brain / "weekly_logs/2026/2026-W42.md"
+        context_cadence.friday("2026-10-16", "2026-W42", note, logs.append)
+        trace = "\n".join(self.lines())
+        self.assertIn("context_collect.sh 2026-10-16", trace)
+        self.assertIn("context_mempalace.py --vault", trace)
+        self.assertIn("context_auto_summary.py --vault", trace)
+        self.assertIn("context_weekly.py --vault", trace)
+        self.assertIn(str(note), trace)
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     unittest.main()

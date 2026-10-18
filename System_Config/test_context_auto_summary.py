@@ -26,13 +26,13 @@ class ContextAutoSummaryFixtures(unittest.TestCase):
         path.write_text("\n".join(("---", "generated: context-intake-v1", f"provider: {provider}",
             "age: current", f"classification: {classification}", "status: captured",
             f"date: {day}", "---", "", "<!-- generated-context-intake-v1 -->", "",
-            f"private-source:sha256:{digest}", "")))
+            f"private-source:sha256:{digest}", "")), encoding="utf-8")
         return path
 
     def invoke(self, expected=0):
         result = subprocess.run([sys.executable, str(SCRIPT), "--vault", str(self.vault),
                                  "--week", "2026-W42"], text=True, capture_output=True, timeout=10,
-                                env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"))
+                                env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"), encoding="utf-8")
         self.assertEqual(result.returncode, expected, result.stderr)
         self.assertNotIn(str(self.vault), result.stdout + result.stderr)
         return result
@@ -44,18 +44,20 @@ class ContextAutoSummaryFixtures(unittest.TestCase):
         self.record("antigravity", "unsorted", "2026-10-15", "pending")
         self.invoke()
         overview = self.vault / "context/weekly-overviews/2026-W42.md"
-        text = overview.read_text()
+        text = overview.read_text(encoding="utf-8")
         self.assertIn("1 work source(s), 1 personal source(s), and 1 source(s) awaiting", text)
-        archive = (self.vault / "context/weekly-sources/2026-W42.md").read_text()
+        archive = (self.vault / "context/weekly-sources/2026-W42.md").read_text(encoding="utf-8")
         self.assertIn("[[weekly-overviews/2026-W42|Read the automatic weekly overview]]", archive)
 
     def test_refuses_to_replace_a_human_overview(self):
         output = self.vault / "context/weekly-overviews/2026-W42.md"
         output.parent.mkdir(parents=True)
-        output.write_text("human overview\n")
+        output.write_text("human overview\n", encoding="utf-8")
         self.invoke(expected=1)
-        self.assertEqual(output.read_text(), "human overview\n")
+        self.assertEqual(output.read_text(encoding="utf-8"), "human overview\n")
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     unittest.main()

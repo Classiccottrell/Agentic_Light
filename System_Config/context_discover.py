@@ -52,7 +52,7 @@ def token(value, field, allowed=None):
 def load_config(path):
     regular(path, "config")
     try:
-        value = json.loads(path.read_text())
+        value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         fail("malformed config")
     if not isinstance(value, dict) or set(value) != {"sources"} or not isinstance(value["sources"], list):
@@ -212,5 +212,7 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     raise SystemExit(main())
 

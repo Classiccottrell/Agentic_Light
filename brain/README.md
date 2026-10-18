@@ -17,24 +17,17 @@ Obsidian experience — see "`.obsidian/` Is Shipped" in the root `CLAUDE.md`.
    color).
 
 ## Obsidian Web Clipper
-Clips land in `brain/raw/YYYY/Wnn <label>/` — `System_Config/monday_init.sh`
-creates the current week's folder when you run it. `daily_ingest.sh` also
+Clips land in `brain/raw/YYYY/Wnn <label>/` — `System_Config/monday_init.py`
+creates the current week's folder when you run it. `daily_ingest.py` also
 self-heals the same folder if missing, so a note has somewhere to land
 whichever script you run first. Point the Web Clipper's save location at
 that week's folder (or configure a template that writes there). See
 `brain/raw/README.md` for the exact naming convention and frontmatter format.
 
 ## Ingestion
-`System_Config/daily_ingest.sh` scans `brain/raw/**/*.md` (two levels deep)
+`System_Config/daily_ingest.py` scans `brain/raw/**/*.md` (two levels deep)
 and turns new clips into wiki pages under `brain/wiki/`. See
 `brain/CLAUDE.md` for the full schema.
-
-When its ignored `System_Config/context-sources.local.json` exists,
-`daily_ingest.sh` also collects explicitly configured AI sessions and Web
-Clipper files. It writes only hashes and labels beneath ignored
-`brain/context/`, then the weekly note links separately to its AI-session and
-gathered-context archives. Friday publishes a count-based overview there. The
-raw files and the private MemPalace index stay outside normal vault notes.
 
 ## Semantic search
 `System_Config/memory_index.py --root <workspace>` builds a gitignored,
@@ -44,7 +37,7 @@ offline; add `--semantic` to request local Ollama embeddings. Use
 typed results with excerpts. Markdown remains the source of truth and the
 cache can be deleted and rebuilt at any time.
 
-Use `System_Config/context.sh` as the provider-neutral entrypoint. `validate`
+Use `System_Config/context.py` as the provider-neutral entrypoint. `validate`
 checks typed records, `catalog` rebuilds metadata and links, `packet` creates
 a bounded profile-scoped handoff, and `curate <record> --suggest|--review|--apply`
 lets an agent propose or apply high-confidence links without rewriting human
@@ -54,10 +47,15 @@ The durable record contract and curation safety rules are defined in
 `brain/CLAUDE.md`; generated indexes are disposable and never replace Markdown.
 
 ## Weekly cycle
-- `System_Config/monday_init.sh` — starts the week's note + raw folder. Also runs automatically the first time `log_session.sh` logs a session in a week with no note yet; sessions are appended after initialization succeeds, while initialization failure emits a warning and skips the append.
-- `System_Config/friday_process.sh` — collects opted-in context, optionally
+- `System_Config/monday_init.py` — starts the week's note + raw folder. Also runs automatically the first time `log_session.py` logs a session in a week with no note yet; sessions are appended after initialization succeeds, while initialization failure emits a warning and skips the append.
+- `System_Config/friday_process.py` — collects opted-in context, optionally
   refreshes MemPalace when `CONTEXT_MEMPALACE_BIN` is set, publishes the
   count-based overview, then closes out the week.
 
-Run `System_Config/install_context_cadence.sh` (or accept the bootstrap
-prompt) to schedule daily collection, Monday spin-up, and Friday closeout.
+When its ignored `System_Config/context-sources.local.json` exists,
+`daily_ingest.py` collects explicitly configured AI sessions and Web Clipper
+files. It writes only hashes and labels under ignored `brain/context/`; the
+weekly note links separately to AI-session and gathered-context archives.
+
+Run `System_Config/install_context_cadence.sh` (or accept the bootstrap prompt)
+to schedule daily collection, Monday spin-up, and Friday closeout on macOS.

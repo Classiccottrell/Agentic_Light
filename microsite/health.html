@@ -127,7 +127,7 @@ h1,h2,.hero h1{font-family:var(--sans);font-weight:700;letter-spacing:-.035em}
   <div class="wrap">
     <p class="eyebrow">// system health</p>
     <h1>Agentic Light health</h1>
-    <p class="lede">Every layer (directory layout, roster completeness, brain scaffolding, pipeline log recency, doc currency) probed by <code>System_Config/healthcheck.sh</code> and reported here. This page reflects the last snapshot and refreshes every five minutes.</p>
+    <p class="lede">Every layer (directory layout, roster completeness, brain scaffolding, pipeline log recency, doc currency) probed by <code>System_Config/healthcheck.py</code> and reported here. This page reflects the last snapshot and refreshes every five minutes.</p>
 
     <div id="report" aria-live="polite">
       <!-- rendered from window.__STATUS__ -->
@@ -136,7 +136,7 @@ h1,h2,.hero h1{font-family:var(--sans);font-weight:700;letter-spacing:-.035em}
     <noscript>
       <div class="empty">
         <h2>JavaScript required</h2>
-        <p>This dashboard renders the latest <code>status.js</code> snapshot client-side. Run <code>bash System_Config/healthcheck.sh</code> and reload.</p>
+        <p>This dashboard renders the latest <code>status.js</code> snapshot client-side. Run <code>python3 System_Config/healthcheck.py</code> and reload.</p>
       </div>
     </noscript>
   </div>
@@ -144,13 +144,13 @@ h1,h2,.hero h1{font-family:var(--sans);font-weight:700;letter-spacing:-.035em}
 
 <footer class="site">
   <div class="wrap">
-    agentic-light · System health · <a href="index.html">home</a> · regenerate with <code>bash System_Config/healthcheck.sh</code>
+    agentic-light · System health · <a href="index.html">home</a> · regenerate with <code>python3 System_Config/healthcheck.py</code>
   </div>
 </footer>
 
 <script src="field.js"></script>
 
-<!-- Snapshot data. Written by healthcheck.sh as `window.__STATUS__ = {...};`.
+<!-- Snapshot data. Written by healthcheck.py as `window.__STATUS__ = {...};`.
      Loaded via <script> (not fetch) so the page also works from file://. -->
 <script src="status.js" onerror="window.__STATUS_LOAD_ERROR__=true"></script>
 <script>
@@ -170,7 +170,7 @@ h1,h2,.hero h1{font-family:var(--sans);font-weight:700;letter-spacing:-.035em}
         '<h2>No snapshot yet</h2>' +
         '<p>The health dashboard renders the latest <code>status.js</code> snapshot, which is written by the health check.</p>' +
         '<p>Generate one:</p>' +
-        '<pre>$ bash System_Config/healthcheck.sh</pre>' +
+        '<pre>$ python3 System_Config/healthcheck.py</pre>' +
         '<p>Then reload this page.</p>' +
       '</div>';
     return;

@@ -24,17 +24,17 @@ class ContextMemPalaceFixtures(unittest.TestCase):
         self.sources.mkdir()
         self.trace = self.root / "trace"
         self.binary = self.root / "mempalace"
-        self.binary.write_text('#!/usr/bin/env bash\nmkdir -p "$2"\nprintf "%s\\n" "$*" >> "$TRACE"\n')
+        self.binary.write_text('#!/usr/bin/env bash\nmkdir -p "$2"\nprintf "%s\\n" "$*" >> "$TRACE"\n', encoding="utf-8")
         self.binary.chmod(0o755)
 
     def source(self, name):
         path = self.sources / name
-        path.write_text(SECRET + "\n" + name)
+        path.write_text(SECRET + "\n" + name, encoding="utf-8")
         return path
 
     def manifest(self, rows):
         path = self.root / "manifest.json"
-        path.write_text(json.dumps({"sources": rows}))
+        path.write_text(json.dumps({"sources": rows}), encoding="utf-8")
         return path
 
     def row(self, provider, path, classification="work", status="selected"):
@@ -45,7 +45,7 @@ class ContextMemPalaceFixtures(unittest.TestCase):
         result = subprocess.run([sys.executable, str(SCRIPT), "--vault", str(self.vault),
                                  "--manifest", str(manifest), "--bin", str(self.binary)],
                                 text=True, capture_output=True, timeout=10,
-                                env=dict(os.environ, TRACE=str(self.trace), PYTHONDONTWRITEBYTECODE="1"))
+                                env=dict(os.environ, TRACE=str(self.trace), PYTHONDONTWRITEBYTECODE="1"), encoding="utf-8")
         self.assertEqual(result.returncode, expected, result.stderr)
         self.assertNotIn(SECRET, result.stdout + result.stderr)
         self.assertNotIn(str(self.root), result.stdout + result.stderr)
@@ -64,7 +64,7 @@ class ContextMemPalaceFixtures(unittest.TestCase):
             self.row("antigravity", opaque, "unsorted", "decoder-required"),
         ]))
         self.assertEqual(json.loads(result.stdout), {"deferred": 0, "indexed": 4, "skipped": 1})
-        calls = self.trace.read_text().splitlines()
+        calls = self.trace.read_text(encoding="utf-8").splitlines()
         self.assertEqual(len(calls), 5)
         self.assertEqual(sum(" init " in call for call in calls), 1)
         self.assertIn(" init " + str(self.vault / "context"), calls[0])
@@ -73,7 +73,7 @@ class ContextMemPalaceFixtures(unittest.TestCase):
         self.assertTrue((self.vault / "context/mempalace").is_dir())
         staged = sorted((self.vault / "context/mempalace-staging").iterdir())
         self.assertEqual(len(staged), 4)
-        self.assertTrue(all(SECRET in path.read_text() for path in staged))
+        self.assertTrue(all(SECRET in path.read_text(encoding="utf-8") for path in staged))
 
     def test_invalid_source_fails_before_mining(self):
         source = self.source("claude.jsonl")
@@ -92,5 +92,7 @@ class ContextMemPalaceFixtures(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     unittest.main()
 
