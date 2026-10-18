@@ -25,8 +25,8 @@ class ContextWeeklyFixtures(unittest.TestCase):
         self.note.parent.mkdir(parents=True)
         self.note.write_text("# Handwritten weekly note\n\nKeep these words exactly.\n")
 
-    def record(self, provider, classification, day, status="captured"):
-        digest = hashlib.sha256((provider + classification + day).encode()).hexdigest()
+    def record(self, provider, classification, day, status="captured", digest_seed=None):
+        digest = hashlib.sha256((digest_seed or provider + classification + day).encode()).hexdigest()
         path = self.records / f"{provider}-{digest[:12]}-{day}.md"
         path.write_text("\n".join((
             "---", "generated: context-intake-v1", f"provider: {provider}", "age: current",
@@ -104,6 +104,15 @@ class ContextWeeklyFixtures(unittest.TestCase):
         self.invoke("--note", str(missing), expected=1)
         self.assertFalse(missing.exists())
         self.assertFalse(self.archive().exists())
+
+    def test_repeated_daily_observations_are_grouped_in_the_weekly_archive(self):
+        first = self.record("codex", "work", "2026-10-12", digest_seed="same-source")
+        second = self.record("codex", "work", "2026-10-13", digest_seed="same-source")
+        self.invoke()
+        text = self.archive().read_text()
+        self.assertIn(f"[[source-records/{first.stem}|", text)
+        self.assertNotIn(f"[[source-records/{second.stem}|", text)
+        self.assertIn("observed 2026-10-12 to 2026-10-13", text)
 
 
 if __name__ == "__main__":

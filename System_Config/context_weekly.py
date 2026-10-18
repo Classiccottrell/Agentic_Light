@@ -145,9 +145,16 @@ def archive_text(week, records, curated=None):
         lines.extend(("## " + classification.title(), ""))
         grouped = [record for record in records if record["classification"] == classification]
         if grouped:
+            displayed = {}
             for record in grouped:
+                displayed.setdefault((record["provider"], record["hash"], record["status"]), []).append(record)
+            for records_for_source in displayed.values():
+                record = records_for_source[0]
+                dates = sorted(item["date"].isoformat() for item in records_for_source)
+                observed = dates[0] if len(dates) == 1 else dates[0] + " to " + dates[-1]
                 lines.append("- [[source-records/" + record["stem"] + "|" + record["provider"] +
-                             " source record]] · " + record["hash"][:12] + " · " + record["status"])
+                             " source record]] · " + record["hash"][:12] + " · " + record["status"] +
+                             " · observed " + observed)
         else:
             lines.append("- No " + classification + " source records.")
         lines.append("")
