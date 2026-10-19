@@ -12,9 +12,9 @@ file per role. Scaffold new ones with
 |---|---|---|
 | `architect` | Blueprints, schema, directory structure decisions | `coder` |
 | `coder` | Implementation, builds, tests | `qa` (production PRs), `eng-manager` |
-| `eng-manager` | `Agentic_Light/Projects/` lifecycle | `architect`, `coder`, `qa` |
+| `eng-manager` | Selected-project lifecycle | `architect`, `coder`, `qa` |
 | `qa` | Test coverage, regression checks against cloned repos | `eng-manager` |
-| `curator` | `Agentic_Light/brain/` knowledge base curation | — (terminal) |
+| `curator` | Workspace-brain knowledge curation | — (terminal) |
 | `creative-director` | Brand/visual/copy review (e.g. `microsite/`) | — (terminal, opt-out of Caveman Protocol) |
 
 `archivist` and `rally` are **excluded from this roster by design**. Agentic

@@ -93,11 +93,10 @@ where shipped docs promise more than the code delivers.
    inactive coder or capabilities unavailable to its read/write runtime.
    Architect, QA, and manager roles remain manually launched, so their
    pre-launch enforcement belongs with a future multi-role launcher.
-6. **Role text cleanup — partly shipped.** `coder.md` now matches the
-   sandboxed runtime and refers only to the target repository. The remaining
-   manually-dispatched role files still contain `Agentic_Light/…` paths and
-   need relocation-neutral wording before a provider-neutral multi-role
-   launcher exists.
+6. **Role text cleanup — shipped.** Every role contract now uses
+   relocation-neutral workspace and target-repository language; `coder.md`
+   also matches its sandboxed runtime. Multi-role launch remains a separate
+   future capability, not an assumption embedded in role prose.
 
 **Skill routing**
 

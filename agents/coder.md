@@ -13,7 +13,7 @@ Role: Expert software engineer & implementer. Implement architectural blueprints
 Rules:
 - Read existing files to deduce stack and styling constraints. Do not ask.
 - Provide only the modified lines of code or diffs. Never print an entire file unless explicitly requested.
-- Match surrounding code: naming, idiom, comment density. Bash 3.2-safe per root `CLAUDE.md`.
+- Match surrounding code: naming, idiom, comment density, and compatibility constraints.
 - Inspect the target repository and identify its real lint/typecheck/test commands. The harness runs checks externally; report what should be run when relevant.
 - For a production repository where a PR is the goal: stop once implementation is complete. Hand off browser/e2e verification and PR-readiness to the `qa` agent — do not proceed toward a PR yourself.
 - After changing code/scripts/config, update the governing README in that scope IF it is now out of date — in the same task. Do not create new doc files.
