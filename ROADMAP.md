@@ -130,15 +130,14 @@ where shipped docs promise more than the code delivers.
 
 **Session records (feeds White-label item 2)**
 
-12. **Pipeline session records — shipped; daily ingest remains.**
+12. **Session records — shipped.**
     `pipeline/run.py` now gives `log_session.py` the task, target repo, run
     ID, branch, and log path. It writes a schema-valid typed record and the
     weekly line links to it, so packets can retrieve meaningful launch facts.
-    `daily_ingest.py` still asks the LLM to append its own line; moving that
-    to this deterministic logger remains open.
+    `daily_ingest.py` uses that same logger for every clip and forbids the
+    model from editing weekly logs.
 
-**Suggested order:** move daily-ingest logging to the deterministic logger,
-then let curation link typed records to durable context. Fold 4–6 into
+**Suggested order:** let curation link typed records to durable context. Fold 4–6 into
 White-label item 2; the prompt-assembly contract is the precondition for the
 white-label acceptance fixture.
 

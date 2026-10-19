@@ -35,6 +35,8 @@ os.environ.setdefault("MAX_BUDGET", "1.00")
 
 import run_agent as ra  # noqa: E402
 import context_cadence
+import log_session
+import monday_init
 
 MAX_CLIPS_PER_RUN = int(os.environ.get("MAX_CLIPS_PER_RUN", "10"))
 
@@ -192,7 +194,7 @@ def curate_new_wiki_pages(root, src_link, log_path):
                 f.write(f"[{_ts()}] WARN: curation failed for {page} — ingest remains recorded\n")
 
 
-def build_prompt(rel, src_link, weekly_note, year, week, today):
+def build_prompt(rel, src_link):
     return (
         "You are running headlessly to ingest ONE clip into the brain/ knowledge wiki.\n"
         "First read CLAUDE.md for the wiki schema and conventions.\n\n"
@@ -205,10 +207,26 @@ def build_prompt(rel, src_link, weekly_note, year, week, today):
         f"   - If new: create it with the exact frontmatter + sections, including the [[{src_link}]] link.\n"
         "   - Cross-link aggressively to existing wiki pages with [[wikilinks]].\n"
         "3. Update wiki/index.md to list any new wiki page and the new source (skip if already listed).\n"
-        f"4. Ensure {weekly_note} exists. If not, create it from weekly_logs/Weekly_Note_Template.md (WEEK_NUM={week}, YEAR={year}).\n"
-        f"5. Append exactly one line to its '## Agent Sessions' section (use '## Claude Sessions' instead if that's the heading already present in this note): '- {today}: ingested {rel} -> [[wiki/<page-slug>]]'.\n\n"
+        "4. Do not edit weekly logs; the harness records this ingestion deterministically.\n\n"
         "Constraints: create-or-append only; never overwrite a page wholesale; never delete anything; stay within brain/."
     )
+
+
+def record_ingest_session(rel, source_hash, status, log_path, weekly_note):
+    """Write the ingest event and its weekly link without asking the model."""
+    note = config.BRAIN / weekly_note
+    if not note.is_file() and monday_init.run() != 0:
+        raise OSError("could not initialize weekly note")
+    if not note.is_file():
+        raise OSError("weekly note unavailable")
+    reason = "timeout" if status == 124 else "exit"
+    run_id = "ingest-" + source_hash[:12] + "-" + date.today().strftime("%Y%m%d")
+    record_id = log_session.write_session_record(
+        config.AGENT_PROVIDER or "unknown", "curator", str(status), reason,
+        "Ingest raw/" + rel, str(config.WORKSPACE), run_id, "not-applicable",
+        log_path, root=config.WORKSPACE)
+    log_session.append_session_line(note, config.AGENT_PROVIDER or "unknown", "curator",
+                                    str(status), reason, record_id)
 
 
 def run(dry_run=False, run_agent_fn=None):
@@ -313,10 +331,15 @@ def run(dry_run=False, run_agent_fn=None):
                     continue
                 attempted += 1
                 src_link = f"raw/{rel.removesuffix('.md')}"
-                prompt = build_prompt(rel, src_link, weekly_note, year, week, today)
+                prompt = build_prompt(rel, src_link)
 
                 log(f"ingesting: {rel}")
                 rc = run_agent_fn(prompt, log=str(log_path), brain=str(config.BRAIN))
+                try:
+                    record_ingest_session(rel, source_hash, rc, log_path, weekly_note)
+                except (OSError, ValueError) as error:
+                    log(f"SESSION LOG FAILED: {rel} — {error}; NOT recorded, will retry next run")
+                    rc = 1
                 try:
                     source_unchanged = hashlib.sha256((config.RAW / rel).read_bytes()).hexdigest() == source_hash
                 except OSError:
@@ -372,6 +395,8 @@ def self_test():
     try:
         (ws / "brain" / "wiki").mkdir(parents=True)
         (ws / "brain" / "weekly_logs").mkdir(parents=True)
+        (ws / "brain" / "weekly_logs" / "Weekly_Note_Template.md").write_text(
+            "# W{{WEEK_NUM}} {{YEAR}}\n\n## Agent Sessions\n\n---\n", encoding="utf-8")
         raw_week = ws / "brain" / "raw" / "2026" / "W01 Jan 5-9"
         raw_week.mkdir(parents=True)
 
@@ -440,6 +465,11 @@ def self_test():
         check("both clips triggered an agent call", len(calls) == 2, len(calls))
         manifest = _cfg.RAW / ".ingested.log"
         check("manifest has 2 entries", len(manifest.read_text(encoding="utf-8").splitlines()) == 2)
+        ingest_records = list((ws / "brain" / "records" / "sessions").glob("session-ingest-*.md"))
+        check("successful ingests create typed session records", len(ingest_records) == 2, ingest_records)
+        iso_year, iso_week, _ = date.today().isocalendar()
+        note = _cfg.BRAIN / "weekly_logs" / f"{iso_year:04d}" / f"{iso_year:04d}-W{iso_week:02d}.md"
+        check("weekly note links successful ingests", note.is_file() and note.read_text(encoding="utf-8").count("|session record]]") == 2)
 
         # Curation actually ran (the $ROOT-bug fix, see build_prompt/
         # curate_new_wiki_pages docstring) — a WARN-and-continue subprocess

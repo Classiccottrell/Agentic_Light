@@ -301,6 +301,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `config.acquire_lock`, stale-reclaim threshold sized to
   `MAX_CLIPS_PER_RUN × (MAX_SECONDS + 30s)` so a legitimately long ingest is
   never reclaimed from under itself; `--dry-run` (or `DRY_RUN=1`) preview.
+  Each agent call is recorded by `log_session.py`, which creates a typed
+  session record and links it from the weekly note; the model is explicitly
+  barred from editing weekly logs.
   After a clip's agent call adds a wikilink, runs `context.py ... curate
   <page> --apply` (subprocess, one per newly-linked wiki page) so cross-links
   get suggested/applied — a failed curation call WARNs and continues, never

@@ -99,7 +99,8 @@ def _single_line(value, field):
     return value
 
 
-def session_record_text(provider, role, status, reason, task, target_repo, run_id, branch, log_path):
+def session_record_text(provider, role, status, reason, task, target_repo, run_id, branch, log_path, root=None):
+    root = Path(root or ROOT)
     provider = _single_line(provider, "provider")
     role = _single_line(role, "role")
     task = _single_line(task, "task")
@@ -108,10 +109,10 @@ def session_record_text(provider, role, status, reason, task, target_repo, run_i
     if not RUN_ID_RE.fullmatch(run_id):
         raise ValueError("invalid run id")
     try:
-        source = str(Path(log_path).resolve().relative_to(ROOT.resolve()))
+        source = str(Path(log_path).resolve().relative_to(root.resolve()))
     except ValueError:
         raise ValueError("pipeline log must be inside the workspace")
-    if not (ROOT / source).is_file():
+    if not (root / source).is_file():
         raise ValueError("pipeline log unavailable")
     today = date.today().isoformat()
     record_id = "session-" + run_id
@@ -129,14 +130,17 @@ def session_record_text(provider, role, status, reason, task, target_repo, run_i
     return record_id, text
 
 
-def write_session_record(provider, role, status, reason, task, target_repo, run_id, branch, log_path):
-    record_id, text = session_record_text(provider, role, status, reason, task, target_repo, run_id, branch, log_path)
-    records_dir = Path(os.environ.get("LOG_SESSION_RECORDS_DIR", ROOT / "brain" / "records" / "sessions"))
+def write_session_record(provider, role, status, reason, task, target_repo, run_id, branch, log_path, root=None):
+    root = Path(root or ROOT)
+    record_id, text = session_record_text(provider, role, status, reason, task, target_repo, run_id, branch, log_path, root)
+    records_dir = Path(os.environ.get("LOG_SESSION_RECORDS_DIR", root / "brain" / "records" / "sessions"))
     path = records_dir / (record_id + ".md")
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError:
+        if path.is_file() and path.read_text(encoding="utf-8") == text:
+            return record_id
         raise ValueError("session record already exists")
     with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as output:
         output.write(text)

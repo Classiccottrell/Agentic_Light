@@ -214,8 +214,8 @@ and a reason (`exit`/`timeout`/`signal`/`refused`). It writes a typed record
 under `brain/records/sessions/`, then links the record from the weekly note.
 This is the sole
 launcher-level call site — `run_agent()` itself is not instrumented, since
-it's also called once per clip by `daily_ingest.py`, which already logs its
-own line per clip.
+it's also called once per clip by `daily_ingest.py`, which uses the same
+deterministic logger for each clip.
 
 ## Contract: 100% pass before the patch is even shown to a human
 
