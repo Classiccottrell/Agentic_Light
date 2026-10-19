@@ -129,6 +129,32 @@ def curate_session_record(path):
         print("WARNING: session record curation failed; the session record remains available")
 
 
+def role_contract(role):
+    """Load provider-neutral role instructions, excluding YAML metadata."""
+    path = ROOT / "agents" / f"{role}.md"
+    if not path.is_file():
+        raise ValueError(f"missing role contract: {path}")
+    text = path.read_text(encoding="utf-8").strip()
+    if text.startswith("---\n"):
+        end = text.find("\n---", 4)
+        if end < 0:
+            raise ValueError(f"malformed role contract: {path}")
+        text = text[end + 4:].strip()
+    if not text:
+        raise ValueError(f"empty role contract: {path}")
+    return text
+
+
+def assemble_coder_prompt(role, skills, packet, task):
+    parts = [f"[ROLE CONTRACT: coder]\n{role}\n[END ROLE CONTRACT]"]
+    if skills:
+        parts.append(f"[SELECTED SKILLS]\n{skills.rstrip()}\n[END SELECTED SKILLS]")
+    if packet:
+        parts.append(f"Resume context packet:\n{packet.rstrip()}\n[END CONTEXT PACKET]")
+    parts.append(f"[TASK]\n{task}\n[END TASK]")
+    return "\n\n".join(parts)
+
+
 def run_custom_gate(gate, target_repo):
     target_p = target_repo.resolve()
     cwd_abs = target_repo / gate.get("cwd", ".")
@@ -319,6 +345,11 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
         return 1
 
     print("-> [1] Code patch step")
+    try:
+        coder_role = role_contract("coder")
+    except (OSError, ValueError) as error:
+        print(f"FAILED: {error}")
+        return 1
     staged = subprocess.run([git, "-C", str(target_repo), "diff", "--cached", "--quiet"], encoding="utf-8")
     if staged.returncode != 0:
         print(f"FAILED: {target_repo} has staged changes before the pipeline started — refusing to run. Commit or unstage them first; this pipeline assumes a clean index so its own rollback/commit steps don't touch changes it doesn't own.")
@@ -378,11 +409,8 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
         # guard; splitting it across adjacent string literals would still
         # concatenate correctly at runtime but would break that source-text
         # search.
-        prompt = f"Target repo: {target_repo}. Task: {task_desc}. Implement the change on the current branch. Do not run shell commands, create branches, or commit — the pipeline handles all git operations."
-        if skill_context:
-            prompt = f"Relevant skill guidance:\n{skill_context}\n{prompt}"
-        if context_packet_text:
-            prompt = f"Resume context packet:\n{context_packet_text}\n\n{prompt}"
+        task = f"Target repo: {target_repo}. Task: {task_desc}. Implement the change on the current branch. Do not run shell commands, create branches, or commit — the pipeline handles all git operations."
+        prompt = assemble_coder_prompt(coder_role, skill_context, context_packet_text, task)
         coder_rc = ra.run_agent(prompt, log=str(run_log_path), brain=str(target_repo))
         coder_provider = config.AGENT_PROVIDER or "unknown"
 

@@ -67,8 +67,9 @@ python3 pipeline/run.py --help   # print usage and exit
 1. **Code Patch** — `run.py` itself creates the feature branch
    (`git checkout -b agentic-light/<run-id>`) in the target repo, then
    invokes the `coder` step via `System_Config/run_agent.py`, scoped to the
-   target repo (cwd), with the task description (plus any routed skill
-   guidance from step 0) as the prompt. The prompt tells the coder to
+   target repo (cwd), with an explicit provider-neutral prompt: the coder's
+   role contract, selected skill guidance, optional context packet, then the
+   task. The prompt tells the coder to
    implement the change only — it does not ask it to branch or commit,
    because the `claude` invocation in `run_agent.py` runs with
    `--disallowedTools "Bash,..."` and can't do either. Exactly one call to

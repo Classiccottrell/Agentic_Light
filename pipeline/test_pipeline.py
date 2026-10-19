@@ -516,6 +516,11 @@ def fixture_9():
     check("fixture9b: coder stub invoked with real prompt", f"Target repo: {repo9_p}" in calls9_text, calls9_text)
     check("fixture9b: context packet present with opt-in flag", "Resume context packet:" in calls9_text, calls9_text)
     check("fixture9b: packet header present", "# Agentic Light Context Packet" in calls9_text, calls9_text)
+    role_marker = "[ROLE CONTRACT: coder]"
+    task_marker = "[TASK]"
+    check("fixture9b: coder role contract is injected", role_marker in calls9_text, calls9_text)
+    check("fixture9b: prompt keeps role, context, task order",
+          role_marker in calls9_text and calls9_text.index(role_marker) < calls9_text.index("Resume context packet:") < calls9_text.index(task_marker), calls9_text)
     print("fixture 9b (context packet present with opt-in flag): PASS")
 
 

@@ -82,23 +82,20 @@ where shipped docs promise more than the code delivers.
 
 **Agent roles never reach a model**
 
-4. **No provider loads `agents/*.md`.** The pipeline's coder prompt is
-   inline text, and `run_agent.py` never reads `agents/coder.md`. No provider
-   discovers `agents/`: there is no `.claude/agents/`, `AGENTS.md` or
-   `GEMINI.md` mirror. Role scope, capabilities, handoffs and risk are
-   governance documentation only. White-label item 4's "regenerate provider
-   mirrors" assumes mirrors exist, and they do not. The fix is the
-   prompt-assembly contract from `AGENT_AGNOSTIC_REVIEW.md`, which was never
-   built: role file + selected skills + packet + task, with fixed order and
-   delimiters, injected by the launcher.
+4. **Coder prompt assembly — shipped; other roles remain manual.** The
+   launcher strips `agents/coder.md` metadata and injects its role body,
+   selected skills, optional packet, and task in a fixed delimiter contract.
+   The pipeline does not launch architect, QA, or manager roles, so their
+   contracts and handoffs remain orchestrator-managed. Provider mirrors are
+   intentionally absent; explicit prompt context is canonical.
 5. **Nothing enforces roster, capabilities or risk at launch.** The launcher
    never reads `agent-roster.json`. Launching an inactive role, or a role
    whose capabilities the provider lacks, is not a pre-launch failure.
-6. **Role text contradicts the runtime.** `coder.md` says to run
-   builds/tests and to stay "Bash 3.2-safe", which is stale since the Python
-   port. The pipeline prompt and `run_agent.py` disallow Bash for the coder.
-   The agent files also hardcode `Agentic_Light/…` paths, which leaks
-   identity into white-label forks and assumes the parent-workspace cwd.
+6. **Role text cleanup — partly shipped.** `coder.md` now matches the
+   sandboxed runtime and refers only to the target repository. The remaining
+   manually-dispatched role files still contain `Agentic_Light/…` paths and
+   need relocation-neutral wording before a provider-neutral multi-role
+   launcher exists.
 
 **Skill routing**
 
