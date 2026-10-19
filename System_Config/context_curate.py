@@ -2,8 +2,10 @@
 """Suggest or apply conservative cross-links for a human context record."""
 import argparse
 import hashlib
+import os
 import re
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,6 +13,16 @@ from context_catalog import documents
 from context_validate import parse_frontmatter
 
 STOP = {"about", "after", "again", "being", "could", "from", "have", "into", "that", "the", "this", "with", "when"}
+
+
+def atomic_write(path, text):
+    fd, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as output:
+            output.write(text)
+        os.replace(temporary, path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
 
 
 def tokens(text):
@@ -47,7 +59,7 @@ def session_record(root, source, accepted, rejected):
         "## Unresolved", f"Rejected or review-needed: {', '.join(item['id'] for item in rejected) or 'none'}.", "",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines), encoding="utf-8")
+    atomic_write(path, "\n".join(lines))
 
 
 def apply_links(source, accepted):
@@ -56,7 +68,7 @@ def apply_links(source, accepted):
     if not new_links:
         return False
     suffix = "\n" + "\n".join(new_links) + "\n" if "\n## Related Context\n" in text else "\n## Related Context\n" + "\n".join(new_links) + "\n"
-    source.write_text(text.rstrip() + suffix, encoding="utf-8")
+    atomic_write(source, text.rstrip() + suffix)
     return True
 
 

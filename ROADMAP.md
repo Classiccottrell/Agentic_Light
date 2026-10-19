@@ -120,10 +120,9 @@ where shipped docs promise more than the code delivers.
    least two title-token overlaps and four total overlaps, and it treats
    `author: human` records as suggestion-only. Fixtures cover both a human
    record and a weak agent-authored match.
-9. **Curation write discipline — partly shipped.** `apply_links` now extends
-   its existing `## Related Context` section and curation session records use
-   microsecond timestamps, so rapid runs do not overwrite each other. Atomic
-   replacement for curation writes remains open.
+9. **Curation write discipline — shipped.** `apply_links` extends its
+   existing `## Related Context` section, curation session records use
+   microsecond timestamps, and both source and audit writes are atomic.
 
 **Provenance and immutability**
 
