@@ -19,3 +19,8 @@ pipeline/logs/*.log
 # Semantic/search caches (rebuildable — Markdown remains the source of truth)
 brain/wiki/.memoryfield.sqlite3*
 brain/index/
+
+# Private session source manifests and generated context records
+System_Config/context-sources.local.json
+System_Config/context-manifest.local.json
+brain/context/

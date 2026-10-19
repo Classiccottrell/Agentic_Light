@@ -1,7 +1,8 @@
 # Agentic Light — Orchestrator Context
 
 Lighter sibling of the parent workspace: Obsidian second brain + dev pipeline
-+ self-bootstrapping. No background automation.
++ self-bootstrapping. Private context collection can opt into a macOS daily,
+Monday, and Friday cadence.
 
 ## Build / Run
 
@@ -10,7 +11,7 @@ on Windows — use `python` or `py -3` in place of `python3` in every
 command below.
 
 - `python3 bootstrap.py` — interactive, idempotent scaffold and provider configuration.
-- `python3 bootstrap.py --check` — read-only doctor (tools + provider + no-automation note).
+- `python3 bootstrap.py --check` — read-only doctor (tools, provider, and context cadence).
 - `python3 System_Config/test_providers.py` — fake-provider check for ordered pre-launch fallback, one invocation, and no retry after failure.
 - `python3 System_Config/test_run_agent.py` — regression test for the gemini/agy `--add-dir` write-confinement contract (stubs `agy` to emulate its silent-cwd-ignoring bug so a future edit that drops the flag fails loudly instead of regressing writes).
 - `python3 pipeline/run.py` — Task Input → coder → ESLint gate → Playwright gate → Human Gate → `gh pr create`.
@@ -19,6 +20,9 @@ command below.
 - `python3 System_Config/monday_init.py` — weekly initializer: creates the current week's note from the template, the `brain/raw/` folder, and a Master Note Weekly Index row (backup → edit → validate → rollback); Vacation Recovery inserts one synthetic catch-up row if the last logged week is more than 7 days behind. `--dry-run` (or `DRY_RUN=1`) previews; `--self-test` runs its own fixtures (ISO-week edge cases + a real isolated-workspace run).
 - `python3 System_Config/friday_process.py [YYYY-Www]` — weekly close-out: stamps a close-out line into the week's `## Agent Sessions` section (or the legacy `## Claude Sessions` heading) and fills the Master Note row's Summary cell (backup → rewrite → validate → rollback). `--dry-run` (or `DRY_RUN=1`) previews; `--self-test` runs its own fixtures.
 - `python3 System_Config/daily_ingest.py` — scans `brain/raw/YYYY/Wnn label/*.md` for new clips and runs the agent CLI headlessly, one clip per call, to wikify them into `brain/wiki/`; content-hash manifest dedup, 3-attempt quarantine, 2-consecutive-failure wall. `--dry-run` (or `DRY_RUN=1`) previews; `--self-test` exercises the same logic with an injectable fake agent — no real provider call, no spend.
+- `bash System_Config/context_collect.sh [YYYY-MM-DD]` — collect explicit private Claude, Codex, Antigravity, or Web Clipper sources into hash-only records and weekly archives.
+- `python3 System_Config/context_auto_summary.py --vault brain --week YYYY-Www` — publish the automatic hash-only weekly source-count overview.
+- `bash System_Config/install_context_cadence.sh` — install daily 07:00, Monday 08:00, and Friday 19:00 macOS jobs; use `--dry-run` to inspect them.
 - `python3 System_Config/healthcheck.py` — layered PASS/WARN/FAIL report, self-heals docs via `gen_site.py` / `gen_preset_pages.py` / `gen_governance.py`.
 - `python3 System_Config/gen_governance.py [--check|--dry-run]` — generates `GOVERNANCE.md` (per-role scope and risk flags, human sign-off gate, audit trail, this fork's live gate policy, config security) from `agents/*.md`, `agent-roster.json`, `gate-config.json`.
 - `python3 System_Config/new_agent.py <name> "<scope>" [--write]` — scaffold a new `agents/<name>.md`.
@@ -74,6 +78,8 @@ Agentic_Light/
 ├── System_Config/
 │   ├── config.py · test_providers.py · mcp.defaults.json · new_agent.py · README.md · logs/.gitkeep
 │   ├── monday_init.py · friday_process.py · daily_ingest.py · run_agent.py · test_run_agent.py
+│   ├── context_collect.sh · context_discover.py · context_intake.py · context_weekly.py · context_weekly_curate.py · context_auto_summary.py · context_mempalace.py · context_cadence.py
+│   ├── install_context_cadence.sh · test_context_cadence.py · test_context_collect.py · test_context_discover.py · test_context_intake.py · test_context_weekly.py · test_context_weekly_curate.py · test_context_auto_summary.py · test_context_mempalace.py · test_context_schedule.sh
 │   ├── log_session.py · route_skill.py · context.py · context_packet.py · test_context_packet.py ·
 │   │   test_encoding.py
 │   ├── context_catalog.py · context_curate.py · context_validate.py · test_support.py (shared

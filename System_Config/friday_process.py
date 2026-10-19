@@ -21,6 +21,7 @@ from datetime import date
 from pathlib import Path
 
 import config
+import context_cadence
 
 SENTINEL = "<!-- WEEKLY-INDEX-INSERT -->"
 _HEADING_RE = re.compile(r'^## (Agent|Claude) Sessions\s*$')
@@ -107,6 +108,9 @@ def run(week_tag_arg, dry_run, log):
     if not note_abs.is_file():
         log(f"no weekly note for {week_tag} at {note_abs} — nothing to process; exiting")
         return 0
+
+    if not dry_run:
+        context_cadence.friday(today, week_tag, note_abs, log)
 
     note_text = note_abs.read_text(encoding="utf-8")
     if f"{today}: Friday close-out" in note_text:
@@ -207,6 +211,8 @@ def self_test():
         (ws / "brain" / "weekly_logs" / "2026").mkdir(parents=True)
         shutil.copy(Path(__file__), syscfg / "friday_process.py")
         shutil.copy(Path(__file__).parent / "config.py", syscfg / "config.py")
+        for name in ("context_cadence.py", "context_weekly.py", "context_auto_summary.py"):
+            shutil.copy(Path(__file__).parent / name, syscfg / name)
 
         note = ws / "brain" / "weekly_logs" / "2026" / "2026-W10.md"
         note.write_text("# W10 2026\n---\n\n## Agent Sessions\n> auto\n\n---\n", encoding="utf-8")

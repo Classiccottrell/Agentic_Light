@@ -21,6 +21,7 @@ Last reviewed: 2026-10-01
 - **Microsite integrity and polish** — dashboard preset cards and roster tables now regenerate from source, invalid placeholder gate copy was removed, favicon loading is local, preset task flow is semantic, and shared typography, contrast, borders, and status motion were tightened.
 - **Microsite field redesign** — dashboard is now the canonical home reached from `index.html`, all generated pages share the dark field system, and a local reduced-motion-aware contour canvas replaces the old grain backdrop and striped preset-card texture.
 - **App-agnostic context layer** — typed Markdown records, disposable catalog/link projections, offline FTS5 search with optional Ollama embeddings, profile-scoped packets, and conservative agent curation of human records are now available through `context.sh`; raw inputs remain immutable.
+- **Private session continuity** — explicit Claude, Codex, Antigravity JSONL, and Web Clipper sources can be indexed locally by MemPalace; generated hash-only records stay under ignored `brain/context/`, while weekly notes link separately to AI-session and gathered-context archives. Friday adds a count-based overview, and bootstrap can install the daily, Monday, and Friday cadence.
 - **Template project lifecycle artifacts** (PR #26) — `Projects/_TEMPLATE/`
   includes `spec.md`, `tasks.md`, and resumable `Plan.md`; its README documents
   the provider-neutral flow from brief through verified tasks and
@@ -169,7 +170,7 @@ fixture).
 ## Deliberately out of scope
 
 - New agent roles for the two presets.
-- Background schedulers or retry queues.
+- Retry queues or any background scheduler beyond the explicit private context cadence.
 - Multi-provider MCP bridges.
 - A hosted memory service or a second durable database.
 

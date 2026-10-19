@@ -34,6 +34,7 @@ os.environ.setdefault("MAX_SECONDS", "180")
 os.environ.setdefault("MAX_BUDGET", "1.00")
 
 import run_agent as ra  # noqa: E402
+import context_cadence
 
 MAX_CLIPS_PER_RUN = int(os.environ.get("MAX_CLIPS_PER_RUN", "10"))
 
@@ -238,6 +239,9 @@ def run(dry_run=False, run_agent_fn=None):
         if not held:
             log(f"another daily_ingest holds {lock_dir} — skipping")
             return 0
+
+        if not dry_run:
+            context_cadence.collect(today, log)
 
         if not config.RAW.is_dir():
             log(f"no raw dir at {config.RAW} — nothing to ingest; exiting")

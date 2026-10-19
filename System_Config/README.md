@@ -128,6 +128,15 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   stale-reclaim); `--dry-run` (or `DRY_RUN=1`) preview; `--self-test` covers
   the stamp/rewrite logic directly plus a real isolated-workspace run. No
   microsite regen and no GitHub Pages publish here.
+- **Private context cadence** — `context_collect.sh` reads only the ignored,
+  explicit `context-sources.local.json`, producing hash-only source records
+  under ignored `brain/context/`. `context_weekly.py` links existing weekly
+  notes separately to extracted AI sessions and gathered context;
+  `context_auto_summary.py` writes Friday's count-based overview. The Python
+  daily, Monday, and Friday entry points invoke these hooks without blocking
+  their primary jobs. `CONTEXT_MEMPALACE_BIN` optionally refreshes a private
+  local MemPalace index. `install_context_cadence.sh` installs the three macOS
+  launchd jobs, and bootstrap offers the same opt-in installation.
 - **`log_session.py`** — launcher-level session logger (deterministic, no
   AI call). `log_session.py --provider <name> --role <role> --status
   <exit-code> --reason <exit|timeout|signal|refused> [--note <path>]`

@@ -2,8 +2,9 @@
 
 A lightweight, provider-agnostic template for building a small dev-agent
 harness. It supports Claude, Gemini (`agy` or `gemini`), Codex, and Ollama,
-with no background service, scheduler, or retry queue — everything here runs
-by hand. It ships as a generic fork with all 6 agent roles and no gates; you
+with no background service or retry queue. Private context collection can
+optionally install a macOS daily, Monday, and Friday cadence; all other work
+runs by hand. It ships as a generic fork with all 6 agent roles and no gates; you
 run `specialize.py` once to turn it into a specific harness (a CLI-tool
 harness, a design harness, a WCAG-review harness, etc.) for the project you
 actually need it for. It also bundles a second-brain (plain markdown +
@@ -20,7 +21,7 @@ python3 System_Config/test_providers.py  # fake-provider regression check
 
 `bootstrap.py --check` reports which of `claude`/`agy`/`gemini`/`codex`/
 `ollama`/`gh`/`node`/`npx`/`python3` are installed, whether provider config
-exists yet, and confirms there's no background automation. `bootstrap.py`
+exists yet, and reports the optional context cadence. `bootstrap.py`
 itself (no flags) runs the interactive checkbox-style setup: enable/disable
 each provider, set priority order, optionally set a model per provider. It
 writes the result to `.agentic-light.conf` at the repo root (gitignored,
@@ -125,6 +126,10 @@ typed records under `brain/records/` capture projects, decisions, learnings,
 references, and sessions. `context.py` validates, catalogs, searches, curates,
 and builds profile-scoped packets; FTS5 works offline and Ollama embeddings
 are optional. `daily_ingest.py` still wikifies raw clips into `brain/wiki/`.
+When `System_Config/context-sources.local.json` explicitly opts sources in,
+daily, Monday, and Friday jobs collect hash-only records. Weekly notes link
+separately to extracted AI sessions and gathered context; Friday adds a
+count-based overview. Raw sessions and local paths remain outside vault notes.
 All source is plain text/stdlib, with zero Obsidian dependency. `.obsidian/` is
 shipped for zero-setup Obsidian viewing but is not required by the pipeline.
 See `brain/README.md`.

@@ -27,6 +27,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import config
+import context_cadence
 
 SENTINEL = "<!-- WEEKLY-INDEX-INSERT -->"
 _WEEK_STEM_RE = re.compile(r'^(\d{4})-W(\d{2})$')
@@ -189,6 +190,13 @@ def run(dry_run=False, today=None):
         return 0
 
     log_dir.mkdir(parents=True, exist_ok=True)
+
+    def context_log(message):
+        print("[monday_init] " + message, file=sys.stderr)
+
+    def link_context():
+        context_cadence.link_week(f"{ctx['year']}-W{ctx['week_num']}", ctx["note_file"], context_log)
+
     lock_dir = log_dir / "monday_init.lock"
     with config.acquire_lock(lock_dir, max_age=600) as held:
         if not held:
@@ -203,6 +211,7 @@ def run(dry_run=False, today=None):
         if ctx["note_file"].is_file():
             print(f"[monday_init] Note already exists: {ctx['note_file']} — skipping note body.")
             update_master_index(ctx["master"], gap_row, ctx["index_row"], ctx["wikilink"], log_dir)
+            link_context()
             print(f"[monday_init] Done — {time.strftime('%a %b %d %H:%M:%S %Y')}")
             return 0
 
@@ -225,6 +234,7 @@ def run(dry_run=False, today=None):
         print(f"[monday_init] Note created: {ctx['note_file']}")
 
         update_master_index(ctx["master"], gap_row, ctx["index_row"], ctx["wikilink"], log_dir)
+        link_context()
         print(f"[monday_init] Done — {time.strftime('%a %b %d %H:%M:%S %Y')}")
         return 0
 
@@ -264,6 +274,8 @@ def self_test():
         (ws / "brain" / "weekly_logs").mkdir(parents=True)
         shutil.copy(Path(__file__), syscfg / "monday_init.py")
         shutil.copy(Path(__file__).parent / "config.py", syscfg / "config.py")
+        shutil.copy(Path(__file__).parent / "context_cadence.py", syscfg / "context_cadence.py")
+        shutil.copy(Path(__file__).parent / "context_weekly.py", syscfg / "context_weekly.py")
         (ws / "brain" / "weekly_logs" / "Weekly_Note_Template.md").write_text(
             "# W{{WEEK_NUM}} {{YEAR}} — Sprint {{SPRINT}} Q{{QUARTER}}\n"
             "{{DATE_START}} to {{DATE_END}} ({{WEEK_LABEL}}), init {{INIT_DATE}}\n"

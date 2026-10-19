@@ -1,0 +1,21 @@
+{
+  "sources": [
+    {
+      "provider": "claude",
+      "root": "/absolute/path/to/claude-sessions",
+      "suffix": ".jsonl",
+      "age": "current",
+      "classification": "work",
+      "status": "captured"
+    },
+    {
+      "provider": "antigravity",
+      "root": "/absolute/path/to/antigravity-conversations",
+      "suffix": ".db",
+      "age": "current",
+      "classification": "unsorted",
+      "status": "decoder-required"
+    }
+  ]
+}
+

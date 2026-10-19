@@ -48,6 +48,14 @@ The durable record contract and curation safety rules are defined in
 
 ## Weekly cycle
 - `System_Config/monday_init.py` — starts the week's note + raw folder. Also runs automatically the first time `log_session.py` logs a session in a week with no note yet; sessions are appended after initialization succeeds, while initialization failure emits a warning and skips the append.
-- `System_Config/friday_process.py` — closes out the week.
+- `System_Config/friday_process.py` — collects opted-in context, optionally
+  refreshes MemPalace when `CONTEXT_MEMPALACE_BIN` is set, publishes the
+  count-based overview, then closes out the week.
 
-Both are manual-trigger only — Agentic Light has no background scheduler.
+When its ignored `System_Config/context-sources.local.json` exists,
+`daily_ingest.py` collects explicitly configured AI sessions and Web Clipper
+files. It writes only hashes and labels under ignored `brain/context/`; the
+weekly note links separately to AI-session and gathered-context archives.
+
+Run `System_Config/install_context_cadence.sh` (or accept the bootstrap prompt)
+to schedule daily collection, Monday spin-up, and Friday closeout on macOS.

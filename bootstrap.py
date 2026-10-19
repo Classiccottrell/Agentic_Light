@@ -42,7 +42,7 @@ HELP_TEXT = """Usage: python3 bootstrap.py [--check|--check-deps|--uninstall|--h
   (no args)    run the interactive setup
   --check      read-only doctor: report tool status
   --check-deps alias for --check
-  --uninstall  explain there is no background automation to remove"""
+  --uninstall  remove the optional context cadence"""
 
 
 def _atomic_write_text(path, text, mode=None):
@@ -119,7 +119,11 @@ def cmd_check():
 
     print()
     print("→ Automation:")
-    print("  No background automation (Agentic Light is manual-trigger only).")
+    installer = SYSCFG / "install_context_cadence.sh"
+    if sys.platform == "darwin" and installer.is_file():
+        print("  Context cadence is available: daily 07:00, Monday 08:00, Friday 19:00.")
+    else:
+        print("  Context cadence is available on macOS through install_context_cadence.sh.")
     return 0
 
 
@@ -128,15 +132,18 @@ def cmd_uninstall():
     print(" Agentic Light — uninstall")
     print("=" * 50)
     print()
-    print("Agentic Light has no background automation to remove; delete the")
-    print("Agentic_Light/ folder to uninstall.")
+    print("Remove the optional macOS context cadence without deleting workspace data.")
     print()
     if not sys.stdin.isatty():
         print("Non-interactive session — nothing to confirm, exiting.")
         return 0
     reply = _ask_raw("Acknowledge? [y/N]: ").strip()
     if reply in ("y", "Y", "yes", "YES"):
-        print("→ Nothing removed (no automation installed). Delete Agentic_Light/ manually to uninstall.")
+        installer = SYSCFG / "install_context_cadence.sh"
+        if sys.platform != "darwin" or not installer.is_file():
+            print("→ No macOS context cadence is available to remove.")
+        else:
+            return subprocess.run(["/bin/bash", str(installer), "--uninstall"], cwd=str(ROOT)).returncode
     else:
         print("→ Aborted. No changes made.")
     return 0
@@ -277,6 +284,19 @@ def _configure_notifications():
             print("    [!!] must start with https:// — skipped.")
 
 
+def _configure_context_cadence():
+    installer = SYSCFG / "install_context_cadence.sh"
+    if sys.platform != "darwin" or not installer.is_file():
+        return 0
+    if not sys.stdin.isatty():
+        print("→ Context cadence skipped in non-interactive setup. Install later with System_Config/install_context_cadence.sh.")
+        return 0
+    if not _ask_yes_no("→ Install daily context collection plus Monday/Friday context jobs? [Y/n]: ", True):
+        print("  Context cadence skipped.")
+        return 0
+    return subprocess.run(["/bin/bash", str(installer), "--install"], cwd=str(ROOT)).returncode
+
+
 def cmd_setup():
     print("=" * 50)
     print(" Agentic Light — bootstrap")
@@ -292,6 +312,9 @@ def cmd_setup():
         return rc
 
     _configure_notifications()
+    rc = _configure_context_cadence()
+    if rc != 0:
+        return rc
 
     print()
     print("=" * 50)
