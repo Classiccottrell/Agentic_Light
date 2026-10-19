@@ -1,0 +1,10 @@
+{
+  "roles": {
+    "architect": { "active": true, "capabilities": ["read", "write"] },
+    "coder": { "active": true, "capabilities": ["read", "write"] },
+    "creative-director": { "active": true, "capabilities": ["read", "write"] },
+    "curator": { "active": true, "capabilities": ["read", "write"] },
+    "eng-manager": { "active": true, "capabilities": ["read", "write", "delegate"] },
+    "qa": { "active": true, "capabilities": ["read", "write"] }
+  }
+}

@@ -31,6 +31,7 @@ GATE_MODULES = {
     "axe": "axe_gate.py",
     "vpat-lint": "vpat_lint_gate.py",
 }
+RUNTIME_CAPABILITIES = {"read", "write"}
 
 
 class Tee:
@@ -143,6 +144,24 @@ def role_contract(role):
     if not text:
         raise ValueError(f"empty role contract: {path}")
     return text
+
+
+def validate_launch_role(role):
+    """Reject inactive or unavailable role capabilities before launch."""
+    path = ROOT / "System_Config" / "agent-roster.json"
+    try:
+        roster = json.loads(path.read_text(encoding="utf-8"))
+        entry = roster["roles"][role]
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise ValueError(f"invalid launch roster: {path} ({error})")
+    if not entry.get("active"):
+        raise ValueError(f"role is inactive: {role}")
+    capabilities = entry.get("capabilities", [])
+    if not isinstance(capabilities, list) or not all(isinstance(item, str) for item in capabilities):
+        raise ValueError(f"invalid capabilities for role: {role}")
+    unsupported = sorted(set(capabilities) - RUNTIME_CAPABILITIES)
+    if unsupported:
+        raise ValueError(f"role {role} requires unavailable capabilities: {', '.join(unsupported)}")
 
 
 def assemble_coder_prompt(role, skills, packet, task):
@@ -346,6 +365,7 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
 
     print("-> [1] Code patch step")
     try:
+        validate_launch_role("coder")
         coder_role = role_contract("coder")
     except (OSError, ValueError) as error:
         print(f"FAILED: {error}")

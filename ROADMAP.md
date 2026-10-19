@@ -88,9 +88,11 @@ where shipped docs promise more than the code delivers.
    The pipeline does not launch architect, QA, or manager roles, so their
    contracts and handoffs remain orchestrator-managed. Provider mirrors are
    intentionally absent; explicit prompt context is canonical.
-5. **Nothing enforces roster, capabilities or risk at launch.** The launcher
-   never reads `agent-roster.json`. Launching an inactive role, or a role
-   whose capabilities the provider lacks, is not a pre-launch failure.
+5. **Coder roster enforcement — shipped; multi-role enforcement remains.**
+   The launcher reads `agent-roster.json` before branching and rejects an
+   inactive coder or capabilities unavailable to its read/write runtime.
+   Architect, QA, and manager roles remain manually launched, so their
+   pre-launch enforcement belongs with a future multi-role launcher.
 6. **Role text cleanup — partly shipped.** `coder.md` now matches the
    sandboxed runtime and refers only to the target repository. The remaining
    manually-dispatched role files still contain `Agentic_Light/…` paths and

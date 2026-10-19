@@ -54,6 +54,11 @@ any role omits a flag or contradicts its tools (e.g. `read_only: true` with
 Write/Edit/Bash). `GOVERNANCE.md` §1 renders the flags per role. When a
 role's rules change what it may do, update its `risk:` in the same edit.
 
+`System_Config/agent-roster.json` is the launcher's canonical activation and
+runtime-capability policy. It can be narrower than an agent file's historical
+`tools:` metadata: the coder launches with read/write capability only because
+the pipeline owns shell and Git operations.
+
 ## `qa` / `eng-manager` are not part of `pipeline/run.py`
 
 `qa` and `eng-manager` are orchestrator-dispatched roles: something (a human

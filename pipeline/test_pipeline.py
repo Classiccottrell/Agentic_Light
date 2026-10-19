@@ -13,6 +13,7 @@ PATH-reset that referenced $HOME/.local/bin was deliberately dropped when
 porting config.sh, see config.py's module docstring), so fake `gh`/`claude`
 binaries only need a plain PATH prepend here — no $HOME juggling.
 """
+import contextlib
 import json
 import importlib.util
 import os
@@ -626,6 +627,18 @@ def fixture_11():
         original_root, original_spawn = module.ROOT, module._spawn
         try:
             module.ROOT = root
+            roster = root / "System_Config" / "agent-roster.json"
+            roster.parent.mkdir(parents=True)
+            roster.write_text('{"roles":{"coder":{"active":false,"capabilities":["read","write"]}}}', encoding="utf-8")
+            with contextlib.suppress(ValueError):
+                module.validate_launch_role("coder")
+                check("fixture11: inactive role is rejected", False)
+            roster.write_text('{"roles":{"coder":{"active":true,"capabilities":["read","write","shell"]}}}', encoding="utf-8")
+            with contextlib.suppress(ValueError):
+                module.validate_launch_role("coder")
+                check("fixture11: unavailable capability is rejected", False)
+            roster.write_text('{"roles":{"coder":{"active":true,"capabilities":["read","write"]}}}', encoding="utf-8")
+            module.validate_launch_role("coder")
             module._spawn = lambda argv: calls.append(argv) or 0
             module.curate_session_record(record)
             check("fixture11: workspace session record is curated", len(calls) == 1, calls)

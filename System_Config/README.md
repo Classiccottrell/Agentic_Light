@@ -467,7 +467,8 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `pipeline/gate-config.json` — validated by real structural checks against
   their schemas (fields read from the schema files themselves, not a second
   hand-maintained copy), reusing `pipeline/run.py`'s own gate-config
-  validation logic plus a repo-relocatability check (rejects absolute
+  validation logic and coder launch enforcement (inactive or unsupported
+  runtime capabilities fail before a branch is created), plus a repo-relocatability check (rejects absolute
   `script`/`cwd` paths) — and `System_Config/skills-selected.json`, which
   `route_skill.py` reads to restrict its scan to the selected dirs (files
   under `skills/` are never deleted, per the project's leave-files-alone
