@@ -26,24 +26,22 @@ Last reviewed: 2026-10-01
   includes `spec.md`, `tasks.md`, and resumable `Plan.md`; its README documents
   the provider-neutral flow from brief through verified tasks and
   execution/resume.
+- **Agent risk metadata** — every `agents/*.md` declares
+  `risk: {read_only, destructive, idempotent, external_side_effects}`;
+  `preset_audit.py` enforces it, `GOVERNANCE.md` renders it, and
+  `new_agent.py` scaffolds it.
 
 ## Next
 
 ### White-label hardening
 
-1. **Agent risk metadata** — implemented; PR under review. Every
-   `agents/*.md` declares `risk: {read_only, destructive, idempotent,
-   external_side_effects}`; `preset_audit.py` enforces all four flags and
-   their consistency with `tools:`, `GOVERNANCE.md` renders them, and
-   `new_agent.py` scaffolds them. `tools:` stays capability metadata; risk
-   metadata describes blast radius. Move to Shipped after PR merge.
-2. **Context/session promotion** — connect launcher results to typed session
+1. **Context/session promotion** — connect launcher results to typed session
    records, then let the curator link those records to projects, decisions,
    and learnings. Preserve weekly logs as append-only compatibility output.
-3. **Delegation doctrine and audit trail** — document when work stays inline
+2. **Delegation doctrine and audit trail** — document when work stays inline
    versus delegated, and add provider-neutral launcher audit events. Provider
    hooks may adapt to this trail but cannot be its source of truth.
-4. **White-label acceptance fixture** — make `white_label_check.py` verify a
+3. **White-label acceptance fixture** — make `white_label_check.py` verify a
    fork can specialize, run its selected agents and gates, build a context
    packet, regenerate provider mirrors, and contain no Agentic Light identity.
 
@@ -145,10 +143,10 @@ where shipped docs promise more than the code delivers.
     `daily_ingest.py` asks the LLM to append its own line, which is not
     deterministic and breaks the single-logger rule.
 
-**Suggested order:** 1–3 and 11 (small, contained bugs), then 10, 8–9 and
-7. Fold 12 into White-label item 2, and 4–6 into White-label item 3 (the
-prompt-assembly contract is the precondition for item 4's acceptance
-fixture).
+**Suggested order:** finish the atomic portion of 9 and `related:` validation
+in 10, then 7. Fold 12 into White-label item 1, and 4–6 into White-label item
+2; the prompt-assembly contract is the precondition for the white-label
+acceptance fixture.
 
 ### Acceptance bar
 
