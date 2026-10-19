@@ -211,8 +211,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   validation.
 - **`context.py`** — app-agnostic entrypoint: `validate`, `catalog`, `packet`,
   and `curate <record> --suggest|--review|--apply`. Profiles restrict packet
-  context roots and explicit includes; curation proposes links from human
-  records and applies only high-confidence links while recording an AI session.
+  context roots and explicit includes; curation proposes links from records
+  and applies only high-confidence AI-authored links while recording an AI
+  session. Pipeline-created session records are curated automatically.
 - **`test_context_layer.sh`** — end-to-end fixture covering record validation,
   frontmatter/body links, curation, FTS excerpts, bounded packets, unrelated
   profiles, broken links, duplicate IDs, stale embedding dimensions, Ollama

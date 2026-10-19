@@ -35,10 +35,11 @@ Last reviewed: 2026-10-19
 
 ### White-label hardening
 
-1. **Context/session promotion** — launcher records are now typed, searchable
-   records with task, target repository, run ID, branch, and pipeline-log
-   provenance; the append-only weekly line links to the record. Remaining:
-   let the curator link those records to projects, decisions, and learnings.
+1. **Context/session promotion — shipped.** Launcher records are typed,
+   searchable records with task, target repository, run ID, branch, and
+   pipeline-log provenance; the append-only weekly line links to the record.
+   The pipeline then runs conservative curation so high-confidence project,
+   decision, and learning links are applied and weaker links remain reviewable.
 2. **Delegation doctrine and audit trail** — document when work stays inline
    versus delegated, and add provider-neutral launcher audit events. Provider
    hooks may adapt to this trail but cannot be its source of truth.

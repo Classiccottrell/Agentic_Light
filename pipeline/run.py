@@ -117,6 +117,18 @@ def _dispatch(script_path, args, cwd=None):
     return _spawn(argv, cwd=cwd)
 
 
+def curate_session_record(path):
+    """Best-effort enrichment for records stored in this workspace only."""
+    try:
+        path.resolve().relative_to(ROOT.resolve())
+    except ValueError:
+        return
+    rc = _spawn([sys.executable, str(ROOT / "System_Config" / "context.py"),
+                 "--root", str(ROOT), "curate", str(path), "--apply"])
+    if rc != 0:
+        print("WARNING: session record curation failed; the session record remains available")
+
+
 def run_custom_gate(gate, target_repo):
     target_p = target_repo.resolve()
     cwd_abs = target_repo / gate.get("cwd", ".")
@@ -383,6 +395,8 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
     if session_log.returncode != 0:
         print("FAILED: could not write the typed session record")
         return 1
+    records_dir = Path(os.environ.get("LOG_SESSION_RECORDS_DIR", ROOT / "brain" / "records" / "sessions"))
+    curate_session_record(records_dir / f"session-{run_id}.md")
 
     if coder_rc != 0:
         print(f"FAILED: code patch step (coder exited {coder_rc})")

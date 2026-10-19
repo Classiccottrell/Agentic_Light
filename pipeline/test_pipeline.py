@@ -14,6 +14,7 @@ porting config.sh, see config.py's module docstring), so fake `gh`/`claude`
 binaries only need a plain PATH prepend here — no $HOME juggling.
 """
 import json
+import importlib.util
 import os
 import shutil
 import stat
@@ -609,6 +610,30 @@ def fixture_10():
     restore_gate_config()
 
 
+def fixture_11():
+    spec = importlib.util.spec_from_file_location("pipeline_run_fixture", RUN)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        record = root / "brain/records/sessions/session-fixture.md"
+        calls = []
+        original_root, original_spawn = module.ROOT, module._spawn
+        try:
+            module.ROOT = root
+            module._spawn = lambda argv: calls.append(argv) or 0
+            module.curate_session_record(record)
+            check("fixture11: workspace session record is curated", len(calls) == 1, calls)
+            if calls:
+                check("fixture11: curation uses deterministic apply mode", calls[0][-2:] == [str(record), "--apply"], calls[0])
+            calls.clear()
+            module.curate_session_record(TMP_ROOT / "outside-record.md")
+            check("fixture11: external test record is not curated", not calls, calls)
+        finally:
+            module.ROOT, module._spawn = original_root, original_spawn
+    print("fixture 11 (typed session curation): PASS")
+
+
 def main():
     try:
         fixture_1()
@@ -624,6 +649,7 @@ def main():
         fixture_8()
         fixture_9()
         fixture_10()
+        fixture_11()
     finally:
         cleanup()
 
