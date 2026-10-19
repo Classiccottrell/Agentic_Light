@@ -30,7 +30,7 @@ def candidates(root, source):
         target_text = f"{item['title']} {item['excerpt']}"
         overlap = source_tokens & tokens(target_text)
         title_overlap = tokens(item["title"]) & source_tokens
-        confidence = "high" if len(title_overlap) >= 1 and len(overlap) >= 2 else "medium" if len(overlap) >= 1 else "low"
+        confidence = "high" if len(title_overlap) >= 2 and len(overlap) >= 4 else "medium" if len(overlap) >= 1 else "low"
         result.append({"id": item["id"], "path": item["path"], "title": item["title"], "confidence": confidence, "overlap": sorted(overlap)})
     return sorted(result, key=lambda item: ({"high": 0, "medium": 1, "low": 2}[item["confidence"]], -len(item["overlap"]), item["id"]))
 
@@ -76,8 +76,10 @@ def main():
         for item in found:
             print(f"{item['confidence']}\t{item['id']}\t{item['title']}\t{','.join(item['overlap'])}")
         return 0
-    accepted = [item for item in found if item["confidence"] == "high"]
-    rejected = [item for item in found if item["confidence"] != "high"]
+    source_meta, _unused_body = parse_frontmatter(source)
+    human_authored = str(source_meta.get("author", "")).lower() == "human"
+    accepted = [] if human_authored else [item for item in found if item["confidence"] == "high"]
+    rejected = found if human_authored else [item for item in found if item["confidence"] != "high"]
     changed = apply_links(source, accepted)
     session_record(root, source, accepted, rejected)
     print(f"context_curate: applied={len(accepted)} changed={'yes' if changed else 'no'} review={len(rejected)}")

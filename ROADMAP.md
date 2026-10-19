@@ -118,13 +118,10 @@ where shipped docs promise more than the code delivers.
 
 **Curation**
 
-8. **"Conservative" curation is not conservative.** A link counts as
-   "high" with one title-token overlap plus two body-token overlaps. Tokens
-   can be 3 characters, and the 13-word stoplist misses words like
-   `for`/`use`. Verified: `--apply` wrote a link from "Use SQLite for the
-   agent cache" to "Agent timeouts need a watchdog" into a human-authored
-   record. Raise the threshold, make `author: human` records suggest-only,
-   and add a precision fixture.
+8. **Conservative curation — shipped.** Automatic curation now requires at
+   least two title-token overlaps and four total overlaps, and it treats
+   `author: human` records as suggestion-only. Fixtures cover both a human
+   record and a weak agent-authored match.
 9. **Curation writes are messy.** `apply_links` appends a new
    `## Related Context` heading every time new links appear, instead of
    extending the existing one. Curation session files are named per second,

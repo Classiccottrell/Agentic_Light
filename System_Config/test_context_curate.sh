@@ -74,7 +74,10 @@ echo "$SUGGEST" | grep -q 'deployment-pipeline'
 test "$SOURCE_HASH" = "$(shasum -a 256 "$TMP/brain/records/learnings/human.md" | awk '{print $1}')"
 
 python3 "$ROOT/System_Config/context.py" --root "$TMP" curate "$TMP/brain/records/learnings/human.md" --apply >/dev/null
-grep -q '\[\[deployment-pipeline\]\]' "$TMP/brain/records/learnings/human.md"
+if grep -q '\[\[deployment-pipeline\]\]' "$TMP/brain/records/learnings/human.md"; then
+  echo 'human-authored record was changed by automatic curation' >&2
+  exit 1
+fi
 SUGGEST_AFTER="$(python3 "$ROOT/System_Config/context.py" --root "$TMP" curate "$TMP/brain/records/learnings/human.md" --suggest)"
 if echo "$SUGGEST_AFTER" | grep -q 'curation-'; then
   echo 'curation session appeared as a candidate' >&2
@@ -82,6 +85,33 @@ if echo "$SUGGEST_AFTER" | grep -q 'curation-'; then
 fi
 if grep -q '\[\[archive-project\]\]' "$TMP/brain/records/learnings/human.md"; then
   echo 'low-confidence link was applied' >&2
+  exit 1
+fi
+
+cat > "$TMP/brain/records/learnings/weak-agent-match.md" <<'EOF'
+---
+id: weak-agent-match
+type: learning
+title: Deployment Cache
+status: active
+scope: workspace
+created: 2026-09-23
+updated: 2026-09-23
+author: ai
+source: [brain/raw/source.md]
+---
+## Situation
+Deployment pipeline verification needs a cache.
+## Insight
+Cache the deployment results.
+## Evidence
+Generated observation.
+## Reuse When
+Deployment work repeats.
+EOF
+python3 "$ROOT/System_Config/context.py" --root "$TMP" curate "$TMP/brain/records/learnings/weak-agent-match.md" --apply >/dev/null
+if grep -q '\[\[deployment-pipeline\]\]' "$TMP/brain/records/learnings/weak-agent-match.md"; then
+  echo 'weak agent match was applied' >&2
   exit 1
 fi
 test -n "$(find "$TMP/brain/records/sessions" -type f -name '*.md' -print -quit)"
