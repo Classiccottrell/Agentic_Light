@@ -76,11 +76,12 @@ pipeline, enforced structurally, not by convention:
 
 - **`System_Config/log_session.py`** — called exactly once per coder
   invocation, after the coder step, regardless of outcome (success, watchdog
-  timeout, or an Ollama write-workflow refusal). Appends one line —
-  provider, role, exit status, reason — under `## Agent Sessions` in the
-  current ISO week's weekly note (`brain/weekly_logs/YYYY/YYYY-Www.md`).
-  This is the append-only session record: every coder invocation, whether
-  it made it to a PR or not, leaves a trace.
+  timeout, or an Ollama write-workflow refusal). Writes one typed record in
+  `brain/records/sessions/` with the task, target repo, run ID, branch, and
+  pipeline-log provenance, then appends a link plus provider, role, exit
+  status, and reason under `## Agent Sessions` in the current ISO week's
+  weekly note (`brain/weekly_logs/YYYY/YYYY-Www.md`). Every coder invocation,
+  whether it made it to a PR or not, leaves a searchable trace.
 - **`pipeline/logs/<run-id>.log`** — the full run, gate output included, is
   teed to a per-run log file (`RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"`). This is
   the gate-run history: what ran, in what order, and whether it passed.

@@ -73,7 +73,8 @@ python3 pipeline/run.py --help   # print usage and exit
    because the `claude` invocation in `run_agent.py` runs with
    `--disallowedTools "Bash,..."` and can't do either. Exactly one call to
    `System_Config/log_session.py` follows the coder process, logging
-   provider/role/exit-status/reason (success, timeout, or refusal alike) —
+   provider/role/exit-status/reason and writing a typed session record with
+   its task, target repository, run ID, branch, and pipeline-log provenance —
    see "Session logging" below. A `64` exit only maps to `refused` when the
    resolved provider for that run was `ollama`; any other provider exiting
    64 is logged as a generic `exit`. `run.py` then stages the coder's
@@ -209,7 +210,9 @@ evidence capped below `Supports`/`Does Not Support`. Full rule list:
 After the coder step completes (success, watchdog timeout, or an Ollama
 write-workflow refusal), `run.py` calls `System_Config/log_session.py`
 exactly once with the resolved provider, `--role coder`, the exit status,
-and a reason (`exit`/`timeout`/`signal`/`refused`). This is the sole
+and a reason (`exit`/`timeout`/`signal`/`refused`). It writes a typed record
+under `brain/records/sessions/`, then links the record from the weekly note.
+This is the sole
 launcher-level call site — `run_agent()` itself is not instrumented, since
 it's also called once per clip by `daily_ingest.py`, which already logs its
 own line per clip.

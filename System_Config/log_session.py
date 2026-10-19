@@ -6,6 +6,7 @@ of config.py (matches log_session.sh, which never sourced config.sh — it
 derives its own ROOT/BRAIN directly).
 
 Usage: log_session.py --provider <name> --role <role> --status <exit-code> --reason <exit|timeout|signal|refused> [--note <path>]
+                      [--task <text> --target-repo <path> --run-id <id> --branch <name> --log <path>]
        log_session.py --self-test
 
 Appends one line under the current ISO week's weekly note's
@@ -38,6 +39,8 @@ def _child_env():
 HEADING_RE = re.compile(r'^## (Agent|Claude) Sessions\s*$')
 SEP_RE = re.compile(r'^---\s*$')
 VALID_REASONS = ("exit", "timeout", "signal", "refused")
+SESSION_MARKER = "<!-- generated-session-record-v1 -->"
+RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
 def _atomic_write(path, text):
@@ -54,9 +57,10 @@ def _atomic_write(path, text):
         raise
 
 
-def append_session_line(note_path, provider, role, status, reason):
+def append_session_line(note_path, provider, role, status, reason, record_id=""):
     ts = _now_str()
-    line = f"- {ts}: {provider} / {role} — exit {status} ({reason})"
+    suffix = f" · [[{record_id}|session record]]" if record_id else ""
+    line = f"- {ts}: {provider} / {role} — exit {status} ({reason}){suffix}"
     text = note_path.read_text(encoding="utf-8")
     raw_lines = text.splitlines()
 
@@ -86,6 +90,57 @@ def append_session_line(note_path, provider, role, status, reason):
 def _now_str():
     from datetime import datetime
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _single_line(value, field):
+    value = " ".join(str(value).split())
+    if not value:
+        raise ValueError(f"missing {field}")
+    return value
+
+
+def session_record_text(provider, role, status, reason, task, target_repo, run_id, branch, log_path):
+    provider = _single_line(provider, "provider")
+    role = _single_line(role, "role")
+    task = _single_line(task, "task")
+    target_repo = _single_line(target_repo, "target repo")
+    branch = _single_line(branch, "branch")
+    if not RUN_ID_RE.fullmatch(run_id):
+        raise ValueError("invalid run id")
+    try:
+        source = str(Path(log_path).resolve().relative_to(ROOT.resolve()))
+    except ValueError:
+        raise ValueError("pipeline log must be inside the workspace")
+    if not (ROOT / source).is_file():
+        raise ValueError("pipeline log unavailable")
+    today = date.today().isoformat()
+    record_id = "session-" + run_id
+    outcome = f"Coder exited {status} ({reason})."
+    unresolved = "Pipeline stopped after the coder step." if str(status) != "0" else "Later pipeline gates and human approval are recorded in the pipeline log."
+    text = "\n".join((
+        "---", f"id: {record_id}", "type: session",
+        f"title: {provider} {role} session {run_id}", "status: archived", "scope: session",
+        f"created: {today}", f"updated: {today}", "author: ai", f"source: {source}",
+        f"tags: [{provider}, {role}]", "---", "", SESSION_MARKER, "", "## Task", task,
+        "", "## Outcome", outcome, "", "## Changed",
+        f"Target repository: `{target_repo}`", f"Branch: `{branch}`", f"Pipeline log: `{source}`",
+        "", "## Unresolved", unresolved, "",
+    ))
+    return record_id, text
+
+
+def write_session_record(provider, role, status, reason, task, target_repo, run_id, branch, log_path):
+    record_id, text = session_record_text(provider, role, status, reason, task, target_repo, run_id, branch, log_path)
+    records_dir = Path(os.environ.get("LOG_SESSION_RECORDS_DIR", ROOT / "brain" / "records" / "sessions"))
+    path = records_dir / (record_id + ".md")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        raise ValueError("session record already exists")
+    with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as output:
+        output.write(text)
+    return record_id
 
 
 def current_week_note():
@@ -133,12 +188,14 @@ def self_test():
     # + config.py + template from a temp workspace, so the real vault is
     # never touched.
     os.environ.pop("LOG_SESSION_NOTE", None)
+    os.environ.pop("LOG_SESSION_RECORDS_DIR", None)
     ws = Path(tempfile.mkdtemp())
     (ws / "System_Config").mkdir()
     (ws / "brain" / "weekly_logs").mkdir(parents=True)
     shutil.copy(Path(__file__), ws / "System_Config" / "log_session.py")
     shutil.copy(ROOT / "System_Config" / "monday_init.py", ws / "System_Config" / "monday_init.py")
     shutil.copy(ROOT / "System_Config" / "config.py", ws / "System_Config" / "config.py")
+    shutil.copy(ROOT / "System_Config" / "context_cadence.py", ws / "System_Config" / "context_cadence.py")
     (ws / "brain" / "weekly_logs" / "Weekly_Note_Template.md").write_text(
         "# W{{WEEK_NUM}} {{YEAR}} — TEMPLATE-MARKER\n---\n\n## Agent Sessions\n"
         "> Auto-appended after each launcher-completed session.\n\n---\n",
@@ -158,6 +215,31 @@ def self_test():
         section = note_text.split("## Agent Sessions", 1)[-1].split("---", 1)[0]
         check("line landed under ## Agent Sessions in auto-created note", section.count("claude / coder — exit 0 (exit)") == 1)
     check("stdout contract unchanged (empty)", proc.stdout == "", proc.stdout)
+
+    # A launcher with run metadata creates a typed, provenance-linked record
+    # and the weekly line points to it.
+    log = ws / "pipeline" / "logs" / "session-test.log"
+    log.parent.mkdir(parents=True)
+    log.write_text("fixture pipeline log\n", encoding="utf-8")
+    proc_record = subprocess.run(
+        [sys.executable, str(ws / "System_Config" / "log_session.py"),
+         "--provider", "codex", "--role", "coder", "--status", "0", "--reason", "exit",
+         "--task", "Add a fixture", "--target-repo", str(ws / "target"),
+         "--run-id", "fixture-run", "--branch", "agentic-light/fixture-run", "--log", str(log)],
+        capture_output=True, encoding="utf-8", env=_child_env(),
+    )
+    record = ws / "brain" / "records" / "sessions" / "session-fixture-run.md"
+    check("typed session record exits successfully", proc_record.returncode == 0, proc_record.stderr)
+    check("typed session record created", record.is_file())
+    if record.is_file():
+        record_text = record.read_text(encoding="utf-8")
+        check("typed record has session sections", all(section in record_text for section in ("## Task", "## Outcome", "## Changed", "## Unresolved")), record_text)
+        check("typed record points to pipeline log", "source: pipeline/logs/session-test.log" in record_text, record_text)
+        validation = subprocess.run(
+            [sys.executable, str(ROOT / "System_Config" / "context_validate.py"), "validate",
+             str(record), "--root", str(ws)], capture_output=True, encoding="utf-8", env=_child_env())
+        check("typed record passes context validation", validation.returncode == 0, validation.stderr)
+    check("weekly line links typed record", note.is_file() and "[[session-fixture-run|session record]]" in note.read_text(encoding="utf-8"))
 
     # monday_init.py fails (no template): still exit 0, no note written.
     shutil.rmtree(ws / "brain" / "weekly_logs")
@@ -199,6 +281,11 @@ def main():
     parser.add_argument("--status", default="")
     parser.add_argument("--reason", default="")
     parser.add_argument("--note", default=os.environ.get("LOG_SESSION_NOTE", ""))
+    parser.add_argument("--task", default="")
+    parser.add_argument("--target-repo", default="")
+    parser.add_argument("--run-id", default="")
+    parser.add_argument("--branch", default="")
+    parser.add_argument("--log", default="")
     parser.add_argument("-h", "--help", action="store_true")
     args = parser.parse_args()
 
@@ -216,6 +303,19 @@ def main():
     if args.reason not in VALID_REASONS:
         print(f"invalid --reason: {args.reason}", file=sys.stderr)
         return 1
+
+    metadata = (args.task, args.target_repo, args.run_id, args.branch, args.log)
+    if any(metadata) and not all(metadata):
+        print("session metadata requires --task, --target-repo, --run-id, --branch, and --log", file=sys.stderr)
+        return 1
+    record_id = ""
+    if all(metadata):
+        try:
+            record_id = write_session_record(args.provider, args.role, args.status, args.reason,
+                                             args.task, args.target_repo, args.run_id, args.branch, args.log)
+        except ValueError as error:
+            print("session record failed: " + str(error), file=sys.stderr)
+            return 1
 
     note = Path(args.note) if args.note else None
     if note is not None:
@@ -239,7 +339,7 @@ def main():
                 print(f"log_session.py: weekly note still missing at {note} after monday_init.py — skipping", file=sys.stderr)
                 return 0
 
-    append_session_line(note, args.provider, args.role, args.status, args.reason)
+    append_session_line(note, args.provider, args.role, args.status, args.reason, record_id)
     return 0
 
 

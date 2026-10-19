@@ -53,6 +53,7 @@ CALLS = TMP_ROOT / "gh_calls"
 CALLS9 = TMP_ROOT / "claude_calls"
 LOG_SESSION_NOTE = TMP_ROOT / "weekly-note.md"
 LOG_SESSION_NOTE.write_text("", encoding="utf-8")
+SESSION_RECORDS = TMP_ROOT / "session-records"
 
 REAL_GATE_CONFIG = ROOT / "pipeline" / "gate-config.json"
 GATE_CONFIG_BACKUP = TMP_ROOT / "gate-config.json.bak"
@@ -168,6 +169,7 @@ def run_pipeline(task, target_repo, coder_cmd=CODER_STUB, human_gate_cmd=None, e
     env["CALLS"] = str(CALLS)
     env["AGENTIC_LIGHT_TEST_MODE"] = "1"
     env["LOG_SESSION_NOTE"] = str(LOG_SESSION_NOTE)
+    env["LOG_SESSION_RECORDS_DIR"] = str(SESSION_RECORDS)
     env["PYTHONUTF8"] = "1"
     if coder_cmd is not None:
         env["PIPELINE_CODER_CMD"] = str(coder_cmd)
@@ -282,6 +284,11 @@ def fixture_1():
     check("fixture1: summary shows PATCHED.txt", "PATCHED.txt" in out)
     note_text = LOG_SESSION_NOTE.read_text(encoding="utf-8")
     check("fixture1: session logged exactly once", note_text.count("/ coder — exit 0 (exit)") == 1, note_text)
+    records = list(SESSION_RECORDS.glob("session-*.md"))
+    check("fixture1: typed session record created", len(records) == 1, records)
+    if records:
+        record_text = records[0].read_text(encoding="utf-8")
+        check("fixture1: record links its pipeline log", "source: pipeline/logs/" in record_text, record_text)
     print("fixture 1 (normal pass): PASS")
 
 
@@ -489,6 +496,7 @@ def fixture_9():
         env["AGENTIC_LIGHT_TEST_MODE"] = "1"
         env["PIPELINE_HUMAN_GATE_CMD"] = str(APPROVE_STUB)
         env["LOG_SESSION_NOTE"] = str(LOG_SESSION_NOTE)
+        env["LOG_SESSION_RECORDS_DIR"] = str(SESSION_RECORDS)
         env["PYTHONUTF8"] = "1"
         env.update(extra_env)
         return subprocess.run([sys.executable, str(RUN), "task", str(repo9)],

@@ -1,6 +1,6 @@
 # Agentic Light Roadmap
 
-Last reviewed: 2026-10-01
+Last reviewed: 2026-10-19
 
 ## Shipped
 
@@ -35,9 +35,10 @@ Last reviewed: 2026-10-01
 
 ### White-label hardening
 
-1. **Context/session promotion** — connect launcher results to typed session
-   records, then let the curator link those records to projects, decisions,
-   and learnings. Preserve weekly logs as append-only compatibility output.
+1. **Context/session promotion** — launcher records are now typed, searchable
+   records with task, target repository, run ID, branch, and pipeline-log
+   provenance; the append-only weekly line links to the record. Remaining:
+   let the curator link those records to projects, decisions, and learnings.
 2. **Delegation doctrine and audit trail** — document when work stays inline
    versus delegated, and add provider-neutral launcher audit events. Provider
    hooks may adapt to this trail but cannot be its source of truth.
@@ -100,19 +101,13 @@ where shipped docs promise more than the code delivers.
 
 **Skill routing**
 
-7. **The router does not rank by relevance.** A skill matches if any task
-   word over 3 characters appears in its description. Matches are ordered
-   alphabetically, and the 3-skill cap applies in that order.
-   - "write a dbt model for orders" routes to two Figma skills, not
-     `dbt-bigquery`.
-   - "fix the login form accessibility" injects `figma-use`,
-     `gcp-data-pipelines` and `react-doctor`, and the cap drops `wcag-audit`
-     and `vpat-authoring`.
-   - "add a CLI flag" routes to nothing.
-
-   Rank before capping, for example by name/keyword weighting or reusing
-   FTS5 bm25. Add a routing fixture with expected picks. Specialized forks
-   are only partly protected by `skills-selected.json`.
+7. **Skill routing — shipped.** `route_skill.py` now ranks name and
+   description matches by rarity and task relevance before the three-skill
+   cap. Its fixture proves DBT and accessibility domain skills beat
+   alphabetically earlier generic skills. A generic CLI task still produces
+   no match because this harness deliberately has no CLI-specific skill;
+   selection remains constrained by `skills-selected.json` in specialized
+   forks.
 
 **Curation**
 
@@ -135,17 +130,17 @@ where shipped docs promise more than the code delivers.
 
 **Session records (feeds White-label item 2)**
 
-12. **Session lines can't say what happened.** A line records only
-    provider/role/exit/reason: no task, target repo, run id, branch, or
-    pipeline log path. The packet's "Recent Session Facts" therefore can't
-    describe past work. Only `pipeline/run.py` calls `log_session.py`;
-    `daily_ingest.py` asks the LLM to append its own line, which is not
-    deterministic and breaks the single-logger rule.
+12. **Pipeline session records — shipped; daily ingest remains.**
+    `pipeline/run.py` now gives `log_session.py` the task, target repo, run
+    ID, branch, and log path. It writes a schema-valid typed record and the
+    weekly line links to it, so packets can retrieve meaningful launch facts.
+    `daily_ingest.py` still asks the LLM to append its own line; moving that
+    to this deterministic logger remains open.
 
-**Suggested order:** finish the atomic portion of 9 and `related:` validation
-in 10, then 7. Fold 12 into White-label item 1, and 4–6 into White-label item
-2; the prompt-assembly contract is the precondition for the white-label
-acceptance fixture.
+**Suggested order:** move daily-ingest logging to the deterministic logger,
+then let curation link typed records to durable context. Fold 4–6 into
+White-label item 2; the prompt-assembly contract is the precondition for the
+white-label acceptance fixture.
 
 ### Acceptance bar
 

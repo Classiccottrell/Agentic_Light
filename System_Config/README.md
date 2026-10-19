@@ -149,7 +149,11 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   missing the template's sections, but that silently dropped runs from the
   audit trail. An explicit `--note` path (or its env equivalent
   `LOG_SESSION_NOTE`, which `pipeline/test_pipeline.py` sets so fixtures
-  never write into `brain/`) is never auto-created. If
+  never write into `brain/`) is never auto-created. When supplied with a
+  task, target repository, run ID, branch, and pipeline log, it also writes
+  one typed `brain/records/sessions/` record and links that record from the
+  weekly line. `LOG_SESSION_RECORDS_DIR` provides the equivalent isolated
+  fixture destination. If
   `monday_init.py` fails or the note is still missing, it prints a warning
   to stderr and exits 0 (logging never fails the pipeline). No lock
   conflict: `monday_init.py` locks `System_Config/logs/monday_init.lock`,

@@ -374,10 +374,15 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
         coder_rc = ra.run_agent(prompt, log=str(run_log_path), brain=str(target_repo))
         coder_provider = config.AGENT_PROVIDER or "unknown"
 
-    subprocess.run([sys.executable, str(ROOT / "System_Config" / "log_session.py"),
-                     "--provider", coder_provider, "--role", "coder",
-                     "--status", str(coder_rc), "--reason", reason_for_status(coder_rc, coder_provider)],
-                    env=_child_env())
+    session_log = subprocess.run(
+        [sys.executable, str(ROOT / "System_Config" / "log_session.py"),
+         "--provider", coder_provider, "--role", "coder", "--status", str(coder_rc),
+         "--reason", reason_for_status(coder_rc, coder_provider), "--task", task_desc,
+         "--target-repo", str(target_repo), "--run-id", run_id, "--branch", branch_name,
+         "--log", str(run_log_path)], env=_child_env())
+    if session_log.returncode != 0:
+        print("FAILED: could not write the typed session record")
+        return 1
 
     if coder_rc != 0:
         print(f"FAILED: code patch step (coder exited {coder_rc})")
