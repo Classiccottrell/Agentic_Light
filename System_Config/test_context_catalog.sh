@@ -124,6 +124,34 @@ if python3 "$ROOT/System_Config/context_validate.py" validate "$TMP/brain/record
 fi
 rm "$TMP/brain/records/learnings/external-source.md" "$OUTSIDE"
 
+cat > "$TMP/brain/records/learnings/missing-related.md" <<'EOF'
+---
+id: missing-related
+type: learning
+title: Missing Related Target
+status: active
+scope: workspace
+created: 2026-09-23
+updated: 2026-09-23
+author: human
+source: [brain/raw/2026/W39/source.md]
+related: [not-a-record]
+---
+## Situation
+Test.
+## Insight
+Broken relationship.
+## Evidence
+None.
+## Reuse When
+Never.
+EOF
+if python3 "$ROOT/System_Config/context_validate.py" validate "$TMP/brain/records/learnings/missing-related.md" --root "$TMP"; then
+  echo 'expected missing related target failure' >&2
+  exit 1
+fi
+rm "$TMP/brain/records/learnings/missing-related.md"
+
 cp "$TMP/brain/records/projects/demo.md" "$TMP/brain/records/projects/duplicate.md"
 if python3 "$ROOT/System_Config/context_validate.py" validate "$TMP/brain" --root "$TMP"; then
   echo 'expected duplicate-id failure' >&2

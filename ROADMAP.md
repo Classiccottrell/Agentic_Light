@@ -127,9 +127,9 @@ where shipped docs promise more than the code delivers.
 
 **Provenance and immutability**
 
-10. **Source provenance validation — shipped.** `context_validate` now
-    rejects missing and out-of-workspace `source:` paths. Validation of
-    optional frontmatter `related:` targets remains open.
+10. **Provenance validation — shipped.** `context_validate` now rejects
+    missing and out-of-workspace `source:` paths and unresolved frontmatter
+    `related:` targets.
 11. **Raw immutability during ingest — shipped.** `daily_ingest.py` now
     records the pre-call hash, compares it after the agent returns, and
     marks any changed clip as a failed attempt instead of certifying it.

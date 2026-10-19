@@ -84,6 +84,17 @@ def provenance_available(root, source):
     return candidate.is_file()
 
 
+def related_targets(related):
+    for target in provenance_paths(related):
+        if not isinstance(target, str):
+            continue
+        target = target.strip()
+        while target.startswith("[") and target.endswith("]"):
+            target = target[1:-1].strip()
+        if target:
+            yield target
+
+
 def validate_file(path, root, targets=None):
     findings = []
     meta, body = parse_frontmatter(path)
@@ -104,6 +115,9 @@ def validate_file(path, root, targets=None):
         if section not in body_sections(body):
             findings.append(f"{path}: missing section: {section}")
     targets = targets or known_targets(root)
+    for target in related_targets(meta.get("related", [])):
+        if target not in targets:
+            findings.append(f"{path}: broken related target: {target}")
     for target in LINK_RE.findall(body):
         if target.strip() not in targets:
             findings.append(f"{path}: broken wikilink: [[{target.strip()}]]")
