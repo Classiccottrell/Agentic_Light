@@ -36,7 +36,7 @@ def candidates(root, source):
 
 
 def session_record(root, source, accepted, rejected):
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     digest = hashlib.sha1(str(source).encode()).hexdigest()[:8]
     path = root / "brain" / "records" / "sessions" / f"curation-{stamp}-{digest}.md"
     rel = str(source.relative_to(root))
@@ -55,7 +55,7 @@ def apply_links(source, accepted):
     new_links = [f"- [[{item['id']}]]" for item in accepted if f"[[{item['id']}]]" not in text]
     if not new_links:
         return False
-    suffix = "\n## Related Context\n" + "\n".join(new_links) + "\n"
+    suffix = "\n" + "\n".join(new_links) + "\n" if "\n## Related Context\n" in text else "\n## Related Context\n" + "\n".join(new_links) + "\n"
     source.write_text(text.rstrip() + suffix, encoding="utf-8")
     return True
 

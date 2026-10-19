@@ -114,6 +114,55 @@ if grep -q '\[\[deployment-pipeline\]\]' "$TMP/brain/records/learnings/weak-agen
   echo 'weak agent match was applied' >&2
   exit 1
 fi
+
+cat > "$TMP/brain/records/learnings/agent-curation.md" <<'EOF'
+---
+id: agent-curation
+type: learning
+title: Deployment Pipeline
+status: active
+scope: workspace
+created: 2026-09-23
+updated: 2026-09-23
+author: ai
+source: [brain/raw/source.md]
+---
+## Situation
+Deployment pipeline ships verified releases.
+## Insight
+Verified deployment pipeline releases need review.
+## Evidence
+Generated observation.
+## Reuse When
+Deployment work repeats.
+EOF
+BEFORE_SESSIONS="$(find "$TMP/brain/records/sessions" -type f | wc -l | tr -d ' ')"
+python3 "$ROOT/System_Config/context.py" --root "$TMP" curate "$TMP/brain/records/learnings/agent-curation.md" --apply >/dev/null
+cat > "$TMP/brain/records/projects/releases.md" <<'EOF'
+---
+id: verified-releases
+type: project
+title: Verified Releases
+status: active
+scope: project
+created: 2026-09-23
+updated: 2026-09-23
+author: human
+source: [brain/raw/source.md]
+---
+## Summary
+Deployment pipeline ships verified releases.
+## Goals
+- Keep verified releases reliable.
+## Status
+Active.
+## Links
+EOF
+python3 "$ROOT/System_Config/context.py" --root "$TMP" curate "$TMP/brain/records/learnings/agent-curation.md" --apply >/dev/null
+grep -q '\[\[verified-releases\]\]' "$TMP/brain/records/learnings/agent-curation.md"
+test "$(grep -c '^## Related Context$' "$TMP/brain/records/learnings/agent-curation.md")" -eq 1
+AFTER_SESSIONS="$(find "$TMP/brain/records/sessions" -type f | wc -l | tr -d ' ')"
+test "$AFTER_SESSIONS" -eq "$((BEFORE_SESSIONS + 2))"
 test -n "$(find "$TMP/brain/records/sessions" -type f -name '*.md' -print -quit)"
 test "$(cat "$TMP/brain/raw/source.md")" = 'immutable source'
 
