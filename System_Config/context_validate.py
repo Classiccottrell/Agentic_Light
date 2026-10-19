@@ -69,6 +69,21 @@ def known_targets(root):
     return targets
 
 
+def provenance_paths(source):
+    return source if isinstance(source, list) else [source]
+
+
+def provenance_available(root, source):
+    if not isinstance(source, str) or not source:
+        return False
+    try:
+        candidate = (root / source).resolve()
+        candidate.relative_to(root.resolve())
+    except (OSError, ValueError):
+        return False
+    return candidate.is_file()
+
+
 def validate_file(path, root, targets=None):
     findings = []
     meta, body = parse_frontmatter(path)
@@ -81,6 +96,10 @@ def validate_file(path, root, targets=None):
         findings.append(f"{path}: unsupported type: {kind}")
     if not meta.get("source"):
         findings.append(f"{path}: source must contain at least one provenance path")
+    else:
+        for source in provenance_paths(meta["source"]):
+            if not provenance_available(root, source):
+                findings.append(f"{path}: provenance source unavailable: {source}")
     for section in TYPES.get(kind, []):
         if section not in body_sections(body):
             findings.append(f"{path}: missing section: {section}")

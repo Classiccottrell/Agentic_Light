@@ -268,17 +268,17 @@ def run(dry_run=False, run_agent_fn=None):
                 log(f"skip (duplicate content of an already-ingested clip): {rel} [{h[:12]}]")
                 manifest_append(manifest, h, rel)
                 continue
-            new_list.append(rel)
+            new_list.append((rel, h))
 
         total_new = len(new_list)
         if total_new == 0:
             log(f"no new clips in {config.RAW}")
             return 0
-        log(f"new clips ({total_new}): {' '.join(new_list)}")
+        log(f"new clips ({total_new}): {' '.join(rel for rel, _unused_hash in new_list)}")
 
         if dry_run:
             print(f"── DRY RUN — would ingest {total_new} clip(s) from {config.RAW}, one agent call each ──")
-            for rel in new_list:
+            for rel, _unused_hash in new_list:
                 print(rel)
             print(f"── weekly note: {weekly_note} ──")
             print(f"── per-clip flags: --allowedTools Read,Write,Edit,Glob,Grep --disallowedTools Bash,... "
@@ -301,7 +301,7 @@ def run(dry_run=False, run_agent_fn=None):
             attempted = 0
             wall_hit = False
 
-            for rel in new_list:
+            for rel, source_hash in new_list:
                 if wall_hit:
                     break
                 if attempted >= MAX_CLIPS_PER_RUN:
@@ -317,11 +317,18 @@ def run(dry_run=False, run_agent_fn=None):
 
                 log(f"ingesting: {rel}")
                 rc = run_agent_fn(prompt, log=str(log_path), brain=str(config.BRAIN))
-                if rc == 0:
+                try:
+                    source_unchanged = hashlib.sha256((config.RAW / rel).read_bytes()).hexdigest() == source_hash
+                except OSError:
+                    source_unchanged = False
+                if not source_unchanged:
+                    log(f"CHANGED (raw source changed during agent call): {rel} — NOT recorded, will retry next run")
+                    consecutive_bad += 1
+                    fail_bump(failmf, rel)
+                elif rc == 0:
                     if wiki_has_link(config.BRAIN / "wiki", f"[[{src_link}]]"):
                         curate_new_wiki_pages(config.WORKSPACE, src_link, log_path)
-                        h = hashlib.sha256((config.RAW / rel).read_bytes()).hexdigest()
-                        manifest_append(manifest, h, rel)
+                        manifest_append(manifest, source_hash, rel)
                         total_ingested += 1
                         log(f"OK: {rel}")
                         consecutive_bad = 0
@@ -411,6 +418,17 @@ def self_test():
             calls.append(prompt)
             return 1
 
+        def fake_agent_mutates_source(prompt, log=None, brain=None):
+            calls.append(prompt)
+            src_line = [line for line in prompt.splitlines() if line.startswith("Clip to process:")][0]
+            rel = src_line.split("raw/", 1)[1]
+            source = _cfg.RAW / rel
+            source.chmod(source.stat().st_mode | stat.S_IWUSR)
+            source.write_text("changed after the agent began\n", encoding="utf-8")
+            link = f"raw/{rel.removesuffix('.md')}"
+            (_cfg.BRAIN / "wiki" / f"{Path(rel).stem}.md").write_text(f"# Page\n- [[{link}]]\n", encoding="utf-8")
+            return 0
+
         # Dry run: lists both candidates, no agent calls, no writes.
         rc = run(dry_run=True, run_agent_fn=fake_agent_ok)
         check("dry-run returns 0", rc == 0, rc)
@@ -444,6 +462,17 @@ def self_test():
         rc = run(dry_run=False, run_agent_fn=fake_agent_ok)
         check("duplicate-content clip triggers no agent call", len(calls) == 0, len(calls))
         check("duplicate-content clip recorded in manifest", manifest_name_seen(manifest, "2026/W01 Jan 5-9/clip-c.md"))
+
+        # A provider must not be able to change raw input and have the new
+        # bytes certified as the source it processed.
+        changed_clip = raw_week / "changed.md"
+        changed_clip.write_text("original source bytes\n", encoding="utf-8")
+        calls.clear()
+        rc = run(dry_run=False, run_agent_fn=fake_agent_mutates_source)
+        check("changed raw clip is not recorded as ingested",
+              not manifest_name_seen(manifest, "2026/W01 Jan 5-9/changed.md"))
+        check("changed raw clip is recorded as a failed attempt",
+              fail_attempts_of(_cfg.RAW / ".failed.log", "2026/W01 Jan 5-9/changed.md") == 1)
 
         # Failure path: quarantine after 3 attempts, wall after 2 consecutive.
         raw_week2 = _cfg.RAW / "2026" / "W02 Jan 12-16"

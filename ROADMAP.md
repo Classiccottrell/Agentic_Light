@@ -66,20 +66,19 @@ where shipped docs promise more than the code delivers.
 
 **Context packet: silently wrong output (small fixes; do first)**
 
-1. **"Recent Session Facts" shows the weekly template, not the latest
-   week.** `context_packet.py` picks the last `brain/weekly_logs/**/*.md` by
-   path string, and `Weekly_Note_Template.md` sorts after `2026/…`. Select
-   only `YYYY/YYYY-Www.md` notes, by ISO week.
-2. **The roadmap uses up the packet budget.** The 120-line default cap gives
-   ~80 lines to `ROADMAP.md`, and context matches get cut off after about one
-   entry. With no query, "matches" are the last 5 `brain/**/*.md` files by
-   alphabetical path, not by recency or relevance. `pipeline/run.py` always
-   passes an empty query, even though it has the task description.
-3. **The packet has no semantic matches.** `CLAUDE.md` and
-   `System_Config/README.md` promise "optional semantic matches", but the
-   packet runs a case-insensitive substring scan and never calls
-   `memory_search.py`'s FTS5/embedding index. Either wire it in or correct
-   the docs.
+1. **Latest weekly session facts — shipped.** `context_packet.py` now selects
+   only dated `YYYY/YYYY-Www.md` notes and chooses the latest ISO week;
+   templates and master notes are excluded.
+2. **Packet budget and task retrieval — shipped.** The default packet reserves
+   space for context by limiting the roadmap excerpt to 30 lines, and
+   `pipeline/run.py` passes the task description as the retrieval query.
+   The no-query fallback remains alphabetical and should be reconsidered only
+   if direct CLI packet use becomes a primary workflow.
+3. **Packet retrieval contract — clarified.** The packet uses deterministic
+   keyword matches; the separate `memory_search.py` command provides local
+   FTS5 and optional Ollama scoring. Documentation no longer promises packet
+   semantics that are not implemented. Wiring indexed retrieval into packets
+   remains a future enhancement, not a shipped claim.
 
 **Agent roles never reach a model**
 
@@ -134,14 +133,12 @@ where shipped docs promise more than the code delivers.
 
 **Provenance and immutability**
 
-10. **Provenance is checked for presence, not validity.** `context_validate`
-    requires a non-empty `source:` but never checks that the paths exist, and
-    frontmatter `related:` links are not validated. Verified: records citing
-    nonexistent raw files pass.
-11. **Raw immutability during ingest is only a prompt instruction.**
-    `daily_ingest.py` hashes the clip after the agent call, so an edited
-    clip gets recorded instead of caught. Hash before the call, compare
-    after, and fail the clip on a mismatch.
+10. **Source provenance validation — shipped.** `context_validate` now
+    rejects missing and out-of-workspace `source:` paths. Validation of
+    optional frontmatter `related:` targets remains open.
+11. **Raw immutability during ingest — shipped.** `daily_ingest.py` now
+    records the pre-call hash, compares it after the agent returns, and
+    marks any changed clip as a failed attempt instead of certifying it.
 
 **Session records (feeds White-label item 2)**
 

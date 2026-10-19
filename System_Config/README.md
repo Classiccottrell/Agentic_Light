@@ -186,8 +186,8 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   dirs; a missing file scans all of `skills/`. `--self-test` / `--skills-dir
   <path>` for testing against a fixture dir instead of the real `skills/`.
 - **`context_packet.py`** — bounded, provider-neutral resume packet. It reads
-  `ROADMAP.md`, the active preset, the newest weekly log tail, and optional
-  semantic matches. `AGENTIC_LIGHT_CONTEXT_MAX_LINES` and
+  `ROADMAP.md`, the active preset, the latest dated weekly note, and
+  deterministic keyword matches. `AGENTIC_LIGHT_CONTEXT_MAX_LINES` and
   `AGENTIC_LIGHT_CONTEXT_MAX_BYTES` cap output; Markdown remains the source of
   truth and the packet is derived output. Truncation is byte-exact
   (`text.encode("utf-8")[:max_bytes]`, written to stdout via

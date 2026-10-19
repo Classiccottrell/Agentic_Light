@@ -68,6 +68,62 @@ if python3 "$ROOT/System_Config/context_validate.py" validate "$TMP/brain/record
   exit 1
 fi
 
+cat > "$TMP/brain/records/learnings/missing-source.md" <<'EOF'
+---
+id: missing-source
+type: learning
+title: Missing Source
+status: active
+scope: workspace
+created: 2026-09-23
+updated: 2026-09-23
+author: human
+source: [brain/raw/missing.md]
+---
+## Situation
+Test.
+## Insight
+Broken provenance.
+## Evidence
+None.
+## Reuse When
+Never.
+EOF
+if python3 "$ROOT/System_Config/context_validate.py" validate "$TMP/brain/records/learnings/missing-source.md" --root "$TMP"; then
+  echo 'expected missing provenance path failure' >&2
+  exit 1
+fi
+rm "$TMP/brain/records/learnings/missing-source.md"
+
+OUTSIDE="$TMP.outside.md"
+printf '%s\n' 'outside workspace' > "$OUTSIDE"
+cat > "$TMP/brain/records/learnings/external-source.md" <<EOF
+---
+id: external-source
+type: learning
+title: External Source
+status: active
+scope: workspace
+created: 2026-09-23
+updated: 2026-09-23
+author: human
+source: [$OUTSIDE]
+---
+## Situation
+Test.
+## Insight
+Escaped provenance.
+## Evidence
+None.
+## Reuse When
+Never.
+EOF
+if python3 "$ROOT/System_Config/context_validate.py" validate "$TMP/brain/records/learnings/external-source.md" --root "$TMP"; then
+  echo 'expected external provenance path failure' >&2
+  exit 1
+fi
+rm "$TMP/brain/records/learnings/external-source.md" "$OUTSIDE"
+
 cp "$TMP/brain/records/projects/demo.md" "$TMP/brain/records/projects/duplicate.md"
 if python3 "$ROOT/System_Config/context_validate.py" validate "$TMP/brain" --root "$TMP"; then
   echo 'expected duplicate-id failure' >&2

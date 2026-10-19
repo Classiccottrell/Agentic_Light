@@ -474,6 +474,9 @@ def fixture_8():
 def fixture_9():
     repo9 = new_target_repo("repo9")
     repo9_p = str(Path(os.path.abspath(repo9)))
+    source = RUN.read_text(encoding="utf-8")
+    check("fixture9: context packet receives the pipeline task as its query",
+          "ROOT, profile_env or \"agentic-light\", bool(profile_env), task_desc, 5" in source)
 
     def run_direct(extra_env):
         env = dict(BASE_ENV)

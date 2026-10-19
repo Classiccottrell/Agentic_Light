@@ -44,6 +44,16 @@ def main():
     (fake_root / "brain" / "weekly_logs" / "2024" / "W10" / "2024-W10.md").write_text(
         "## Agent Sessions\n- did a thing\n", encoding="utf-8",
     )
+    (fake_root / "brain" / "weekly_logs" / "Weekly_Note_Template.md").write_text(
+        "TEMPLATE_SESSION_FACTS\n", encoding="utf-8",
+    )
+    (fake_root / "brain" / "weekly_logs" / "2026").mkdir()
+    (fake_root / "brain" / "weekly_logs" / "2026" / "2026-W42.md").write_text(
+        "LATEST_SESSION_FACTS\n", encoding="utf-8",
+    )
+    nested_week = fake_root / "brain" / "weekly_logs" / "archive" / "2027"
+    nested_week.mkdir(parents=True)
+    (nested_week / "2027-W01.md").write_text("NESTED_SESSION_FACTS\n", encoding="utf-8")
 
     base_env = {**os.environ, "PYTHONUTF8": "1"}
     for var in ("AGENTIC_LIGHT_CONTEXT_QUERY", "AGENTIC_LIGHT_CONTEXT_MAX_LINES", "AGENTIC_LIGHT_CONTEXT_MAX_BYTES"):
@@ -92,6 +102,38 @@ def main():
         check("default budget: Active Preset header", "\n## Active Preset\n" in out2, out2[:200])
         check("default budget: Recent Session Facts header", "\n## Recent Session Facts\n" in out2, out2[:200])
         print("fixture 2 (default budget contains all provenance headers): PASS")
+
+        # ---------------------------------------------------------------
+        # Fixture 3: templates are not session facts. The newest dated
+        # YYYY-Www weekly note must win even when a template sorts later.
+        # ---------------------------------------------------------------
+        proc3 = subprocess.run([sys.executable, str(SCRIPT), "--root", str(fake_root),
+                                "--max-lines", "200"], stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, env=base_env)
+        out3 = proc3.stdout.decode("utf-8", errors="replace")
+        recent = out3.split("## Recent Session Facts\n", 1)[1].split("## Context Matches\n", 1)[0]
+        check("recent session facts use the latest dated weekly note",
+              "LATEST_SESSION_FACTS" in recent and "TEMPLATE_SESSION_FACTS" not in recent
+              and "NESTED_SESSION_FACTS" not in recent, recent)
+        print("fixture 3 (latest dated weekly note excludes template): PASS")
+
+        # ---------------------------------------------------------------
+        # Fixture 4: a long roadmap must leave room for retrieved context.
+        # ---------------------------------------------------------------
+        (fake_root / "ROADMAP.md").write_text(
+            "\n".join(f"roadmap line {i}" for i in range(100)) + "\n", encoding="utf-8")
+        records = fake_root / "brain" / "records"
+        records.mkdir()
+        for index in range(3):
+            (records / f"current-{index}.md").write_text(
+                "RETRIEVED_CONTEXT_MARKER\n" + ("detail\n" * 14), encoding="utf-8")
+        proc4 = subprocess.run([sys.executable, str(SCRIPT), "--root", str(fake_root),
+                                "--query", "RETRIEVED_CONTEXT_MARKER"],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=base_env)
+        out4 = proc4.stdout.decode("utf-8", errors="replace")
+        check("default packet retains a context match after a long roadmap",
+              out4.count("RETRIEVED_CONTEXT_MARKER") == 3, out4[-400:])
+        print("fixture 4 (long roadmap leaves room for context matches): PASS")
     finally:
         from test_support import rmtree_force
         try:
