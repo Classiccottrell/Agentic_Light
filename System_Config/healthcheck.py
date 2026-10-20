@@ -357,6 +357,29 @@ def run(report):
     report.end_section()
 
     # ═══════════════════════════════════════════════════════════════════
+    # BRAIN LOCK — shared brain/ write lock: a dead holder, or session lines still spooled / parked
+    # ═══════════════════════════════════════════════════════════════════
+    report.begin_section("Brain Lock")
+    import brain_lock
+    lock_dir = SYSCFG / "logs" / brain_lock.LOCK_NAME
+    holder_pid = brain_lock._read_pid(lock_dir) if lock_dir.is_dir() else ""
+    if not lock_dir.is_dir():
+        report.check("PASS", "Brain lock", "not held")
+    elif holder_pid and brain_lock._alive(holder_pid):
+        report.check("PASS", "Brain lock", f"held by live pid {holder_pid}")
+    else:
+        report.check("WARN", "Brain lock", f"stale (holder {holder_pid or 'unknown'} gone) — the next writer reclaims it")
+    pending = SYSCFG / "logs" / "log_session.pending"
+    parked = SYSCFG / "logs" / "log_session.pending.failed"
+    if parked.is_file() and parked.stat().st_size:
+        report.check("WARN", "Session spool", "log_session.pending.failed holds entries that could not be replayed — inspect, then delete")
+    elif pending.is_file() and pending.stat().st_size:
+        report.check("WARN", "Session spool", "session lines are spooled in logs/log_session.pending — flushed by the next daily/Friday run")
+    else:
+        report.check("PASS", "Session spool", "nothing spooled")
+    report.end_section()
+
+    # ═══════════════════════════════════════════════════════════════════
     # PRESET — role/gate/skill contract checks (kept as a real subprocess —
     # preset_audit.py is a standalone validator, not part of the Layer F
     # self-heal set the blueprint calls out for in-process conversion).

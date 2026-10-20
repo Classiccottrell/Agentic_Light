@@ -238,6 +238,42 @@ class LogSession(Workspace):
         self.assertFalse((self.sys / "logs" / "log_session.pending").exists())
 
 
+class SpoolFlush(Workspace):
+    """A session line spooled while a long job held the lock must not wait for the next manual
+    pipeline run: the scheduled writers flush it as soon as they hold the lock."""
+
+    def spool(self, note):
+        entry = {"provider": "claude", "role": "coder", "status": "7", "reason": "exit", "note": str(note),
+                 "metadata": [], "ts": "2026-03-05 10:00:00"}
+        (self.sys / "logs" / "log_session.pending").write_text(json.dumps(entry) + "\n", encoding="utf-8")
+
+    def test_friday_process_flushes_spooled_entries_under_its_lock(self):
+        note = self.brain / "weekly_logs" / "2026" / "2026-W10.md"
+        note.write_text("# W10 2026\n---\n\n## Agent Sessions\n> auto\n\n---\n", encoding="utf-8")
+        self.spool(note)
+        out = self.run_py("friday_process.py", "2026-W10")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("2026-03-05 10:00:00: claude / coder — exit 7 (exit)", note.read_text(encoding="utf-8"))
+        self.assertFalse((self.sys / "logs" / "log_session.pending").exists())
+
+    def test_daily_ingest_flushes_spooled_entries_even_with_nothing_to_ingest(self):
+        note = self.brain / "weekly_logs" / "2026" / "2026-W10.md"
+        note.write_text("# W10 2026\n---\n\n## Agent Sessions\n> auto\n\n---\n", encoding="utf-8")
+        self.spool(note)
+        out = self.run_py("daily_ingest.py")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("exit 7 (exit)", note.read_text(encoding="utf-8"))
+
+    def test_a_busy_lock_leaves_the_spool_alone(self):
+        note = self.brain / "weekly_logs" / "2026" / "2026-W10.md"
+        note.write_text("# W10 2026\n---\n\n## Agent Sessions\n> auto\n\n---\n", encoding="utf-8")
+        self.spool(note)
+        self.hold()
+        self.run_py("daily_ingest.py")
+        self.assertTrue((self.sys / "logs" / "log_session.pending").is_file())
+        self.assertNotIn("exit 7", note.read_text(encoding="utf-8"))
+
+
 class ContextCli(Workspace):
     CASES = (
         ("context_weekly.py", ("--vault", "{brain}", "--week", "2026-W10")),

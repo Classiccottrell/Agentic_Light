@@ -217,8 +217,10 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   shared brain lock with a short wait (`BRAIN_LOCK_HOOK_WAIT`, default 5s).
   If a long ingest holds it, the whole entry (session record + note line)
   is **spooled** as one JSON line to `System_Config/logs/log_session.pending`
-  (outside `brain/`), the script exits 0, and the next run that gets the lock
-  flushes spooled entries first, in order; an entry that cannot be replayed
+  (outside `brain/`), the script exits 0, and the next writer that holds the
+  lock — `log_session.py` itself, `daily_ingest.py`, or `friday_process.py` —
+  flushes spooled entries first, in order (`log_session.flush_pending()`);
+  `healthcheck.py` WARNs while any are still waiting. An entry that cannot be replayed
   is parked in `log_session.pending.failed`. A child of a lock holder
   re-enters the lock and writes at once. `pipeline/run.py`'s own
   `pipeline/logs/.run.*.lock` is a per-target-repo run lock, not a brain
@@ -474,7 +476,8 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
 - **`healthcheck.py`** — layered PASS/WARN/FAIL check: directory layout,
   agent/skill roster frontmatter completeness, brain scaffolding
   (`wiki/index.md`, current weekly note, Master Note sentinel), read-only
-  provider configuration/executable resolution, pipeline log recency, and
+  provider configuration/executable resolution, pipeline log recency, the
+  shared brain lock (WARN on a dead holder or spooled/parked session lines), and
   doc currency (including a WARN if `CLAUDE.md`'s Directory Map's
   `System_Config/*` listing drifts from actual `.sh`/`.py`/`.json` files on
   disk).

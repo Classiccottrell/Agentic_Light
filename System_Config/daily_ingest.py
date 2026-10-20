@@ -256,6 +256,8 @@ def run(dry_run=False, run_agent_fn=None):
             return 0
 
         config.ensure_current_week_raw_folder()
+        if not dry_run:
+            log_session.flush_pending()   # session lines spooled while a long job held the lock
 
         if not dry_run:
             context_cadence.collect(today, log)

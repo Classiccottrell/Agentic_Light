@@ -182,6 +182,27 @@ def _write_pid(directory, value):
         handle.write(str(value) + "\n")
 
 
+def _kernel32():
+    """kernel32 with explicit prototypes: default c_int restypes truncate 64-bit HANDLEs, and
+    ctypes.get_last_error() is only meaningful on a DLL loaded with use_last_error=True. (Windows only.)"""
+    import ctypes
+    from ctypes import wintypes
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.OpenProcess.restype = wintypes.HANDLE
+    k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    k32.GetExitCodeProcess.restype = wintypes.BOOL
+    k32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    k32.CloseHandle.restype = wintypes.BOOL
+    k32.CloseHandle.argtypes = [wintypes.HANDLE]
+    k32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    k32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    k32.Process32FirstW.restype = wintypes.BOOL
+    k32.Process32FirstW.argtypes = [wintypes.HANDLE, ctypes.c_void_p]
+    k32.Process32NextW.restype = wintypes.BOOL
+    k32.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.c_void_p]
+    return k32
+
+
 def _alive(pid):
     try:
         pid = int(pid)
@@ -192,17 +213,18 @@ def _alive(pid):
     if os.name == "nt":
         # os.kill(pid, 0) TERMINATES the process on Windows — never use it there.
         import ctypes
-        kernel32 = ctypes.windll.kernel32
-        handle = kernel32.OpenProcess(0x1000, False, pid)   # PROCESS_QUERY_LIMITED_INFORMATION
+        from ctypes import wintypes
+        k32 = _kernel32()
+        handle = k32.OpenProcess(0x1000, False, pid)   # PROCESS_QUERY_LIMITED_INFORMATION
         if not handle:
-            return ctypes.get_last_error() == 5 or kernel32.GetLastError() == 5   # access denied = alive
+            return ctypes.get_last_error() == 5   # ERROR_ACCESS_DENIED: exists, not ours to open = alive
         try:
-            code = ctypes.c_ulong()
-            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            code = wintypes.DWORD()
+            if not k32.GetExitCodeProcess(handle, ctypes.byref(code)):
                 return True
             return code.value == 259   # STILL_ACTIVE
         finally:
-            kernel32.CloseHandle(handle)
+            k32.CloseHandle(handle)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -227,20 +249,20 @@ def _ppid_of(pid):
                         ("th32ParentProcessID", wintypes.DWORD), ("pcPriClassBase", ctypes.c_long),
                         ("dwFlags", wintypes.DWORD), ("szExeFile", ctypes.c_wchar * 260)]
 
-        kernel32 = ctypes.windll.kernel32
-        snapshot = kernel32.CreateToolhelp32Snapshot(0x2, 0)   # TH32CS_SNAPPROCESS
-        if snapshot in (0, -1):
+        k32 = _kernel32()
+        snapshot = k32.CreateToolhelp32Snapshot(0x2, 0)   # TH32CS_SNAPPROCESS
+        if not snapshot or snapshot == ctypes.c_void_p(-1).value:
             raise OSError("process snapshot failed")
         try:
             entry = ProcessEntry()
             entry.dwSize = ctypes.sizeof(ProcessEntry)
-            ok = kernel32.Process32FirstW(snapshot, ctypes.byref(entry))
+            ok = k32.Process32FirstW(snapshot, ctypes.byref(entry))
             while ok:
                 if entry.th32ProcessID == pid:
                     return int(entry.th32ParentProcessID)
-                ok = kernel32.Process32NextW(snapshot, ctypes.byref(entry))
+                ok = k32.Process32NextW(snapshot, ctypes.byref(entry))
         finally:
-            kernel32.CloseHandle(snapshot)
+            k32.CloseHandle(snapshot)
         raise OSError("pid not found: %d" % pid)
     result = subprocess.run(["ps", "-o", "ppid=", "-p", str(pid)], capture_output=True, encoding="utf-8")
     text = result.stdout.strip()

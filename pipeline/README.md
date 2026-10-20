@@ -256,7 +256,11 @@ lock older than 2h is treated as abandoned (crashed run) and reclaimed.
 This is a per-target-repo run lock, not a `brain/` lock: the pipeline's
 `log_session.py` and curation children take the shared brain lock
 (`System_Config/brain_lock.py`) themselves, and a busy brain lock spools the
-session line instead of failing the run.
+session line instead of failing the run. After such a spool the session
+record does not exist yet, so the best-effort curation step that follows
+waits up to `BRAIN_LOCK_SHORT_WAIT` (60s) for the lock, then prints its usual
+"session record curation failed" WARNING; the run itself continues, and the
+spooled record is written by the next daily or Friday run.
 
 ## Halt-on-failure guarantee
 

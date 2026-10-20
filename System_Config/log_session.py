@@ -336,7 +336,7 @@ def main():
         print(f"log_session.py: brain lock busy — spooled to {PENDING}; the next run flushes it", file=sys.stderr)
         return 0
     try:
-        _flush_pending()
+        flush_pending()
         return _process(entry)
     finally:
         brain_lock.release()
@@ -351,8 +351,9 @@ def _spool(entry):
         os.close(fd)
 
 
-def _flush_pending():
-    """Replay spooled entries in order (called ONLY while holding the brain lock). The file is renamed
+def flush_pending():
+    """Replay spooled entries in order (call ONLY while holding the brain lock; friday_process and
+    daily_ingest do, so a spooled line never waits for the next manual pipeline run). The file is renamed
     first so entries spooled meanwhile by other processes land in a fresh file, not in the one being read."""
     if PENDING.is_file():
         try:

@@ -24,6 +24,7 @@ from pathlib import Path
 import brain_lock
 import config
 import context_cadence
+import log_session
 
 SENTINEL = "<!-- WEEKLY-INDEX-INSERT -->"
 _HEADING_RE = re.compile(r'^## (Agent|Claude) Sessions\s*$')
@@ -121,6 +122,7 @@ def run(week_tag_arg, dry_run, log):
             return 75
 
         if not dry_run:
+            log_session.flush_pending()   # session lines spooled while a long job held the lock
             context_cadence.friday(today, week_tag, note_abs, log)
 
         note_text = note_abs.read_text(encoding="utf-8")
@@ -216,7 +218,7 @@ def self_test():
         (ws / "brain" / "weekly_logs" / "2026").mkdir(parents=True)
         shutil.copy(Path(__file__), syscfg / "friday_process.py")
         shutil.copy(Path(__file__).parent / "config.py", syscfg / "config.py")
-        for name in ("brain_lock.py", "context_cadence.py", "context_weekly.py", "context_auto_summary.py"):
+        for name in ("brain_lock.py", "log_session.py", "context_cadence.py", "context_weekly.py", "context_auto_summary.py"):
             shutil.copy(Path(__file__).parent / name, syscfg / name)
 
         note = ws / "brain" / "weekly_logs" / "2026" / "2026-W10.md"
