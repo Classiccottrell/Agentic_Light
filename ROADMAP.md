@@ -40,9 +40,12 @@ Last reviewed: 2026-10-19
    pipeline-log provenance; the append-only weekly line links to the record.
    The pipeline then runs conservative curation so high-confidence project,
    decision, and learning links are applied and weaker links remain reviewable.
-2. **Delegation doctrine and audit trail** — document when work stays inline
-   versus delegated, and add provider-neutral launcher audit events. Provider
-   hooks may adapt to this trail but cannot be its source of truth.
+2. **Delegation doctrine and audit trail — shipped.** The pipeline owns its
+   local lifecycle and delegates one bounded coder attempt; architect, QA, and
+   manager reviews stay explicitly human-orchestrated. Typed session records
+   and pipeline logs are the provider-neutral handoff trail across providers
+   and interrupted runs. Provider hooks may add context, but cannot replace
+   the canonical trail or the Human Gate.
 3. **White-label acceptance fixture — shipped.**
    `white_label_check.py` verifies specialization, selected roles and skills,
    generated output, identity replacement, the fork's context packet, and

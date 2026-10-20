@@ -218,6 +218,20 @@ launcher-level call site — `run_agent()` itself is not instrumented, since
 it's also called once per clip by `daily_ingest.py`, which uses the same
 deterministic logger for each clip.
 
+## Delegation and handoff
+
+`run.py` owns the local lifecycle: pre-flight checks, prompt assembly,
+branching, staging and committing, gates, the human sign-off, and the typed
+session record. It delegates one bounded implementation attempt to the
+selected `coder` provider. It does not launch architect, QA, or manager roles;
+those remain explicit human-orchestrated reviews when their perspective is
+needed.
+
+The typed session record and `pipeline/logs/<run-id>.log` are the canonical
+handoff trail across providers and interrupted runs. A provider-specific hook
+may add a link or summary, but cannot replace either record. PR creation stays
+with the Human Gate and never becomes a delegated provider action.
+
 ## Contract: 100% pass before the patch is even shown to a human
 
 Every gate runs and must pass (or be skipped, see below) **before** the diff

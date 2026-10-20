@@ -320,6 +320,19 @@ pipeline, enforced structurally, not by convention:
   so a stalled/idle pipeline is visible in the health dashboard, not just in
   a directory listing.
 
+### Delegation and handoff
+
+`pipeline/run.py` keeps the local lifecycle inline: pre-flight checks, prompt
+assembly, branching, staging and committing, gates, human sign-off, and the
+typed session record. It delegates one bounded implementation attempt to the
+selected `coder` provider. Architect, QA, and manager roles are explicit
+human-orchestrated reviews, not hidden pipeline steps.
+
+The typed session record and `pipeline/logs/<run-id>.log` are the
+provider-neutral handoff trail across providers and interrupted runs. A
+provider-specific hook may add a link or summary, but cannot replace either
+record. PR creation remains an explicit Human Gate action.
+
 ## 4. Gate Policy — This Fork's Current State
 
 Reflects the actual specialization state of **this** clone/fork, not a

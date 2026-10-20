@@ -34,9 +34,9 @@ and that they agree with its `tools` grant.
 | `architect` | System designer for Agentic Light. Use for high-level architecture, schemas, folder structures, API contracts, and data-model design — before any implementation. Produces specs and Mermaid diagrams; hands blueprints to the coder agent. Not for writing feature code. | `Read, Glob, Grep, Write, Edit` | none | `agents/architect.md` |
 | `coder` | Implementation engineer for Agentic Light. Use to write or modify code against an existing stack or an architect's blueprint, fix bugs, and run builds/tests. Returns diffs of changed lines. Not for high-level design (use architect) or knowledge notes (use curator). | `Read, Glob, Grep, Edit, Write, Bash` | destructive | `agents/coder.md` |
 | `creative-director` | Elite Creative Director and Brand Strategist for Agentic Light. Use for brand critique, campaign concepts, tagline generation, visual direction, copy refinement, and design feedback (e.g. `microsite/`). Applies Impact/Clarity/Disruption framework. Tone: inspiring, candid, sophisticated — NOT Caveman Protocol. | `Read, Write, Edit, Bash` | none | `agents/creative-director.md` |
-| `curator` | Knowledge curator for the Agentic Light LLM-wiki (plain markdown + SQLite semantic index, optionally viewable in Obsidian). Use to ingest sources into wiki entity pages, extract concept notes, maintain wiki/index.md and cross-links, and answer knowledge queries from the brain. Follows the Karpathy LLM Wiki schema. Authority limited to Agentic_Light/brain/. | `Read, Glob, Grep, Write, Edit` | none | `agents/curator.md` |
-| `eng-manager` | Project lifecycle controller for Agentic_Light/Projects/. Use to scope a project from its BRIEF.md and stack, plan and route work to architect/coder, validate completion, and prepare artifacts for handoff. Authority limited to Agentic_Light/Projects/. | `Read, Glob, Grep, Edit, Write, Bash` | external-side-effects | `agents/eng-manager.md` |
-| `qa` | Quality-assurance verifier for pull requests against existing, cloned repositories under Agentic_Light/Projects/. Use to run a target repo's own lint/typecheck/unit-test commands, extend or author browser/e2e coverage, and compile a pass/fail QA report before a PR is drafted. Not for implementation (use coder) or for creating branches, commits, or PRs (that stays with the orchestrator's approved flow). | `Read, Glob, Grep, Bash, Write, Edit` | none | `agents/qa.md` |
+| `curator` | Knowledge curator for the workspace LLM-wiki (plain markdown + SQLite semantic index, optionally viewable in Obsidian). Use to ingest sources into wiki entity pages, extract concept notes, maintain wiki/index.md and cross-links, and answer knowledge queries from the brain. Follows the Karpathy LLM Wiki schema. | `Read, Glob, Grep, Write, Edit` | none | `agents/curator.md` |
+| `eng-manager` | Project lifecycle controller for a selected project. Use to scope a project from its BRIEF.md and stack, plan and route work to architect/coder, validate completion, and prepare artifacts for handoff. | `Read, Glob, Grep, Edit, Write, Bash` | external-side-effects | `agents/eng-manager.md` |
+| `qa` | Quality-assurance verifier for pull requests against existing target repositories. Use to run a target repo's own lint/typecheck/unit-test commands, extend or author browser/e2e coverage, and compile a pass/fail QA report before a PR is drafted. Not for implementation (use coder) or for creating branches, commits, or PRs (that stays with the orchestrator's approved flow). | `Read, Glob, Grep, Bash, Write, Edit` | none | `agents/qa.md` |
 <!-- gen:roles-end -->
 
 `archivist` and `rally` are excluded from the roster by design (see
@@ -90,6 +90,19 @@ pipeline, enforced structurally, not by convention:
   so a stalled/idle pipeline is visible in the health dashboard, not just in
   a directory listing.
 
+### Delegation and handoff
+
+`pipeline/run.py` keeps the local lifecycle inline: pre-flight checks, prompt
+assembly, branching, staging and committing, gates, human sign-off, and the
+typed session record. It delegates one bounded implementation attempt to the
+selected `coder` provider. Architect, QA, and manager roles are explicit
+human-orchestrated reviews, not hidden pipeline steps.
+
+The typed session record and `pipeline/logs/<run-id>.log` are the
+provider-neutral handoff trail across providers and interrupted runs. A
+provider-specific hook may add a link or summary, but cannot replace either
+record. PR creation remains an explicit Human Gate action.
+
 ## 4. Gate Policy — This Fork's Current State
 
 Reflects the actual specialization state of **this** clone/fork, not a
@@ -97,11 +110,20 @@ generic description — regenerated from `System_Config/agent-roster.json`
 and `pipeline/gate-config.json` (or their absence) every run.
 
 <!-- gen:gate-policy-start -->
-**This fork is unspecialized** — `System_Config/agent-roster.json` and `pipeline/gate-config.json` are both absent. `System_Config/specialize.py` has not been run against a preset yet.
+This fork has been specialized (`System_Config/specialize.py`). Current state:
 
-Default behavior in this state (per `pipeline/run.py`):
-- All 6 roles in `agents/` are available for orchestrator dispatch.
-- The pipeline gate step runs the hardcoded default pair, in order: `eslint` (`pipeline/lib/eslint_gate.py`), then `playwright` (`pipeline/lib/playwright_gate.py`).
+**Active roles** (`System_Config/agent-roster.json`):
+
+| Role | Active | Capabilities |
+|---|---|---|
+| `architect` | yes | read, write |
+| `coder` | yes | read, write |
+| `creative-director` | yes | read, write |
+| `curator` | yes | read, write |
+| `eng-manager` | yes | read, write, delegate |
+| `qa` | yes | read, write |
+
+**Configured gates**: `pipeline/gate-config.json` not found — `pipeline/run.py` falls back to the hardcoded default pair, in order: `eslint`, then `playwright`.
 <!-- gen:gate-policy-end -->
 
 Run `python3 System_Config/specialize.py --preset <name>` (see
