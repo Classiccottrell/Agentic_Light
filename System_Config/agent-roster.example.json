@@ -1,7 +1,7 @@
 {
   "roles": {
     "architect": { "active": true, "capabilities": ["read", "write"] },
-    "coder": { "active": true, "capabilities": ["read", "write", "shell"] },
+    "coder": { "active": true, "capabilities": ["read", "write"] },
     "creative-director": { "active": true, "capabilities": ["read", "write", "shell"] },
     "curator": { "active": true, "capabilities": ["read", "write"] },
     "eng-manager": { "active": true, "capabilities": ["read", "write", "shell", "delegate"] },

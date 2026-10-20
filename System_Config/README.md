@@ -149,7 +149,11 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   missing the template's sections, but that silently dropped runs from the
   audit trail. An explicit `--note` path (or its env equivalent
   `LOG_SESSION_NOTE`, which `pipeline/test_pipeline.py` sets so fixtures
-  never write into `brain/`) is never auto-created. If
+  never write into `brain/`) is never auto-created. When supplied with a
+  task, target repository, run ID, branch, and pipeline log, it also writes
+  one typed `brain/records/sessions/` record and links that record from the
+  weekly line. `LOG_SESSION_RECORDS_DIR` provides the equivalent isolated
+  fixture destination. If
   `monday_init.py` fails or the note is still missing, it prints a warning
   to stderr and exits 0 (logging never fails the pipeline). No lock
   conflict: `monday_init.py` locks `System_Config/logs/monday_init.lock`,
@@ -186,8 +190,8 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   dirs; a missing file scans all of `skills/`. `--self-test` / `--skills-dir
   <path>` for testing against a fixture dir instead of the real `skills/`.
 - **`context_packet.py`** — bounded, provider-neutral resume packet. It reads
-  `ROADMAP.md`, the active preset, the newest weekly log tail, and optional
-  semantic matches. `AGENTIC_LIGHT_CONTEXT_MAX_LINES` and
+  `ROADMAP.md`, the active preset, the latest dated weekly note, and
+  deterministic keyword matches. `AGENTIC_LIGHT_CONTEXT_MAX_LINES` and
   `AGENTIC_LIGHT_CONTEXT_MAX_BYTES` cap output; Markdown remains the source of
   truth and the packet is derived output. Truncation is byte-exact
   (`text.encode("utf-8")[:max_bytes]`, written to stdout via
@@ -207,8 +211,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   validation.
 - **`context.py`** — app-agnostic entrypoint: `validate`, `catalog`, `packet`,
   and `curate <record> --suggest|--review|--apply`. Profiles restrict packet
-  context roots and explicit includes; curation proposes links from human
-  records and applies only high-confidence links while recording an AI session.
+  context roots and explicit includes; curation proposes links from records
+  and applies only high-confidence AI-authored links while recording an AI
+  session. Pipeline-created session records are curated automatically.
 - **`test_context_layer.sh`** — end-to-end fixture covering record validation,
   frontmatter/body links, curation, FTS excerpts, bounded packets, unrelated
   profiles, broken links, duplicate IDs, stale embedding dimensions, Ollama
@@ -297,6 +302,9 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `config.acquire_lock`, stale-reclaim threshold sized to
   `MAX_CLIPS_PER_RUN × (MAX_SECONDS + 30s)` so a legitimately long ingest is
   never reclaimed from under itself; `--dry-run` (or `DRY_RUN=1`) preview.
+  Each agent call is recorded by `log_session.py`, which creates a typed
+  session record and links it from the weekly note; the model is explicitly
+  barred from editing weekly logs.
   After a clip's agent call adds a wikilink, runs `context.py ... curate
   <page> --apply` (subprocess, one per newly-linked wiki page) so cross-links
   get suggested/applied — a failed curation call WARNs and continues, never
@@ -459,7 +467,8 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   `pipeline/gate-config.json` — validated by real structural checks against
   their schemas (fields read from the schema files themselves, not a second
   hand-maintained copy), reusing `pipeline/run.py`'s own gate-config
-  validation logic plus a repo-relocatability check (rejects absolute
+  validation logic and coder launch enforcement (inactive or unsupported
+  runtime capabilities fail before a branch is created), plus a repo-relocatability check (rejects absolute
   `script`/`cwd` paths) — and `System_Config/skills-selected.json`, which
   `route_skill.py` reads to restrict its scan to the selected dirs (files
   under `skills/` are never deleted, per the project's leave-files-alone

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Audit a specialized fork after white-label pruning."""
 import argparse
+import importlib.util
 import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -9,6 +12,8 @@ from pathlib import Path
 
 REAL_ROOT = Path(__file__).resolve().parent.parent
 GENERATORS = ["gen_governance.py", "gen_site.py", "gen_preset_pages.py"]
+RUNTIME_SCRIPTS = ["config.py", "run_agent.py", "route_skill.py", "context_packet.py"]
+CONTEXT_SCRIPTS = ["context.py", "context_catalog.py", "context_curate.py", "context_validate.py", "log_session.py"]
 
 
 def _check_generated_output(root):
@@ -34,6 +39,76 @@ def _check_generated_output(root):
             detail = (proc.stdout + proc.stderr).strip().splitlines()
             summary = detail[0] if detail else f"exited {proc.returncode}"
             errors.append(f"generated output stale ({name}): {summary}")
+    return errors
+
+
+def _check_runtime_primitives(root):
+    """Prove the fork's own context and prompt-assembly primitives run."""
+    root = Path(root)
+    errors = []
+    for name in RUNTIME_SCRIPTS:
+        if not (root / "System_Config" / name).is_file():
+            errors.append(f"missing runtime script: System_Config/{name}")
+    if errors:
+        return errors
+    try:
+        spec = importlib.util.spec_from_file_location("fork_context_packet", root / "System_Config" / "context_packet.py")
+        packet = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(packet)
+        result = packet.build_packet(root, "agentic-light", False, "", 1, 120, 12000)
+        if not result.startswith(b"# Context Packet"):
+            errors.append("fork context packet has unexpected header")
+    except Exception as error:
+        errors.append(f"fork context packet failed: {error}")
+    try:
+        spec = importlib.util.spec_from_file_location("fork_pipeline_run", root / "pipeline" / "run.py")
+        launcher = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(launcher)
+        prompt = launcher.assemble_coder_prompt(launcher.role_contract("coder"), "skill guidance", "packet", "task")
+        markers = ("[ROLE CONTRACT: coder]", "[SELECTED SKILLS]", "Resume context packet:", "[TASK]")
+        if not all(marker in prompt for marker in markers) or [prompt.index(marker) for marker in markers] != sorted(prompt.index(marker) for marker in markers):
+            errors.append("fork launcher prompt contract is incomplete or unordered")
+    except Exception as error:
+        errors.append(f"fork launcher prompt assembly failed: {error}")
+    return errors
+
+
+def _exercise_fork(root):
+    """Run the fork's selected coder and default gates against a disposable repo."""
+    root = Path(root)
+    git = shutil.which("git")
+    if git is None:
+        return ["git unavailable for fork exercise"]
+    target = root / "fixture-target"
+    target.mkdir()
+    env = {**os.environ, "GIT_AUTHOR_NAME": "Fixture", "GIT_AUTHOR_EMAIL": "fixture@example.test",
+           "GIT_COMMITTER_NAME": "Fixture", "GIT_COMMITTER_EMAIL": "fixture@example.test", "PYTHONUTF8": "1"}
+    for argv in ([git, "init", "-q", "-b", "main"],):
+        if subprocess.run(argv, cwd=target, env=env).returncode != 0:
+            return ["could not initialize fork exercise target"]
+    (target / "seed.md").write_text("seed\n", encoding="utf-8")
+    if subprocess.run([git, "add", "seed.md"], cwd=target, env=env).returncode != 0 or subprocess.run(
+            [git, "commit", "-q", "-m", "seed"], cwd=target, env=env).returncode != 0:
+        return ["could not seed fork exercise target"]
+    coder = root / "fixture_coder.py"
+    coder.write_text("import sys\nfrom pathlib import Path\nPath(sys.argv[2], 'PATCHED.md').write_text('patched\\n', encoding='utf-8')\n", encoding="utf-8")
+    decline = root / "fixture_decline.py"
+    decline.write_text("import sys\nsys.exit(1)\n", encoding="utf-8")
+    note = root / "brain" / "weekly_logs" / "2026" / "2026-W43.md"
+    env.update({"PIPELINE_CODER_CMD": str(coder), "PIPELINE_HUMAN_GATE_CMD": str(decline),
+                "AGENTIC_LIGHT_TEST_MODE": "1", "LOG_SESSION_NOTE": str(note)})
+    proc = subprocess.run([sys.executable, str(root / "pipeline" / "run.py"), "fixture task", str(target)],
+                          capture_output=True, text=True, encoding="utf-8", env=env)
+    output = proc.stdout + proc.stderr
+    errors = []
+    if proc.returncode != 1 or "human gate declined" not in output:
+        errors.append(f"fork pipeline did not stop at the declining human gate: {output[:200]}")
+    if not (target / "PATCHED.md").is_file():
+        errors.append("fork coder did not modify the target")
+    if "[eslint_gate] WARN" not in output or "[playwright_gate] WARN" not in output:
+        errors.append("fork default gates did not run")
+    if not list((root / "brain" / "records" / "sessions").glob("session-*.md")):
+        errors.append("fork pipeline did not write a session record")
     return errors
 
 
@@ -69,6 +144,7 @@ def audit(root, name, preset, old_name="Agentic Light"):
             if name not in text:
                 errors.append(f"new identity missing from {file.relative_to(root)}")
     errors.extend(_check_generated_output(root))
+    errors.extend(_check_runtime_primitives(root))
     return errors
 
 
@@ -111,6 +187,22 @@ def _build_clean_fork(tmp, fixture_name, preset_name, roles=None):
         (REAL_ROOT / "System_Config" / "agent-roster.schema.json").read_text(encoding="utf-8"),
         encoding="utf-8",
     )
+    for name in RUNTIME_SCRIPTS:
+        (root / "System_Config" / name).write_text(
+            (REAL_ROOT / "System_Config" / name).read_text(encoding="utf-8"), encoding="utf-8")
+    for name in CONTEXT_SCRIPTS:
+        (root / "System_Config" / name).write_text(
+            (REAL_ROOT / "System_Config" / name).read_text(encoding="utf-8"), encoding="utf-8")
+    (root / "pipeline").mkdir()
+    (root / "pipeline" / "run.py").write_text(
+        (REAL_ROOT / "pipeline" / "run.py").read_text(encoding="utf-8"), encoding="utf-8")
+    (root / "pipeline" / "lib").mkdir()
+    for name in ("eslint_gate.py", "playwright_gate.py"):
+        (root / "pipeline" / "lib" / name).write_text(
+            (REAL_ROOT / "pipeline" / "lib" / name).read_text(encoding="utf-8"), encoding="utf-8")
+    (root / "brain" / "weekly_logs" / "2026").mkdir(parents=True)
+    (root / "brain" / "weekly_logs" / "2026" / "2026-W43.md").write_text(
+        "# W43\n\n## Agent Sessions\n- fixture\n", encoding="utf-8")
 
     real_presets = json.loads((REAL_ROOT / "System_Config" / "presets.json").read_text(encoding="utf-8"))
     preset = dict(real_presets[preset_name])
@@ -122,7 +214,7 @@ def _build_clean_fork(tmp, fixture_name, preset_name, roles=None):
     )
 
     all_roles = ("architect", "coder", "creative-director", "curator", "eng-manager", "qa")
-    roster = {"roles": {r: {"active": r in roles} for r in all_roles}}
+    roster = {"roles": {r: {"active": r in roles, "capabilities": ["read", "write"]} for r in all_roles}}
     (root / "System_Config" / "agent-roster.json").write_text(json.dumps(roster, indent=2), encoding="utf-8")
     (root / "System_Config" / ".active-preset").write_text(preset_name, encoding="utf-8")
 
@@ -204,6 +296,8 @@ def self_test():
         root1 = _build_clean_fork(tmp, "CleanOne", "wcag-harness", roles=["coder"])
         errors1 = audit(root1, "CleanOne", "wcag-harness")
         check("clean fork (wcag-harness, coder only)", errors1 == [], errors1)
+        exercise_errors = _exercise_fork(root1)
+        check("fork runs selected coder and default gates", exercise_errors == [], exercise_errors)
 
         # Fixture 2: clean fork, design-harness (same overlay, different
         # gate/skill/role_notes content).
@@ -256,6 +350,17 @@ def self_test():
             "generated-output staleness is caught",
             any("generated output stale (gen_site.py)" in e for e in errors5),
             errors5,
+        )
+
+        # Fixture 6: a fork must retain the scripts that build context and
+        # assemble the provider-neutral prompt, not only generated pages.
+        root6 = _build_clean_fork(tmp, "MissingRuntime", "wcag-harness")
+        (root6 / "System_Config" / "context_packet.py").unlink()
+        errors6 = audit(root6, "MissingRuntime", "wcag-harness")
+        check(
+            "missing context runtime is caught",
+            any("missing runtime script: System_Config/context_packet.py" in e for e in errors6),
+            errors6,
         )
 
     if failures:

@@ -12,9 +12,9 @@ file per role. Scaffold new ones with
 |---|---|---|
 | `architect` | Blueprints, schema, directory structure decisions | `coder` |
 | `coder` | Implementation, builds, tests | `qa` (production PRs), `eng-manager` |
-| `eng-manager` | `Agentic_Light/Projects/` lifecycle | `architect`, `coder`, `qa` |
+| `eng-manager` | Selected-project lifecycle | `architect`, `coder`, `qa` |
 | `qa` | Test coverage, regression checks against cloned repos | `eng-manager` |
-| `curator` | `Agentic_Light/brain/` knowledge base curation | — (terminal) |
+| `curator` | Workspace-brain knowledge curation | — (terminal) |
 | `creative-director` | Brand/visual/copy review (e.g. `microsite/`) | — (terminal, opt-out of Caveman Protocol) |
 
 `archivist` and `rally` are **excluded from this roster by design**. Agentic
@@ -53,6 +53,11 @@ The flags describe each role's contract, bounded by its `tools:` —
 any role omits a flag or contradicts its tools (e.g. `read_only: true` with
 Write/Edit/Bash). `GOVERNANCE.md` §1 renders the flags per role. When a
 role's rules change what it may do, update its `risk:` in the same edit.
+
+`System_Config/agent-roster.json` is the launcher's canonical activation and
+runtime-capability policy. It can be narrower than an agent file's historical
+`tools:` metadata: the coder launches with read/write capability only because
+the pipeline owns shell and Git operations.
 
 ## `qa` / `eng-manager` are not part of `pipeline/run.py`
 

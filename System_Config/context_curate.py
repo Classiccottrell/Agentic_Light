@@ -2,8 +2,10 @@
 """Suggest or apply conservative cross-links for a human context record."""
 import argparse
 import hashlib
+import os
 import re
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,6 +13,16 @@ from context_catalog import documents
 from context_validate import parse_frontmatter
 
 STOP = {"about", "after", "again", "being", "could", "from", "have", "into", "that", "the", "this", "with", "when"}
+
+
+def atomic_write(path, text):
+    fd, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as output:
+            output.write(text)
+        os.replace(temporary, path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
 
 
 def tokens(text):
@@ -30,13 +42,13 @@ def candidates(root, source):
         target_text = f"{item['title']} {item['excerpt']}"
         overlap = source_tokens & tokens(target_text)
         title_overlap = tokens(item["title"]) & source_tokens
-        confidence = "high" if len(title_overlap) >= 1 and len(overlap) >= 2 else "medium" if len(overlap) >= 1 else "low"
+        confidence = "high" if len(title_overlap) >= 2 and len(overlap) >= 4 else "medium" if len(overlap) >= 1 else "low"
         result.append({"id": item["id"], "path": item["path"], "title": item["title"], "confidence": confidence, "overlap": sorted(overlap)})
     return sorted(result, key=lambda item: ({"high": 0, "medium": 1, "low": 2}[item["confidence"]], -len(item["overlap"]), item["id"]))
 
 
 def session_record(root, source, accepted, rejected):
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     digest = hashlib.sha1(str(source).encode()).hexdigest()[:8]
     path = root / "brain" / "records" / "sessions" / f"curation-{stamp}-{digest}.md"
     rel = str(source.relative_to(root))
@@ -47,7 +59,7 @@ def session_record(root, source, accepted, rejected):
         "## Unresolved", f"Rejected or review-needed: {', '.join(item['id'] for item in rejected) or 'none'}.", "",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines), encoding="utf-8")
+    atomic_write(path, "\n".join(lines))
 
 
 def apply_links(source, accepted):
@@ -55,8 +67,8 @@ def apply_links(source, accepted):
     new_links = [f"- [[{item['id']}]]" for item in accepted if f"[[{item['id']}]]" not in text]
     if not new_links:
         return False
-    suffix = "\n## Related Context\n" + "\n".join(new_links) + "\n"
-    source.write_text(text.rstrip() + suffix, encoding="utf-8")
+    suffix = "\n" + "\n".join(new_links) + "\n" if "\n## Related Context\n" in text else "\n## Related Context\n" + "\n".join(new_links) + "\n"
+    atomic_write(source, text.rstrip() + suffix)
     return True
 
 
@@ -76,8 +88,10 @@ def main():
         for item in found:
             print(f"{item['confidence']}\t{item['id']}\t{item['title']}\t{','.join(item['overlap'])}")
         return 0
-    accepted = [item for item in found if item["confidence"] == "high"]
-    rejected = [item for item in found if item["confidence"] != "high"]
+    source_meta, _unused_body = parse_frontmatter(source)
+    human_authored = str(source_meta.get("author", "")).lower() == "human"
+    accepted = [] if human_authored else [item for item in found if item["confidence"] == "high"]
+    rejected = found if human_authored else [item for item in found if item["confidence"] != "high"]
     changed = apply_links(source, accepted)
     session_record(root, source, accepted, rejected)
     print(f"context_curate: applied={len(accepted)} changed={'yes' if changed else 'no'} review={len(rejected)}")

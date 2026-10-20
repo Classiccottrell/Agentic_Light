@@ -69,6 +69,32 @@ def known_targets(root):
     return targets
 
 
+def provenance_paths(source):
+    return source if isinstance(source, list) else [source]
+
+
+def provenance_available(root, source):
+    if not isinstance(source, str) or not source:
+        return False
+    try:
+        candidate = (root / source).resolve()
+        candidate.relative_to(root.resolve())
+    except (OSError, ValueError):
+        return False
+    return candidate.is_file()
+
+
+def related_targets(related):
+    for target in provenance_paths(related):
+        if not isinstance(target, str):
+            continue
+        target = target.strip()
+        while target.startswith("[") and target.endswith("]"):
+            target = target[1:-1].strip()
+        if target:
+            yield target
+
+
 def validate_file(path, root, targets=None):
     findings = []
     meta, body = parse_frontmatter(path)
@@ -81,10 +107,17 @@ def validate_file(path, root, targets=None):
         findings.append(f"{path}: unsupported type: {kind}")
     if not meta.get("source"):
         findings.append(f"{path}: source must contain at least one provenance path")
+    else:
+        for source in provenance_paths(meta["source"]):
+            if not provenance_available(root, source):
+                findings.append(f"{path}: provenance source unavailable: {source}")
     for section in TYPES.get(kind, []):
         if section not in body_sections(body):
             findings.append(f"{path}: missing section: {section}")
     targets = targets or known_targets(root)
+    for target in related_targets(meta.get("related", [])):
+        if target not in targets:
+            findings.append(f"{path}: broken related target: {target}")
     for target in LINK_RE.findall(body):
         if target.strip() not in targets:
             findings.append(f"{path}: broken wikilink: [[{target.strip()}]]")

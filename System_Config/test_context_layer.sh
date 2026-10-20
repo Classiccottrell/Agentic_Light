@@ -88,7 +88,7 @@ grep -q 'brain/records/learnings/human.md' "$TMP/brain/index/links.json"
 SUGGEST="$(python3 "$ROOT/System_Config/context.py" --root "$TMP" curate "$TMP/brain/records/learnings/human.md" --suggest)"
 echo "$SUGGEST" | grep -q 'light-project'
 python3 "$ROOT/System_Config/context.py" --root "$TMP" curate "$TMP/brain/records/learnings/human.md" --apply >/dev/null
-grep -q '\[\[light-project\]\]' "$TMP/brain/records/learnings/human.md"
+! grep -q '\[\[light-project\]\]' "$TMP/brain/records/learnings/human.md"
 test "$HASH" = "$(shasum -a 256 "$TMP/brain/raw/source.md" | awk '{print $1}')"
 
 python3 "$ROOT/System_Config/memory_index.py" --root "$TMP" >/dev/null

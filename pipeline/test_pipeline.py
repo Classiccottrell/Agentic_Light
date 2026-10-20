@@ -13,7 +13,9 @@ PATH-reset that referenced $HOME/.local/bin was deliberately dropped when
 porting config.sh, see config.py's module docstring), so fake `gh`/`claude`
 binaries only need a plain PATH prepend here — no $HOME juggling.
 """
+import contextlib
 import json
+import importlib.util
 import os
 import shutil
 import stat
@@ -53,6 +55,7 @@ CALLS = TMP_ROOT / "gh_calls"
 CALLS9 = TMP_ROOT / "claude_calls"
 LOG_SESSION_NOTE = TMP_ROOT / "weekly-note.md"
 LOG_SESSION_NOTE.write_text("", encoding="utf-8")
+SESSION_RECORDS = TMP_ROOT / "session-records"
 
 REAL_GATE_CONFIG = ROOT / "pipeline" / "gate-config.json"
 GATE_CONFIG_BACKUP = TMP_ROOT / "gate-config.json.bak"
@@ -168,6 +171,7 @@ def run_pipeline(task, target_repo, coder_cmd=CODER_STUB, human_gate_cmd=None, e
     env["CALLS"] = str(CALLS)
     env["AGENTIC_LIGHT_TEST_MODE"] = "1"
     env["LOG_SESSION_NOTE"] = str(LOG_SESSION_NOTE)
+    env["LOG_SESSION_RECORDS_DIR"] = str(SESSION_RECORDS)
     env["PYTHONUTF8"] = "1"
     if coder_cmd is not None:
         env["PIPELINE_CODER_CMD"] = str(coder_cmd)
@@ -282,6 +286,11 @@ def fixture_1():
     check("fixture1: summary shows PATCHED.txt", "PATCHED.txt" in out)
     note_text = LOG_SESSION_NOTE.read_text(encoding="utf-8")
     check("fixture1: session logged exactly once", note_text.count("/ coder — exit 0 (exit)") == 1, note_text)
+    records = list(SESSION_RECORDS.glob("session-*.md"))
+    check("fixture1: typed session record created", len(records) == 1, records)
+    if records:
+        record_text = records[0].read_text(encoding="utf-8")
+        check("fixture1: record links its pipeline log", "source: pipeline/logs/" in record_text, record_text)
     print("fixture 1 (normal pass): PASS")
 
 
@@ -474,6 +483,9 @@ def fixture_8():
 def fixture_9():
     repo9 = new_target_repo("repo9")
     repo9_p = str(Path(os.path.abspath(repo9)))
+    source = RUN.read_text(encoding="utf-8")
+    check("fixture9: context packet receives the pipeline task as its query",
+          "ROOT, profile_env or \"agentic-light\", bool(profile_env), task_desc, 5" in source)
 
     def run_direct(extra_env):
         env = dict(BASE_ENV)
@@ -486,6 +498,7 @@ def fixture_9():
         env["AGENTIC_LIGHT_TEST_MODE"] = "1"
         env["PIPELINE_HUMAN_GATE_CMD"] = str(APPROVE_STUB)
         env["LOG_SESSION_NOTE"] = str(LOG_SESSION_NOTE)
+        env["LOG_SESSION_RECORDS_DIR"] = str(SESSION_RECORDS)
         env["PYTHONUTF8"] = "1"
         env.update(extra_env)
         return subprocess.run([sys.executable, str(RUN), "task", str(repo9)],
@@ -503,7 +516,12 @@ def fixture_9():
     calls9_text = CALLS9.read_text(encoding="utf-8") if CALLS9.exists() else ""
     check("fixture9b: coder stub invoked with real prompt", f"Target repo: {repo9_p}" in calls9_text, calls9_text)
     check("fixture9b: context packet present with opt-in flag", "Resume context packet:" in calls9_text, calls9_text)
-    check("fixture9b: packet header present", "# Agentic Light Context Packet" in calls9_text, calls9_text)
+    check("fixture9b: packet header present", "# Context Packet" in calls9_text, calls9_text)
+    role_marker = "[ROLE CONTRACT: coder]"
+    task_marker = "[TASK]"
+    check("fixture9b: coder role contract is injected", role_marker in calls9_text, calls9_text)
+    check("fixture9b: prompt keeps role, context, task order",
+          role_marker in calls9_text and calls9_text.index(role_marker) < calls9_text.index("Resume context packet:") < calls9_text.index(task_marker), calls9_text)
     print("fixture 9b (context packet present with opt-in flag): PASS")
 
 
@@ -598,6 +616,42 @@ def fixture_10():
     restore_gate_config()
 
 
+def fixture_11():
+    spec = importlib.util.spec_from_file_location("pipeline_run_fixture", RUN)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        record = root / "brain/records/sessions/session-fixture.md"
+        calls = []
+        original_root, original_spawn = module.ROOT, module._spawn
+        try:
+            module.ROOT = root
+            roster = root / "System_Config" / "agent-roster.json"
+            roster.parent.mkdir(parents=True)
+            roster.write_text('{"roles":{"coder":{"active":false,"capabilities":["read","write"]}}}', encoding="utf-8")
+            with contextlib.suppress(ValueError):
+                module.validate_launch_role("coder")
+                check("fixture11: inactive role is rejected", False)
+            roster.write_text('{"roles":{"coder":{"active":true,"capabilities":["read","write","shell"]}}}', encoding="utf-8")
+            with contextlib.suppress(ValueError):
+                module.validate_launch_role("coder")
+                check("fixture11: unavailable capability is rejected", False)
+            roster.write_text('{"roles":{"coder":{"active":true,"capabilities":["read","write"]}}}', encoding="utf-8")
+            module.validate_launch_role("coder")
+            module._spawn = lambda argv: calls.append(argv) or 0
+            module.curate_session_record(record)
+            check("fixture11: workspace session record is curated", len(calls) == 1, calls)
+            if calls:
+                check("fixture11: curation uses deterministic apply mode", calls[0][-2:] == [str(record), "--apply"], calls[0])
+            calls.clear()
+            module.curate_session_record(TMP_ROOT / "outside-record.md")
+            check("fixture11: external test record is not curated", not calls, calls)
+        finally:
+            module.ROOT, module._spawn = original_root, original_spawn
+    print("fixture 11 (typed session curation): PASS")
+
+
 def main():
     try:
         fixture_1()
@@ -613,6 +667,7 @@ def main():
         fixture_8()
         fixture_9()
         fixture_10()
+        fixture_11()
     finally:
         cleanup()
 

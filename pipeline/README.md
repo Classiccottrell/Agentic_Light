@@ -67,13 +67,15 @@ python3 pipeline/run.py --help   # print usage and exit
 1. **Code Patch** — `run.py` itself creates the feature branch
    (`git checkout -b agentic-light/<run-id>`) in the target repo, then
    invokes the `coder` step via `System_Config/run_agent.py`, scoped to the
-   target repo (cwd), with the task description (plus any routed skill
-   guidance from step 0) as the prompt. The prompt tells the coder to
+   target repo (cwd), with an explicit provider-neutral prompt: the coder's
+   role contract, selected skill guidance, optional context packet, then the
+   task. The prompt tells the coder to
    implement the change only — it does not ask it to branch or commit,
    because the `claude` invocation in `run_agent.py` runs with
    `--disallowedTools "Bash,..."` and can't do either. Exactly one call to
    `System_Config/log_session.py` follows the coder process, logging
-   provider/role/exit-status/reason (success, timeout, or refusal alike) —
+   provider/role/exit-status/reason and writing a typed session record with
+   its task, target repository, run ID, branch, and pipeline-log provenance —
    see "Session logging" below. A `64` exit only maps to `refused` when the
    resolved provider for that run was `ollama`; any other provider exiting
    64 is logged as a generic `exit`. `run.py` then stages the coder's
@@ -209,10 +211,26 @@ evidence capped below `Supports`/`Does Not Support`. Full rule list:
 After the coder step completes (success, watchdog timeout, or an Ollama
 write-workflow refusal), `run.py` calls `System_Config/log_session.py`
 exactly once with the resolved provider, `--role coder`, the exit status,
-and a reason (`exit`/`timeout`/`signal`/`refused`). This is the sole
+and a reason (`exit`/`timeout`/`signal`/`refused`). It writes a typed record
+under `brain/records/sessions/`, then links the record from the weekly note.
+This is the sole
 launcher-level call site — `run_agent()` itself is not instrumented, since
-it's also called once per clip by `daily_ingest.py`, which already logs its
-own line per clip.
+it's also called once per clip by `daily_ingest.py`, which uses the same
+deterministic logger for each clip.
+
+## Delegation and handoff
+
+`run.py` owns the local lifecycle: pre-flight checks, prompt assembly,
+branching, staging and committing, gates, the human sign-off, and the typed
+session record. It delegates one bounded implementation attempt to the
+selected `coder` provider. It does not launch architect, QA, or manager roles;
+those remain explicit human-orchestrated reviews when their perspective is
+needed.
+
+The typed session record and `pipeline/logs/<run-id>.log` are the canonical
+handoff trail across providers and interrupted runs. A provider-specific hook
+may add a link or summary, but cannot replace either record. PR creation stays
+with the Human Gate and never becomes a delegated provider action.
 
 ## Contract: 100% pass before the patch is even shown to a human
 
@@ -309,7 +327,7 @@ on genuine compliant remarks).
 against a synthetic `ROADMAP.md` with a dense multi-byte (em dash) first
 line is respected byte-for-byte (not character-for-byte — see
 `context_packet.py`'s header comment), and the default budget still
-contains every provenance header (`# Agentic Light Context Packet`,
+contains every provenance header (`# Context Packet`,
 `Generated:`, `## Roadmap`, `## Active Preset`, `## Recent Session Facts`).
 
 ## Files

@@ -11,6 +11,7 @@ on decode if re-assembled as str.
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -74,10 +75,8 @@ def build_packet(root, profile_name, profile_explicit, query, top, max_lines, ma
     if not context_dir.is_dir():
         raise RuntimeError(f"context_packet: context root not found: {context_dir}")
 
-    if not profile_explicit:
-        lines.append("# Agentic Light Context Packet")
-    else:
-        lines.append("# Context Packet")
+    lines.append("# Context Packet")
+    if profile_explicit:
         lines.append(f"Profile: {name}")
     # .astimezone() attaches the local zone to an otherwise-naive
     # datetime.now(), so %Z renders an abbreviation (e.g. "PDT") instead of
@@ -90,7 +89,7 @@ def build_packet(root, profile_name, profile_explicit, query, top, max_lines, ma
         lines.append("## Roadmap")
         roadmap = root / "ROADMAP.md"
         if roadmap.is_file():
-            lines.extend(_head_lines(roadmap, 80))
+            lines.extend(_head_lines(roadmap, 30))
         else:
             lines.append("ROADMAP.md unavailable")
         lines.append("")
@@ -103,17 +102,15 @@ def build_packet(root, profile_name, profile_explicit, query, top, max_lines, ma
         lines.append("")
         lines.append("## Recent Session Facts")
         weekly_dir = root / "brain" / "weekly_logs"
-        # key=str, not Path's own tuple-of-parts ordering: bash's `find |
-        # sort` compares the full path as one flat string (so
-        # ".../2026 Master Note.md" < ".../2026/2026-W30.md" — a space
-        # (0x20) sorts before a slash (0x2F)), whereas Path.__lt__ compares
-        # path-part tuples (where the bare "2026" directory component would
-        # instead be treated as a PREFIX of "2026 Master Note.md" and sort
-        # first) — a real, empirically-confirmed divergence in this repo's
-        # own brain/weekly_logs/, not a hypothetical.
-        candidates = sorted(weekly_dir.rglob("*.md"), key=str) if weekly_dir.is_dir() else []
+        candidates = []
+        if weekly_dir.is_dir():
+            for path in weekly_dir.rglob("*.md"):
+                match = re.fullmatch(r"(\d{4})-W(\d{2})\.md", path.name)
+                if (match and len(path.relative_to(weekly_dir).parts) == 2
+                        and path.parent.name == match.group(1) and 1 <= int(match.group(2)) <= 53):
+                    candidates.append((int(match.group(1)), int(match.group(2)), path))
         if candidates:
-            lines.extend(_tail_lines(candidates[-1], 25))
+            lines.extend(_tail_lines(max(candidates)[2], 25))
         else:
             lines.append("No weekly log found")
     elif include_paths:

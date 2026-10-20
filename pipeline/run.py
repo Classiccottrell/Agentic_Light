@@ -31,6 +31,7 @@ GATE_MODULES = {
     "axe": "axe_gate.py",
     "vpat-lint": "vpat_lint_gate.py",
 }
+RUNTIME_CAPABILITIES = {"read", "write"}
 
 
 class Tee:
@@ -115,6 +116,62 @@ def _dispatch(script_path, args, cwd=None):
     script_path = Path(script_path)
     argv = [sys.executable, str(script_path), *args] if script_path.suffix == ".py" else [str(script_path), *args]
     return _spawn(argv, cwd=cwd)
+
+
+def curate_session_record(path):
+    """Best-effort enrichment for records stored in this workspace only."""
+    try:
+        path.resolve().relative_to(ROOT.resolve())
+    except ValueError:
+        return
+    rc = _spawn([sys.executable, str(ROOT / "System_Config" / "context.py"),
+                 "--root", str(ROOT), "curate", str(path), "--apply"])
+    if rc != 0:
+        print("WARNING: session record curation failed; the session record remains available")
+
+
+def role_contract(role):
+    """Load provider-neutral role instructions, excluding YAML metadata."""
+    path = ROOT / "agents" / f"{role}.md"
+    if not path.is_file():
+        raise ValueError(f"missing role contract: {path}")
+    text = path.read_text(encoding="utf-8").strip()
+    if text.startswith("---\n"):
+        end = text.find("\n---", 4)
+        if end < 0:
+            raise ValueError(f"malformed role contract: {path}")
+        text = text[end + 4:].strip()
+    if not text:
+        raise ValueError(f"empty role contract: {path}")
+    return text
+
+
+def validate_launch_role(role):
+    """Reject inactive or unavailable role capabilities before launch."""
+    path = ROOT / "System_Config" / "agent-roster.json"
+    try:
+        roster = json.loads(path.read_text(encoding="utf-8"))
+        entry = roster["roles"][role]
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise ValueError(f"invalid launch roster: {path} ({error})")
+    if not entry.get("active"):
+        raise ValueError(f"role is inactive: {role}")
+    capabilities = entry.get("capabilities", [])
+    if not isinstance(capabilities, list) or not all(isinstance(item, str) for item in capabilities):
+        raise ValueError(f"invalid capabilities for role: {role}")
+    unsupported = sorted(set(capabilities) - RUNTIME_CAPABILITIES)
+    if unsupported:
+        raise ValueError(f"role {role} requires unavailable capabilities: {', '.join(unsupported)}")
+
+
+def assemble_coder_prompt(role, skills, packet, task):
+    parts = [f"[ROLE CONTRACT: coder]\n{role}\n[END ROLE CONTRACT]"]
+    if skills:
+        parts.append(f"[SELECTED SKILLS]\n{skills.rstrip()}\n[END SELECTED SKILLS]")
+    if packet:
+        parts.append(f"Resume context packet:\n{packet.rstrip()}\n[END CONTEXT PACKET]")
+    parts.append(f"[TASK]\n{task}\n[END TASK]")
+    return "\n\n".join(parts)
 
 
 def run_custom_gate(gate, target_repo):
@@ -307,6 +364,12 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
         return 1
 
     print("-> [1] Code patch step")
+    try:
+        validate_launch_role("coder")
+        coder_role = role_contract("coder")
+    except (OSError, ValueError) as error:
+        print(f"FAILED: {error}")
+        return 1
     staged = subprocess.run([git, "-C", str(target_repo), "diff", "--cached", "--quiet"], encoding="utf-8")
     if staged.returncode != 0:
         print(f"FAILED: {target_repo} has staged changes before the pipeline started — refusing to run. Commit or unstage them first; this pipeline assumes a clean index so its own rollback/commit steps don't touch changes it doesn't own.")
@@ -347,7 +410,7 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
             max_lines, _ = _env_nonneg_int("AGENTIC_LIGHT_CONTEXT_MAX_LINES", 120)
             max_bytes, _ = _env_nonneg_int("AGENTIC_LIGHT_CONTEXT_MAX_BYTES", 12000)
             packet_bytes = context_packet.build_packet(
-                ROOT, profile_env or "agentic-light", bool(profile_env), "", 5, max_lines, max_bytes)
+                ROOT, profile_env or "agentic-light", bool(profile_env), task_desc, 5, max_lines, max_bytes)
             context_packet_text = packet_bytes.decode("utf-8", errors="replace")
         except Exception:
             context_packet_text = ""
@@ -366,18 +429,22 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
         # guard; splitting it across adjacent string literals would still
         # concatenate correctly at runtime but would break that source-text
         # search.
-        prompt = f"Target repo: {target_repo}. Task: {task_desc}. Implement the change on the current branch. Do not run shell commands, create branches, or commit — the pipeline handles all git operations."
-        if skill_context:
-            prompt = f"Relevant skill guidance:\n{skill_context}\n{prompt}"
-        if context_packet_text:
-            prompt = f"Resume context packet:\n{context_packet_text}\n\n{prompt}"
+        task = f"Target repo: {target_repo}. Task: {task_desc}. Implement the change on the current branch. Do not run shell commands, create branches, or commit — the pipeline handles all git operations."
+        prompt = assemble_coder_prompt(coder_role, skill_context, context_packet_text, task)
         coder_rc = ra.run_agent(prompt, log=str(run_log_path), brain=str(target_repo))
         coder_provider = config.AGENT_PROVIDER or "unknown"
 
-    subprocess.run([sys.executable, str(ROOT / "System_Config" / "log_session.py"),
-                     "--provider", coder_provider, "--role", "coder",
-                     "--status", str(coder_rc), "--reason", reason_for_status(coder_rc, coder_provider)],
-                    env=_child_env())
+    session_log = subprocess.run(
+        [sys.executable, str(ROOT / "System_Config" / "log_session.py"),
+         "--provider", coder_provider, "--role", "coder", "--status", str(coder_rc),
+         "--reason", reason_for_status(coder_rc, coder_provider), "--task", task_desc,
+         "--target-repo", str(target_repo), "--run-id", run_id, "--branch", branch_name,
+         "--log", str(run_log_path)], env=_child_env())
+    if session_log.returncode != 0:
+        print("FAILED: could not write the typed session record")
+        return 1
+    records_dir = Path(os.environ.get("LOG_SESSION_RECORDS_DIR", ROOT / "brain" / "records" / "sessions"))
+    curate_session_record(records_dir / f"session-{run_id}.md")
 
     if coder_rc != 0:
         print(f"FAILED: code patch step (coder exited {coder_rc})")

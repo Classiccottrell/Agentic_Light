@@ -1,6 +1,6 @@
 # Agentic Light Roadmap
 
-Last reviewed: 2026-10-01
+Last reviewed: 2026-10-19
 
 ## Shipped
 
@@ -26,26 +26,34 @@ Last reviewed: 2026-10-01
   includes `spec.md`, `tasks.md`, and resumable `Plan.md`; its README documents
   the provider-neutral flow from brief through verified tasks and
   execution/resume.
+- **Agent risk metadata** — every `agents/*.md` declares
+  `risk: {read_only, destructive, idempotent, external_side_effects}`;
+  `preset_audit.py` enforces it, `GOVERNANCE.md` renders it, and
+  `new_agent.py` scaffolds it.
 
 ## Next
 
 ### White-label hardening
 
-1. **Agent risk metadata** — implemented; PR under review. Every
-   `agents/*.md` declares `risk: {read_only, destructive, idempotent,
-   external_side_effects}`; `preset_audit.py` enforces all four flags and
-   their consistency with `tools:`, `GOVERNANCE.md` renders them, and
-   `new_agent.py` scaffolds them. `tools:` stays capability metadata; risk
-   metadata describes blast radius. Move to Shipped after PR merge.
-2. **Context/session promotion** — connect launcher results to typed session
-   records, then let the curator link those records to projects, decisions,
-   and learnings. Preserve weekly logs as append-only compatibility output.
-3. **Delegation doctrine and audit trail** — document when work stays inline
-   versus delegated, and add provider-neutral launcher audit events. Provider
-   hooks may adapt to this trail but cannot be its source of truth.
-4. **White-label acceptance fixture** — make `white_label_check.py` verify a
-   fork can specialize, run its selected agents and gates, build a context
-   packet, regenerate provider mirrors, and contain no Agentic Light identity.
+1. **Context/session promotion — shipped.** Launcher records are typed,
+   searchable records with task, target repository, run ID, branch, and
+   pipeline-log provenance; the append-only weekly line links to the record.
+   The pipeline then runs conservative curation so high-confidence project,
+   decision, and learning links are applied and weaker links remain reviewable.
+2. **Delegation doctrine and audit trail — shipped.** The pipeline owns its
+   local lifecycle and delegates one bounded coder attempt; architect, QA, and
+   manager reviews stay explicitly human-orchestrated. Typed session records
+   and pipeline logs are the provider-neutral handoff trail across providers
+   and interrupted runs. Provider hooks may add context, but cannot replace
+   the canonical trail or the Human Gate.
+3. **White-label acceptance fixture — shipped.**
+   `white_label_check.py` verifies specialization, selected roles and skills,
+   generated output, identity replacement, the fork's context packet, and
+   its role-first prompt assembly. Its disposable fork exercise runs the
+   selected coder against a temporary Git repository, passes default gates,
+   writes a session record, and stops at a declining human gate. Provider
+   mirrors remain intentionally absent because explicit launcher context is
+   canonical.
 
 ### Roster decision
 
@@ -66,96 +74,79 @@ where shipped docs promise more than the code delivers.
 
 **Context packet: silently wrong output (small fixes; do first)**
 
-1. **"Recent Session Facts" shows the weekly template, not the latest
-   week.** `context_packet.py` picks the last `brain/weekly_logs/**/*.md` by
-   path string, and `Weekly_Note_Template.md` sorts after `2026/…`. Select
-   only `YYYY/YYYY-Www.md` notes, by ISO week.
-2. **The roadmap uses up the packet budget.** The 120-line default cap gives
-   ~80 lines to `ROADMAP.md`, and context matches get cut off after about one
-   entry. With no query, "matches" are the last 5 `brain/**/*.md` files by
-   alphabetical path, not by recency or relevance. `pipeline/run.py` always
-   passes an empty query, even though it has the task description.
-3. **The packet has no semantic matches.** `CLAUDE.md` and
-   `System_Config/README.md` promise "optional semantic matches", but the
-   packet runs a case-insensitive substring scan and never calls
-   `memory_search.py`'s FTS5/embedding index. Either wire it in or correct
-   the docs.
+1. **Latest weekly session facts — shipped.** `context_packet.py` now selects
+   only dated `YYYY/YYYY-Www.md` notes and chooses the latest ISO week;
+   templates and master notes are excluded.
+2. **Packet budget and task retrieval — shipped.** The default packet reserves
+   space for context by limiting the roadmap excerpt to 30 lines, and
+   `pipeline/run.py` passes the task description as the retrieval query.
+   The no-query fallback remains alphabetical and should be reconsidered only
+   if direct CLI packet use becomes a primary workflow.
+3. **Packet retrieval contract — clarified.** The packet uses deterministic
+   keyword matches; the separate `memory_search.py` command provides local
+   FTS5 and optional Ollama scoring. Documentation no longer promises packet
+   semantics that are not implemented. Wiring indexed retrieval into packets
+   remains a future enhancement, not a shipped claim.
 
 **Agent roles never reach a model**
 
-4. **No provider loads `agents/*.md`.** The pipeline's coder prompt is
-   inline text, and `run_agent.py` never reads `agents/coder.md`. No provider
-   discovers `agents/`: there is no `.claude/agents/`, `AGENTS.md` or
-   `GEMINI.md` mirror. Role scope, capabilities, handoffs and risk are
-   governance documentation only. White-label item 4's "regenerate provider
-   mirrors" assumes mirrors exist, and they do not. The fix is the
-   prompt-assembly contract from `AGENT_AGNOSTIC_REVIEW.md`, which was never
-   built: role file + selected skills + packet + task, with fixed order and
-   delimiters, injected by the launcher.
-5. **Nothing enforces roster, capabilities or risk at launch.** The launcher
-   never reads `agent-roster.json`. Launching an inactive role, or a role
-   whose capabilities the provider lacks, is not a pre-launch failure.
-6. **Role text contradicts the runtime.** `coder.md` says to run
-   builds/tests and to stay "Bash 3.2-safe", which is stale since the Python
-   port. The pipeline prompt and `run_agent.py` disallow Bash for the coder.
-   The agent files also hardcode `Agentic_Light/…` paths, which leaks
-   identity into white-label forks and assumes the parent-workspace cwd.
+4. **Coder prompt assembly — shipped; other roles remain manual.** The
+   launcher strips `agents/coder.md` metadata and injects its role body,
+   selected skills, optional packet, and task in a fixed delimiter contract.
+   The pipeline does not launch architect, QA, or manager roles, so their
+   contracts and handoffs remain orchestrator-managed. Provider mirrors are
+   intentionally absent; explicit prompt context is canonical.
+5. **Coder roster enforcement — shipped; multi-role enforcement remains.**
+   The launcher reads `agent-roster.json` before branching and rejects an
+   inactive coder or capabilities unavailable to its read/write runtime.
+   Architect, QA, and manager roles remain manually launched, so their
+   pre-launch enforcement belongs with a future multi-role launcher.
+6. **Role text cleanup — shipped.** Every role contract now uses
+   relocation-neutral workspace and target-repository language; `coder.md`
+   also matches its sandboxed runtime. Multi-role launch remains a separate
+   future capability, not an assumption embedded in role prose.
 
 **Skill routing**
 
-7. **The router does not rank by relevance.** A skill matches if any task
-   word over 3 characters appears in its description. Matches are ordered
-   alphabetically, and the 3-skill cap applies in that order.
-   - "write a dbt model for orders" routes to two Figma skills, not
-     `dbt-bigquery`.
-   - "fix the login form accessibility" injects `figma-use`,
-     `gcp-data-pipelines` and `react-doctor`, and the cap drops `wcag-audit`
-     and `vpat-authoring`.
-   - "add a CLI flag" routes to nothing.
-
-   Rank before capping, for example by name/keyword weighting or reusing
-   FTS5 bm25. Add a routing fixture with expected picks. Specialized forks
-   are only partly protected by `skills-selected.json`.
+7. **Skill routing — shipped.** `route_skill.py` now ranks name and
+   description matches by rarity and task relevance before the three-skill
+   cap. Its fixture proves DBT and accessibility domain skills beat
+   alphabetically earlier generic skills. A generic CLI task still produces
+   no match because this harness deliberately has no CLI-specific skill;
+   selection remains constrained by `skills-selected.json` in specialized
+   forks.
 
 **Curation**
 
-8. **"Conservative" curation is not conservative.** A link counts as
-   "high" with one title-token overlap plus two body-token overlaps. Tokens
-   can be 3 characters, and the 13-word stoplist misses words like
-   `for`/`use`. Verified: `--apply` wrote a link from "Use SQLite for the
-   agent cache" to "Agent timeouts need a watchdog" into a human-authored
-   record. Raise the threshold, make `author: human` records suggest-only,
-   and add a precision fixture.
-9. **Curation writes are messy.** `apply_links` appends a new
-   `## Related Context` heading every time new links appear, instead of
-   extending the existing one. Curation session files are named per second,
-   so two runs in the same second overwrite each other, and the writes are
-   not atomic.
+8. **Conservative curation — shipped.** Automatic curation now requires at
+   least two title-token overlaps and four total overlaps, and it treats
+   `author: human` records as suggestion-only. Fixtures cover both a human
+   record and a weak agent-authored match.
+9. **Curation write discipline — shipped.** `apply_links` extends its
+   existing `## Related Context` section, curation session records use
+   microsecond timestamps, and both source and audit writes are atomic.
 
 **Provenance and immutability**
 
-10. **Provenance is checked for presence, not validity.** `context_validate`
-    requires a non-empty `source:` but never checks that the paths exist, and
-    frontmatter `related:` links are not validated. Verified: records citing
-    nonexistent raw files pass.
-11. **Raw immutability during ingest is only a prompt instruction.**
-    `daily_ingest.py` hashes the clip after the agent call, so an edited
-    clip gets recorded instead of caught. Hash before the call, compare
-    after, and fail the clip on a mismatch.
+10. **Provenance validation — shipped.** `context_validate` now rejects
+    missing and out-of-workspace `source:` paths and unresolved frontmatter
+    `related:` targets.
+11. **Raw immutability during ingest — shipped.** `daily_ingest.py` now
+    records the pre-call hash, compares it after the agent returns, and
+    marks any changed clip as a failed attempt instead of certifying it.
 
 **Session records (feeds White-label item 2)**
 
-12. **Session lines can't say what happened.** A line records only
-    provider/role/exit/reason: no task, target repo, run id, branch, or
-    pipeline log path. The packet's "Recent Session Facts" therefore can't
-    describe past work. Only `pipeline/run.py` calls `log_session.py`;
-    `daily_ingest.py` asks the LLM to append its own line, which is not
-    deterministic and breaks the single-logger rule.
+12. **Session records — shipped.**
+    `pipeline/run.py` now gives `log_session.py` the task, target repo, run
+    ID, branch, and log path. It writes a schema-valid typed record and the
+    weekly line links to it, so packets can retrieve meaningful launch facts.
+    `daily_ingest.py` uses that same logger for every clip and forbids the
+    model from editing weekly logs.
 
-**Suggested order:** 1–3 and 11 (small, contained bugs), then 10, 8–9 and
-7. Fold 12 into White-label item 2, and 4–6 into White-label item 3 (the
-prompt-assembly contract is the precondition for item 4's acceptance
-fixture).
+**Suggested order:** let curation link typed records to durable context. Fold 4–6 into
+White-label item 2; the prompt-assembly contract is the precondition for the
+white-label acceptance fixture.
 
 ### Acceptance bar
 
