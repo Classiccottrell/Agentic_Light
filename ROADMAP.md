@@ -43,12 +43,14 @@ Last reviewed: 2026-10-19
 2. **Delegation doctrine and audit trail** — document when work stays inline
    versus delegated, and add provider-neutral launcher audit events. Provider
    hooks may adapt to this trail but cannot be its source of truth.
-3. **White-label acceptance fixture — partly shipped.**
-   `white_label_check.py` now verifies specialization, selected roles and
-   skills, generated output, identity replacement, the fork's context packet,
-   and its role-first prompt assembly. Remaining: execute selected agents and
-   gates in the fork. Provider mirrors remain intentionally absent because
-   explicit launcher context is canonical.
+3. **White-label acceptance fixture — shipped.**
+   `white_label_check.py` verifies specialization, selected roles and skills,
+   generated output, identity replacement, the fork's context packet, and
+   its role-first prompt assembly. Its disposable fork exercise runs the
+   selected coder against a temporary Git repository, passes default gates,
+   writes a session record, and stops at a declining human gate. Provider
+   mirrors remain intentionally absent because explicit launcher context is
+   canonical.
 
 ### Roster decision
 
