@@ -11,6 +11,8 @@ System_Config/.notify.env
 
 # Runtime logs
 System_Config/logs/*.log
+System_Config/logs/*.out
+System_Config/logs/*.err
 pipeline/logs/*.log
 
 # OS cruft
@@ -25,3 +27,4 @@ System_Config/context-sources.local.json
 System_Config/context-manifest.local.json
 System_Config/context-manifest.local.json.context-discover
 brain/context/
+brain/raw/.ingested.log
