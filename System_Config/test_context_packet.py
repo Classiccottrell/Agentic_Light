@@ -96,7 +96,7 @@ def main():
         proc2 = subprocess.run([sys.executable, str(SCRIPT), "--root", str(fake_root)],
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=base_env)
         out2 = proc2.stdout.decode("utf-8", errors="replace")
-        check("default budget: title header", out2.startswith("# Agentic Light Context Packet\n"), out2[:200])
+        check("default budget: title header", out2.startswith("# Context Packet\n"), out2[:200])
         check("default budget: Generated header", "\nGenerated:" in out2 or out2.startswith("Generated:"), out2[:200])
         check("default budget: Roadmap header", "\n## Roadmap\n" in out2, out2[:200])
         check("default budget: Active Preset header", "\n## Active Preset\n" in out2, out2[:200])

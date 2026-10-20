@@ -313,7 +313,7 @@ on genuine compliant remarks).
 against a synthetic `ROADMAP.md` with a dense multi-byte (em dash) first
 line is respected byte-for-byte (not character-for-byte — see
 `context_packet.py`'s header comment), and the default budget still
-contains every provenance header (`# Agentic Light Context Packet`,
+contains every provenance header (`# Context Packet`,
 `Generated:`, `## Roadmap`, `## Active Preset`, `## Recent Session Facts`).
 
 ## Files

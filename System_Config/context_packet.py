@@ -75,10 +75,8 @@ def build_packet(root, profile_name, profile_explicit, query, top, max_lines, ma
     if not context_dir.is_dir():
         raise RuntimeError(f"context_packet: context root not found: {context_dir}")
 
-    if not profile_explicit:
-        lines.append("# Agentic Light Context Packet")
-    else:
-        lines.append("# Context Packet")
+    lines.append("# Context Packet")
+    if profile_explicit:
         lines.append(f"Profile: {name}")
     # .astimezone() attaches the local zone to an otherwise-naive
     # datetime.now(), so %Z renders an abbreviation (e.g. "PDT") instead of

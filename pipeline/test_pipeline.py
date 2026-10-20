@@ -516,7 +516,7 @@ def fixture_9():
     calls9_text = CALLS9.read_text(encoding="utf-8") if CALLS9.exists() else ""
     check("fixture9b: coder stub invoked with real prompt", f"Target repo: {repo9_p}" in calls9_text, calls9_text)
     check("fixture9b: context packet present with opt-in flag", "Resume context packet:" in calls9_text, calls9_text)
-    check("fixture9b: packet header present", "# Agentic Light Context Packet" in calls9_text, calls9_text)
+    check("fixture9b: packet header present", "# Context Packet" in calls9_text, calls9_text)
     role_marker = "[ROLE CONTRACT: coder]"
     task_marker = "[TASK]"
     check("fixture9b: coder role contract is injected", role_marker in calls9_text, calls9_text)
