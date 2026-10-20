@@ -12,7 +12,7 @@ suppress and nothing to dedup against.
 Config: System_Config/.notify.env (git-ignored, mode 600 on POSIX — on
 Windows there is no permission lock; rely on per-user profile isolation),
 parsed as plain KEY="value" data if present, never sourced/exec'd (same
-discipline as config.py's config_value for .agentic-light.conf).
+discipline as config.py's config_value for the .<slug>.conf provider config).
 Recognized keys: SLACK_WEBHOOK_URL, GCHAT_WEBHOOK_URL,
 GCHAT_FALLBACK_LOCAL (1 = also try a local macOS banner via osascript).
 Both webhook vars may be set at once — each is attempted independently;

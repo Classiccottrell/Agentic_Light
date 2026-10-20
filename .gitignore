@@ -1,6 +1,10 @@
 # Local MCP config — copy from System_Config/mcp.defaults.json, never commit
 .mcp.json
+# Machine-local provider config written by bootstrap.py: .<slug>.conf, slug
+# from System_Config/identity.json. The glob keeps it ignored after a rename,
+# along with the legacy filename an earlier bootstrap may have written.
 .agentic-light.conf
+/.*.conf
 
 # Local notification webhook config — copy from System_Config/.notify.env.example, never commit
 System_Config/.notify.env
@@ -16,7 +20,7 @@ pipeline/logs/*.events.jsonl
 
 # Launcher session records (pipeline/run.py) — machine-local: their provenance
 # is the gitignored pipeline/logs/ files. Curated/human records stay committed.
-brain/records/sessions/session-[0-9]*.md
+brain/records/sessions/session-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]-[0-9]*.md
 
 # OS cruft
 .DS_Store

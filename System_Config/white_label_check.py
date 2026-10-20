@@ -5,10 +5,12 @@ import json
 import os
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import sys
 import tempfile
+from collections import Counter
 from pathlib import Path
 
 from test_support import rmtree_force
@@ -112,6 +114,9 @@ def _build_clean_fork(tmp, fixture_name, preset_name, roles=None):
                 "System_Config/gen_preset_pages.py", "microsite/template.html"):
         src = (REAL_ROOT / rel).read_text(encoding="utf-8")
         (root / rel).write_text(src.replace("Agentic Light", fixture_name), encoding="utf-8")
+    shutil.copy2(REAL_ROOT / "System_Config" / "identity.py", root / "System_Config" / "identity.py")
+    (root / "System_Config" / "identity.json").write_text(
+        json.dumps({"name": fixture_name, "slug": _slug(fixture_name)}) + "\n", encoding="utf-8")
 
     (root / "System_Config" / "agent-roster.schema.json").write_text(
         (REAL_ROOT / "System_Config" / "agent-roster.schema.json").read_text(encoding="utf-8"),
@@ -196,10 +201,10 @@ def _build_clean_fork(tmp, fixture_name, preset_name, roles=None):
 # Acceptance mode (--acceptance): a fresh, fully white-labeled fork that
 # actually runs. Where _build_clean_fork() above is a generator-only stand-in,
 # _build_acceptance_fork() copies this repo's real tracked tree and walks the
-# documented white-label procedure (microsite/whitelabel.html): specialize,
-# delete inactive role files and unselected skill dirs, prune presets.json,
-# rename the identity layer, regenerate. The fork's own pipeline/run.py is
-# then driven end to end against a scratch target repo — fake `codex`
+# documented white-label procedure (microsite/whitelabel.html): set
+# System_Config/identity.json, specialize, delete inactive role files and
+# unselected skill dirs, prune presets.json, rename the identity layer,
+# regenerate. The fork's own pipeline/run.py is then driven end to end against a scratch target repo — fake `codex`
 # provider, fake `gh`, auto-approved human gate under test mode, never a real
 # provider or network.
 
@@ -207,48 +212,32 @@ IDENTITY_VARIANTS = ("Agentic Light", "agentic-light", "Agentic_Light")
 ACCEPTANCE_PRESETS = ("design-harness", "wcag-harness", "cli-tool")
 ACCEPTANCE_NAME = "Northwind Harness"
 ACCEPTANCE_TASK = "Add a one-line status note to NOTES.md"
-# Runtime identifiers a rename pass must NOT touch: the code still reads them
-# under these exact names, so renaming them in docs would make the docs wrong.
-# Left in place, they surface as identity findings instead.
-PROTECTED_TOKENS = (".agentic-light.conf",)
 COPY_EXCLUDE = re.compile(r"^(pipeline/logs/.+.(log|jsonl)|brain/records/sessions/.*|microsite/status.(json|js))$")
 PROVIDER_MIRRORS_NOTE = ("provider mirrors: not implemented (role contract reaches providers via the "
                          "prompt-assembly contract instead)")
 
-# Findings the acceptance check is known to surface today, keyed by
-# (kind, surface) — never by run-id text. --self-test fails on any finding NOT
-# listed here; a listed finding that disappears (fixed) is fine.
-_BRANCH_CAUSE = ('pipeline/run.py hardcodes the branch prefix (branch_name = f"agentic-light/{run_id}"); '
-                 "the branch name is then recorded verbatim")
+# Findings the acceptance check is known to surface today: (kind, surface) ->
+# (cause, exact offending samples). Samples are normalized (run id ->
+# <run-id>, stripped, first 160 chars) and compared as a multiset, so any
+# additional hit on a known surface — a new line, or the same line twice —
+# is an unknown finding. --self-test fails on any unknown finding; a listed
+# finding that disappears (fixed) is fine.
+_PACKET_CAUSE = ('System_Config/context_packet.py hardcodes "# Agentic Light Context Packet" for the default '
+                 'profile (and run.py/context_packet.py default the profile name to "agentic-light") '
+                 "— pending PR #32, which owns context_packet.py")
+_PACKET_HEADER = ("# Agentic Light Context Packet",)
 KNOWN_FINDINGS = {
-    ("identity", "target repo branch names"): _BRANCH_CAUSE,
-    ("identity", "pipeline/logs/<run-id>.events.jsonl"): _BRANCH_CAUSE + " in the run_start event",
-    ("identity", "brain/records/sessions/session-<run-id>.md"): _BRANCH_CAUSE + " in the session record's Branch line",
-    ("identity", "target repo commit messages"):
-        'pipeline/run.py hardcodes the commit message prefix (git commit -m f"Agentic Light: {task_desc}")',
-    ("identity", "run.py console output"):
-        'pipeline/run.py prints a hardcoded " Agentic Light Pipeline — run <id>" banner, plus the branch name; '
-        'pipeline/lib/vpat_lint_gate.py (and axe_gate.py on a failure) print a hardcoded '
-        '"(in the Agentic Light workspace)" manual reference',
-    ("identity", "pipeline/logs/<run-id>.log"):
-        "the run log tees run.py's console output (hardcoded banner, branch name, gate manual references)",
-    ("identity", "specialize.py console output"):
-        'System_Config/specialize.py prints a hardcoded " Agentic Light — specialize" banner',
-    ("identity", "gh pr create argv"):
-        "pipeline/lib/pr_create.py's default --body (\"Generated by Agentic Light pipeline/run.py ...\"); "
-        "run.py never passes a body",
-    ("identity", "context packet"):
-        'System_Config/context_packet.py hardcodes "# Agentic Light Context Packet" for the default profile '
-        '(and run.py/context_packet.py default the profile name to "agentic-light")',
-    ("identity", "coder prompt"):
-        "the context packet's hardcoded header is injected into the CONTEXT PACKET section",
-    ("identity", "runtime filename .agentic-light.conf"):
-        "System_Config/config.py reads WORKSPACE/.agentic-light.conf by that literal name, so docs, "
-        ".gitignore and gen_governance.py's STATIC_TEMPLATE must keep it (renaming them would make them wrong)",
-    ("capability", "coder@claude"):
+    ("identity", "context packet"): (_PACKET_CAUSE, _PACKET_HEADER),
+    ("identity", "coder prompt"): (
+        "the context packet's hardcoded header is injected into the CONTEXT PACKET section — " + _PACKET_CAUSE,
+        _PACKET_HEADER),
+    ("capability", "coder@claude"): (
         "System_Config/agent-roster.example.json gives coder [read, write, shell]; specialize.py copies that "
         "into every preset without a coder overlay, and the claude/gemini adapters do not grant shell "
         "(pending owner sign-off on the example-roster data change)",
+        ("FAILED: role 'coder' declares capabilities ['shell'] in System_Config/agent-roster.json that provider "
+         "'claude' does not grant (it grants ['read', 'write']). Either remove ['shell'] from "
+         "roles.coder.capabilities, or select a provider that grants them.",)),
 }
 
 
@@ -263,14 +252,11 @@ def _slug(name):
 
 
 def _rename_identity(text, name):
-    for i, tok in enumerate(PROTECTED_TOKENS):
-        text = text.replace(tok, f"\x00PROTECTED{i}\x00")
-    text = (text.replace("Agentic Light", name)
+    # The slug replace also turns ".agentic-light.conf" into ".<slug>.conf",
+    # which is what config.py reads once identity.json carries the new slug.
+    return (text.replace("Agentic Light", name)
                 .replace("agentic-light", _slug(name))
                 .replace("Agentic_Light", name.replace(" ", "_")))
-    for i, tok in enumerate(PROTECTED_TOKENS):
-        text = text.replace(f"\x00PROTECTED{i}\x00", tok)
-    return text
 
 
 def _tracked_files(root):
@@ -290,7 +276,10 @@ def _clean_env(extra=None):
     real provider/config or a test override from the calling shell."""
     env = {k: v for k, v in os.environ.items()
            if not k.startswith(("AGENTIC_LIGHT_", "PIPELINE_")) and k not in ("AGENT_TYPE", "AGENT_PROVIDER", "LOG_SESSION_NOTE")}
-    env.update({"PYTHONUTF8": "1", "PYTHONDONTWRITEBYTECODE": "1"})
+    # The caller's global/system git config (commit.gpgsign, core.hooksPath,
+    # ...) must not break or alter the scratch repos' commits.
+    env.update({"PYTHONUTF8": "1", "PYTHONDONTWRITEBYTECODE": "1",
+                "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"})
     env.update(extra or {})
     return env
 
@@ -319,6 +308,17 @@ def _build_acceptance_fork(tmp, name, preset):
         dst = root / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
+
+    # White-label step 1 (whitelabel.html): the identity file every runtime
+    # surface reads — before specialize.py, whose banner is scanned too.
+    (root / "System_Config" / "identity.json").write_text(
+        json.dumps({"name": name, "slug": _slug(name)}, indent=2) + "\n", encoding="utf-8")
+    ident = _fork_py(root, (
+        "import json, identity, config\n"
+        "print(json.dumps([identity.load_identity(), config.agent_config_path().name]))\n"))
+    checks.append(("specialize", "identity.json loads in the fork; provider config is .<slug>.conf",
+                   ident.stdout.strip() == json.dumps([{"name": name, "slug": _slug(name)}, f".{_slug(name)}.conf"]),
+                   (ident.stdout + ident.stderr).strip()[-300:]))
 
     proc = subprocess.run([sys.executable, str(root / "System_Config" / "specialize.py"), "--preset", preset],
                           capture_output=True, encoding="utf-8", errors="replace", cwd=str(root),
@@ -414,10 +414,10 @@ def _normalize_surface(rel, run_id):
     return re.sub(r"brain/weekly_logs/\d{4}/\d{4}-W\d{2}\.md$", "brain/weekly_logs/<week>.md", rel)
 
 
-def acceptance(preset, name=ACCEPTANCE_NAME, tmp_parent=None):
+def acceptance(preset, name=ACCEPTANCE_NAME, tmp_parent=None, mutate=None):
     """Run the acceptance fixture for one preset. Returns a result dict:
     {"preset", "checks": [(step, label, ok, detail)], "findings":
-    [{"kind", "surface", "detail"}], "info": [str]}. Never raises for a
+    [{"kind", "surface", "detail", "samples"}], "info": [str]}. Never raises for a
     failing assertion — those become checks/findings."""
     result = {"preset": preset, "checks": [], "findings": [], "info": []}
     checks, findings, info = result["checks"], result["findings"], result["info"]
@@ -426,6 +426,8 @@ def acceptance(preset, name=ACCEPTANCE_NAME, tmp_parent=None):
         try:
             root, step1, specialize_out = _build_acceptance_fork(tmp, name, preset)
             checks.extend(step1)
+            if mutate:
+                mutate(root)  # --self-test only: plant a defect in the built fork
         except (RuntimeError, OSError, subprocess.SubprocessError) as e:
             checks.append(("specialize", "fork builds", False, str(e)))
             return result
@@ -533,7 +535,8 @@ def acceptance(preset, name=ACCEPTANCE_NAME, tmp_parent=None):
                        skipped.startswith("skipped"), launch_checks.get("None")))
         claude = launch_checks.get("claude", {})
         if "error" in claude:
-            findings.append({"kind": "capability", "surface": "coder@claude", "detail": claude["error"]})
+            findings.append({"kind": "capability", "surface": "coder@claude", "detail": claude["error"],
+                             "samples": [claude["error"]]})
 
         # --- step 3: context packet built in the fork ------------------------
         pk = subprocess.run([sys.executable, str(root / "System_Config" / "context_packet.py")], capture_output=True,
@@ -541,9 +544,15 @@ def acceptance(preset, name=ACCEPTANCE_NAME, tmp_parent=None):
         packet = pk.stdout.decode("utf-8", errors="replace")
         checks.append(("packet", "context_packet.py builds in the fork (default profile, as run.py uses)",
                        pk.returncode == 0 and bool(packet.strip()), pk.stderr.decode("utf-8", errors="replace")[-300:]))
-        checks.append(("packet", "within default budget (12000 bytes / 120 lines)",
-                       len(pk.stdout) <= 12000 and len(packet.splitlines()) <= 120,
-                       (len(pk.stdout), len(packet.splitlines()))))
+        # Not a budget check: context_packet.py truncates to its budget itself,
+        # so that could never fail. What can: the provenance headers surviving
+        # truncation, and the packet naming the fork's own active preset.
+        heads = ["Generated:", "## Roadmap", "## Active Preset", "## Recent Session Facts"]
+        packet_lines = packet.splitlines()
+        missing_heads = [h for h in heads if not any(l.startswith(h) for l in packet_lines)]
+        checks.append(("packet", "provenance headers survive truncation", not missing_heads, missing_heads))
+        checks.append(("packet", f"Active Preset section names the fork's preset ({preset})",
+                       f"\n## Active Preset\n{preset}\n" in packet, packet[packet.find("## Active Preset"):][:120]))
         info.append(f"context packet: {len(pk.stdout)} bytes, {len(packet.splitlines())} lines")
 
         # --- step 4: session record -----------------------------------------
@@ -591,27 +600,18 @@ def acceptance(preset, name=ACCEPTANCE_NAME, tmp_parent=None):
                     py_hits.append(rel)
                 continue
             surfaces.append((_normalize_surface(rel, run_id), text))
-        protected_only = []
         for surface, text in surfaces:
             hits = _identity_hits(text)
             if not hits:
                 continue
-            stripped = text
-            for tok in PROTECTED_TOKENS:
-                stripped = stripped.replace(tok, "")
-            if not _identity_hits(stripped):
-                protected_only.append(surface)  # grouped below: one cause, many docs
-                continue
             samples = []
-            for l in stripped.splitlines():
+            for l in text.splitlines():
                 l = (l.replace(run_id, "<run-id>") if run_id else l).strip()
-                if _identity_hits(l) and l[:160] not in samples:
+                if _identity_hits(l):
                     samples.append(l[:160])
-            findings.append({"kind": "identity", "surface": surface,
-                             "detail": f"{hits}: " + " | ".join(samples[:4]) + (" | …" if len(samples) > 4 else "")})
-        if protected_only:
-            findings.append({"kind": "identity", "surface": "runtime filename " + "/".join(PROTECTED_TOKENS),
-                             "detail": f"referenced in {len(protected_only)} file(s): {', '.join(protected_only)}"})
+            shown = list(dict.fromkeys(samples))
+            findings.append({"kind": "identity", "surface": surface, "samples": samples,
+                             "detail": f"{hits}: " + " | ".join(shown[:4]) + (" | …" if len(shown) > 4 else "")})
         info.append(f"identity in .py source (informational — whitelabel.html says leave pipeline/generator "
                     f"mechanism alone): {len(py_hits)} file(s), e.g. {', '.join(py_hits[:4])}")
 
@@ -637,13 +637,17 @@ def report_acceptance(result, known=None):
     unknown, seen_known = [], []
     for f in result["findings"]:
         key = (f["kind"], f["surface"])
-        cause = known.get(key)
-        tag = "FINDING (known)" if cause else "FINDING"
+        cause, known_samples = known.get(key, (None, ()))
+        extra = list((Counter(f.get("samples", [f["detail"]])) - Counter(known_samples)).elements())
+        tag = "FINDING (known)" if cause and not extra else "FINDING"
         print(f"  [{tag}] {f['kind']} @ {f['surface']}: {f['detail']}")
         if cause:
             print(f"      cause: {cause}")
+        if cause and not extra:
             seen_known.append(key)
         else:
+            if cause:
+                print(f"      not covered by KNOWN_FINDINGS: {' | '.join(extra[:4])}")
             unknown.append(key)
     for line in result["info"]:
         print(f"  [INFO] {line}")
@@ -735,11 +739,12 @@ def self_test():
         )
 
     # Scan/rename helpers, pure: env var names are not identity, the
-    # lowercase slug is, and runtime filenames survive the rename pass.
+    # lowercase slug is, and the provider-config filename follows the slug.
     check("identity scan ignores AGENTIC_LIGHT_* env names", _identity_hits("AGENTIC_LIGHT_TEST_MODE") == [])
     check("identity scan catches the lowercase slug", _identity_hits("x agentic-light") == ["agentic-light"])
-    renamed = _rename_identity("Agentic Light reads .agentic-light.conf", "Acme")
-    check("rename pass protects runtime filenames", renamed == "Acme reads .agentic-light.conf", renamed)
+    renamed = _rename_identity("Agentic Light reads .agentic-light.conf", "Acme Two")
+    check("rename pass moves the provider-config filename to .<slug>.conf",
+          renamed == "Acme Two reads .acme-two.conf", renamed)
 
     # Acceptance fixtures: a real white-labeled fork per in-focus preset,
     # run end to end. Every non-identity check must pass; findings must all
@@ -749,6 +754,31 @@ def self_test():
         failing, unknown, _ = report_acceptance(acceptance(preset))
         check(f"acceptance ({preset}): all checks pass", not failing, failing)
         check(f"acceptance ({preset}): no findings outside KNOWN_FINDINGS", not unknown, unknown)
+
+    # Known surfaces stay guarded: a known finding covers only its exact
+    # samples, so a new leak on the same surface — or the known line twice —
+    # is unknown. Pure multiset case first, then a real planted leak: an
+    # extra identity line in the fork's context packet, which reaches both
+    # the "context packet" and "coder prompt" surfaces.
+    hdr = _PACKET_HEADER[0]
+    twice = {"preset": "synthetic", "checks": [], "info": [], "findings": [
+        {"kind": "identity", "surface": "context packet", "detail": hdr, "samples": [hdr, hdr]}]}
+    _, unknown, _ = report_acceptance(twice)
+    check("known surface: a duplicated known line is unknown", unknown == [("identity", "context packet")], unknown)
+
+    def plant_packet_leak(root):
+        f = root / "System_Config" / "context_packet.py"
+        text = f.read_text(encoding="utf-8")
+        m = re.search(r'^( *)lines\.append\("# Agentic Light Context Packet"\)$', text, re.MULTILINE)
+        if not m:
+            raise RuntimeError("mutation anchor (context packet header line) not found")
+        f.write_text(text[:m.end()] + f'\n{m.group(1)}lines.append("Powered by Agentic Light")' + text[m.end():],
+                     encoding="utf-8")
+
+    failing, unknown, _ = report_acceptance(acceptance("cli-tool", mutate=plant_packet_leak))
+    check("known surface: planted leak leaves every check passing", not failing, failing)
+    check("known surface: planted leak in the packet is an unknown finding (packet + coder prompt)",
+          {("identity", "context packet"), ("identity", "coder prompt")} <= set(unknown), unknown)
 
     if failures:
         print("white_label_check: self-test FAILED:")
@@ -769,6 +799,12 @@ def main():
                         help="build a white-labeled fork per preset (--preset, else "
                              + ", ".join(ACCEPTANCE_PRESETS) + ") and run it end to end")
     args = parser.parse_args()
+    if args.self_test or args.acceptance:
+        # SIGTERM takes SIGINT's path: KeyboardInterrupt unwinds through the
+        # finally/TemporaryDirectory cleanup instead of orphaning temp forks.
+        def _sigterm(signum, frame):
+            raise KeyboardInterrupt(f"signal {signum}")
+        signal.signal(signal.SIGTERM, _sigterm)
     if args.self_test:
         self_test()
         return 0

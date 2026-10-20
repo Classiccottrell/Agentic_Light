@@ -207,6 +207,7 @@ def self_test():
         (ws / "brain" / "weekly_logs" / "2026").mkdir(parents=True)
         shutil.copy(Path(__file__), syscfg / "friday_process.py")
         shutil.copy(Path(__file__).parent / "config.py", syscfg / "config.py")
+        shutil.copy(Path(__file__).parent / "identity.py", syscfg / "identity.py")
 
         note = ws / "brain" / "weekly_logs" / "2026" / "2026-W10.md"
         note.write_text("# W10 2026\n---\n\n## Agent Sessions\n> auto\n\n---\n", encoding="utf-8")

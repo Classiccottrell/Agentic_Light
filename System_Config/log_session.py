@@ -171,6 +171,7 @@ def self_test():
     shutil.copy(Path(__file__), ws / "System_Config" / "log_session.py")
     shutil.copy(ROOT / "System_Config" / "monday_init.py", ws / "System_Config" / "monday_init.py")
     shutil.copy(ROOT / "System_Config" / "config.py", ws / "System_Config" / "config.py")
+    shutil.copy(ROOT / "System_Config" / "identity.py", ws / "System_Config" / "identity.py")
     (ws / "brain" / "weekly_logs" / "Weekly_Note_Template.md").write_text(
         "# W{{WEEK_NUM}} {{YEAR}} — TEMPLATE-MARKER\n---\n\n## Agent Sessions\n"
         "> Auto-appended after each launcher-completed session.\n\n---\n",

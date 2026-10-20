@@ -116,10 +116,12 @@ def main():
 
     # No-model gemini sub-branch: force the fallthrough past
     # AGENTIC_LIGHT_MODEL_GEMINI and away from any real, gitignored
-    # .agentic-light.conf on this machine, so the --add-dir assertion
-    # covers both sub-branches, not just the --model one above.
+    # provider config (.<slug>.conf or the legacy filename) on this machine,
+    # so the --add-dir assertion covers both sub-branches, not just the
+    # --model one above.
     del os.environ["AGENTIC_LIGHT_MODEL_GEMINI"]
     config.AGENT_CONFIG = TMP_ROOT / "none.conf"
+    config.LEGACY_AGENT_CONFIG = TMP_ROOT / "none-legacy.conf"
     reset_calls()
     ra.run_agent("gemini prompt")
     check("gemini no-model --add-dir",
@@ -152,6 +154,21 @@ def main():
                           "--permission-mode acceptEdits --max-budget-usd 2.00"),
           CALLS.read_text(encoding="utf-8") if CALLS.exists() else "<no calls file>")
     check("claude call count", calls_line_count() == 1, calls_line_count())
+
+    # Provider-config filename: .<slug>.conf from identity.json, with a read
+    # fallback to the legacy filename when only that exists.
+    saved = (config.AGENT_CONFIG, config.LEGACY_AGENT_CONFIG)
+    config.AGENT_CONFIG = None
+    check("conf filename derives from the default slug",
+          config.agent_config_path() == config.WORKSPACE / ".agentic-light.conf", config.agent_config_path())
+    slug_conf, legacy_conf = TMP_ROOT / ".acme.conf", TMP_ROOT / ".legacy.conf"
+    config.AGENT_CONFIG, config.LEGACY_AGENT_CONFIG = slug_conf, legacy_conf
+    check("conf: neither file -> empty", config.config_value("PROVIDERS") == "")
+    legacy_conf.write_text("PROVIDERS=codex\n", encoding="utf-8")
+    check("conf: legacy file read when the slug file is absent", config.config_value("PROVIDERS") == "codex")
+    slug_conf.write_text("PROVIDERS=ollama\n", encoding="utf-8")
+    check("conf: slug file wins over legacy", config.config_value("PROVIDERS") == "ollama")
+    config.AGENT_CONFIG, config.LEGACY_AGENT_CONFIG = saved
 
     check("validate_provider_lists valid", config.validate_provider_lists("claude,codex", "codex,claude") is True)
     for left, right in (("claude,claude", "claude"), ("wat", "wat"), ("claude,codex", "claude"), ("claude,", "claude")):

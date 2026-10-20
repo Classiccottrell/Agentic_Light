@@ -513,6 +513,11 @@ def main():
     # clip. Kept out of run() so --self-test's direct, in-process calls
     # (which inject their own fake run_agent_fn and never need a real
     # provider) don't trigger it repeatedly.
+    try:
+        config.identity.load_identity()  # the provider config's filename derives from it
+    except config.identity.IdentityError as e:
+        print(f"daily_ingest.py: invalid identity: {e}", file=sys.stderr)
+        return 1
     config.resolve_agent_provider()
     if not config.validate_config():
         print("config.py: configuration warnings above — some scripts may misbehave", file=sys.stderr)

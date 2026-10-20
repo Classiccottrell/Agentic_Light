@@ -23,8 +23,11 @@ python3 System_Config/test_providers.py  # fake-provider regression check
 exists yet, and confirms there's no background automation. `bootstrap.py`
 itself (no flags) runs the interactive checkbox-style setup: enable/disable
 each provider, set priority order, optionally set a model per provider. It
-writes the result to `.agentic-light.conf` at the repo root (gitignored,
-mode `600`, parsed as text — never sourced as shell). Environment variables
+writes the result to `.<slug>.conf` at the repo root — `.agentic-light.conf`
+for this repo's slug in `System_Config/identity.json` (gitignored, mode
+`600`, parsed as text — never sourced as shell). After a slug change, a
+config written under the previous default filename is still read until
+`bootstrap.py` is re-run. Environment variables
 (`AGENTIC_LIGHT_PROVIDERS`, `AGENTIC_LIGHT_PRIORITY`,
 `AGENTIC_LIGHT_MODEL_<PROVIDER>`) override it non-interactively.
 
