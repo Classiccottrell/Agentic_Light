@@ -56,6 +56,14 @@ class ContextAutoSummaryFixtures(unittest.TestCase):
         self.invoke(expected=1)
         self.assertEqual(output.read_text(encoding="utf-8"), "human overview\n")
 
+    def test_republishes_a_large_generated_archive(self):
+        for number in range(200):
+            self.record("codex", "unsorted", "2026-10-12", f"session-{number}")
+        self.invoke()
+        archive = self.vault / "context/weekly-sources/2026-W42.md"
+        self.assertGreater(archive.stat().st_size, 16384)
+        self.invoke()
+
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")

@@ -18,6 +18,7 @@ AUTO_SUMMARY_MARKER = b"<!-- context-auto-summary: generated v1 -->\n"
 LINK_START = b"<!-- context-weekly-link:start -->"
 LINK_END = b"<!-- context-weekly-link:end -->"
 INTAKE_MARKER = b"<!-- generated-context-intake-v1 -->"
+GENERATED_ARCHIVE_LIMIT = 1024 * 1024
 TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 HASH = re.compile(r"^[0-9a-f]{64}$")
 CLASSIFICATIONS = ("work", "personal", "unsorted")
@@ -208,7 +209,7 @@ def sessions_text(week, records):
 def generated_archive(path, marker=ARCHIVE_MARKER, label="weekly archive"):
     if not os.path.lexists(path):
         return None
-    data = read_bytes(path, label)
+    data = read_bytes(path, label, GENERATED_ARCHIVE_LIMIT)
     if not data.startswith(marker):
         fail(label + " conflicts with human file")
     return data
@@ -224,7 +225,7 @@ def write_generated(path, expected, data, marker=ARCHIVE_MARKER, label="weekly a
         with os.fdopen(fd, "wb") as output:
             output.write(data)
         return
-    if read_bytes(path, label) != expected or not expected.startswith(marker):
+    if read_bytes(path, label, max(len(expected), 16384)) != expected or not expected.startswith(marker):
         fail(label + " changed during publish")
     fd, temporary = tempfile.mkstemp(prefix=".context-weekly-", dir=path.parent)
     try:
