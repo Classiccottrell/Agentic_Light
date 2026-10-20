@@ -23,4 +23,5 @@ brain/index/
 # Private session source manifests and generated context records
 System_Config/context-sources.local.json
 System_Config/context-manifest.local.json
+System_Config/context-manifest.local.json.context-discover
 brain/context/
