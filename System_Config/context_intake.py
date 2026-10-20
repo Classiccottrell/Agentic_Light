@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import stat
 import sys
+import brain_lock
 
 
 MARKER = "<!-- generated-context-intake-v1 -->"
@@ -197,6 +198,13 @@ def main(argv=None):
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--date", required=True)
     args = parser.parse_args(argv)
+    with brain_lock.guard("context_intake", "wait", brain_lock.short_wait_seconds()) as held:
+        if not held:
+            return 75   # EX_TEMPFAIL: brain lock busy, nothing written
+        return _run(args)
+
+
+def _run(args):
     try:
         print(json.dumps(publish(args.vault, args.manifest, args.date), sort_keys=True))
     except ValueError as error:

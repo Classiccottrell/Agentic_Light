@@ -17,6 +17,7 @@ the target file (never auto-created). If the default current-week note is
 missing, monday_init.py is run first to create it from the template.
 """
 import argparse
+import json
 import os
 import re
 import shutil
@@ -26,8 +27,11 @@ import tempfile
 from datetime import date
 from pathlib import Path
 
+import brain_lock
+
 ROOT = Path(os.path.abspath(__file__)).parent.parent
 BRAIN = ROOT / "brain"
+PENDING = ROOT / "System_Config" / "logs" / "log_session.pending"
 
 
 def _child_env():
@@ -57,8 +61,8 @@ def _atomic_write(path, text):
         raise
 
 
-def append_session_line(note_path, provider, role, status, reason, record_id=""):
-    ts = _now_str()
+def append_session_line(note_path, provider, role, status, reason, record_id="", ts=None):
+    ts = ts or _now_str()
     suffix = f" · [[{record_id}|session record]]" if record_id else ""
     line = f"- {ts}: {provider} / {role} — exit {status} ({reason}){suffix}"
     text = note_path.read_text(encoding="utf-8")
@@ -199,6 +203,7 @@ def self_test():
     shutil.copy(Path(__file__), ws / "System_Config" / "log_session.py")
     shutil.copy(ROOT / "System_Config" / "monday_init.py", ws / "System_Config" / "monday_init.py")
     shutil.copy(ROOT / "System_Config" / "config.py", ws / "System_Config" / "config.py")
+    shutil.copy(ROOT / "System_Config" / "brain_lock.py", ws / "System_Config" / "brain_lock.py")
     shutil.copy(ROOT / "System_Config" / "context_cadence.py", ws / "System_Config" / "context_cadence.py")
     (ws / "brain" / "weekly_logs" / "Weekly_Note_Template.md").write_text(
         "# W{{WEEK_NUM}} {{YEAR}} — TEMPLATE-MARKER\n---\n\n## Agent Sessions\n"
@@ -312,16 +317,75 @@ def main():
     if any(metadata) and not all(metadata):
         print("session metadata requires --task, --target-repo, --run-id, --branch, and --log", file=sys.stderr)
         return 1
-    record_id = ""
     if all(metadata):
-        try:
-            record_id = write_session_record(args.provider, args.role, args.status, args.reason,
-                                             args.task, args.target_repo, args.run_id, args.branch, args.log)
+        try:   # validate up front so a bad call fails loudly now instead of being spooled and rejected later
+            session_record_text(args.provider, args.role, args.status, args.reason, *metadata)
         except ValueError as error:
             print("session record failed: " + str(error), file=sys.stderr)
             return 1
 
-    note = Path(args.note) if args.note else None
+    entry = {"provider": args.provider, "role": args.role, "status": args.status, "reason": args.reason,
+             "note": args.note, "metadata": list(metadata) if all(metadata) else [], "ts": _now_str()}
+
+    # Shared brain lock, session-hook budget: wait only BRAIN_LOCK_HOOK_WAIT seconds (default 5). If a long
+    # ingest holds it, SPOOL the whole entry to logs/log_session.pending (outside brain/) and exit 0; the next
+    # run that gets the lock flushes it first. Never dropped, never written unlocked. A child of a lock holder
+    # (e.g. the pipeline under a Friday run) re-enters via BRAIN_LOCK_OWNER_PID and writes at once.
+    if brain_lock.acquire("wait", brain_lock.hook_wait_seconds()) != 0:
+        _spool(entry)
+        print(f"log_session.py: brain lock busy — spooled to {PENDING}; the next run flushes it", file=sys.stderr)
+        return 0
+    try:
+        _flush_pending()
+        return _process(entry)
+    finally:
+        brain_lock.release()
+
+
+def _spool(entry):
+    PENDING.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(PENDING), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    try:
+        os.write(fd, (json.dumps(entry, sort_keys=True) + "\n").encode("utf-8"))   # one atomic append per entry
+    finally:
+        os.close(fd)
+
+
+def _flush_pending():
+    """Replay spooled entries in order (called ONLY while holding the brain lock). The file is renamed
+    first so entries spooled meanwhile by other processes land in a fresh file, not in the one being read."""
+    if PENDING.is_file():
+        try:
+            os.replace(str(PENDING), str(PENDING.with_name(PENDING.name + ".flushing.%d" % os.getpid())))
+        except OSError:
+            return
+    for path in sorted(PENDING.parent.glob(PENDING.name + ".flushing.*")):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                failed = _process(json.loads(line)) != 0
+            except (ValueError, KeyError, TypeError):
+                failed = True
+            if failed:   # never loop on a poison entry: park it where a human can look
+                with open(str(PENDING.with_name(PENDING.name + ".failed")), "a", encoding="utf-8", newline="\n") as parked:
+                    parked.write(line + "\n")
+        path.unlink()
+
+
+def _process(entry):
+    """Write one entry (session record + weekly-note line). Caller holds the brain lock."""
+    record_id = ""
+    if entry["metadata"]:
+        task, target_repo, run_id, branch, log_path = entry["metadata"]
+        try:
+            record_id = write_session_record(entry["provider"], entry["role"], entry["status"], entry["reason"],
+                                             task, target_repo, run_id, branch, log_path)
+        except ValueError as error:
+            print("session record failed: " + str(error), file=sys.stderr)
+            return 1
+
+    note = Path(entry["note"]) if entry["note"] else None
     if note is not None:
         if not note.is_file():
             print(f"log_session.py: no weekly note at {note} — skipping (explicit --note is never auto-created)", file=sys.stderr)
@@ -343,7 +407,7 @@ def main():
                 print(f"log_session.py: weekly note still missing at {note} after monday_init.py — skipping", file=sys.stderr)
                 return 0
 
-    append_session_line(note, args.provider, args.role, args.status, args.reason, record_id)
+    append_session_line(note, entry["provider"], entry["role"], entry["status"], entry["reason"], record_id, ts=entry["ts"])
     return 0
 
 

@@ -10,6 +10,7 @@ import sys
 import tempfile
 
 from context_intake import CLASSIFICATIONS, FIELDS, digest, regular_file, token
+import brain_lock
 
 
 def fail(message):
@@ -157,6 +158,13 @@ def main(argv=None):
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--bin", default="mempalace")
     args = parser.parse_args(argv)
+    with brain_lock.guard("context_mempalace", "wait", brain_lock.short_wait_seconds()) as held:
+        if not held:
+            return 75   # EX_TEMPFAIL: brain lock busy, nothing written
+        return _run(args)
+
+
+def _run(args):
     try:
         print(json.dumps(publish(args.vault, args.manifest, args.bin), sort_keys=True))
     except ValueError as error:

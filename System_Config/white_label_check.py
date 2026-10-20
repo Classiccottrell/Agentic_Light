@@ -12,7 +12,7 @@ from pathlib import Path
 
 REAL_ROOT = Path(__file__).resolve().parent.parent
 GENERATORS = ["gen_governance.py", "gen_site.py", "gen_preset_pages.py"]
-RUNTIME_SCRIPTS = ["config.py", "run_agent.py", "route_skill.py", "context_packet.py"]
+RUNTIME_SCRIPTS = ["config.py", "brain_lock.py", "run_agent.py", "route_skill.py", "context_packet.py"]
 CONTEXT_SCRIPTS = ["context.py", "context_catalog.py", "context_curate.py", "context_validate.py", "log_session.py"]
 
 

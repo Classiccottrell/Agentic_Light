@@ -13,6 +13,7 @@ Usage: python3 System_Config/friday_process.py [YYYY-Www]
        python3 System_Config/friday_process.py --self-test
 """
 import argparse
+import contextlib
 import os
 import re
 import sys
@@ -20,6 +21,7 @@ import time
 from datetime import date
 from pathlib import Path
 
+import brain_lock
 import config
 import context_cadence
 
@@ -109,25 +111,28 @@ def run(week_tag_arg, dry_run, log):
         log(f"no weekly note for {week_tag} at {note_abs} — nothing to process; exiting")
         return 0
 
-    if not dry_run:
-        context_cadence.friday(today, week_tag, note_abs, log)
-
-    note_text = note_abs.read_text(encoding="utf-8")
-    if f"{today}: Friday close-out" in note_text:
-        log(f"already closed out for {today} — nothing to do; exiting")
-        return 0
-
-    if dry_run:
-        print(f"── DRY RUN — would process weekly_logs/{year}/{week_tag}.md ──")
-        print("  -> append close-out line to '## Agent Sessions' (or legacy '## Claude Sessions')")
-        print(f"  -> fill the Master Note row's Summary cell for [[{week_tag}]] (backup + validate + rollback)")
-        log("dry run")
-        return 0
-
-    lock_dir = config.LOG_DIR / "friday_process.lock"
-    with config.acquire_lock(lock_dir, max_age=600) as held:
+    # ONE shared brain lock for the whole write phase (cadence hooks, note read, close-out, Master Note). The
+    # idempotency check below runs UNDER it, so a second run that waited sees the first run's stamp and exits.
+    # --dry-run writes nothing and takes no lock.
+    guarded = contextlib.nullcontext(True) if dry_run else brain_lock.guard("friday_process", "wait", brain_lock.wait_seconds())
+    with guarded as held:
         if not held:
-            log(f"another friday_process holds {lock_dir} — skipping")
+            log("brain lock busy — close-out NOT written; exiting")
+            return 75
+
+        if not dry_run:
+            context_cadence.friday(today, week_tag, note_abs, log)
+
+        note_text = note_abs.read_text(encoding="utf-8")
+        if f"{today}: Friday close-out" in note_text:
+            log(f"already closed out for {today} — nothing to do; exiting")
+            return 0
+
+        if dry_run:
+            print(f"── DRY RUN — would process weekly_logs/{year}/{week_tag}.md ──")
+            print("  -> append close-out line to '## Agent Sessions' (or legacy '## Claude Sessions')")
+            print(f"  -> fill the Master Note row's Summary cell for [[{week_tag}]] (backup + validate + rollback)")
+            log("dry run")
             return 0
 
         closeout = f"- {today}: Friday close-out — week closed out"
@@ -211,7 +216,7 @@ def self_test():
         (ws / "brain" / "weekly_logs" / "2026").mkdir(parents=True)
         shutil.copy(Path(__file__), syscfg / "friday_process.py")
         shutil.copy(Path(__file__).parent / "config.py", syscfg / "config.py")
-        for name in ("context_cadence.py", "context_weekly.py", "context_auto_summary.py"):
+        for name in ("brain_lock.py", "context_cadence.py", "context_weekly.py", "context_auto_summary.py"):
             shutil.copy(Path(__file__).parent / name, syscfg / name)
 
         note = ws / "brain" / "weekly_logs" / "2026" / "2026-W10.md"

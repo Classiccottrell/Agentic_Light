@@ -253,6 +253,10 @@ outright (exit 1) — without this, two concurrent runs could interleave the
 coder agent's git operations (branch creation, commits) in the same working
 tree and corrupt it. Runs against different target repos are unaffected. A
 lock older than 2h is treated as abandoned (crashed run) and reclaimed.
+This is a per-target-repo run lock, not a `brain/` lock: the pipeline's
+`log_session.py` and curation children take the shared brain lock
+(`System_Config/brain_lock.py`) themselves, and a busy brain lock spools the
+session line instead of failing the run.
 
 ## Halt-on-failure guarantee
 

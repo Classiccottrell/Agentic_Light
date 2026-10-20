@@ -23,6 +23,7 @@ import time
 from datetime import date
 from pathlib import Path
 
+import brain_lock
 import config
 
 # daily_ingest's OWN defaults (180s / $1.00) differ from run_agent.py's
@@ -249,14 +250,12 @@ def run(dry_run=False, run_agent_fn=None):
     today = date.today().isoformat()
     weekly_note = f"weekly_logs/{year}/{year}-W{week}.md"
 
-    config.ensure_current_week_raw_folder()
-
-    lock_dir = log_dir / "daily_ingest.lock"
-    lock_max_age = (int(os.environ.get("MAX_SECONDS", ra.MAX_SECONDS)) + 30) * MAX_CLIPS_PER_RUN + 300
-    with config.acquire_lock(lock_dir, max_age=lock_max_age) as held:
+    with brain_lock.guard("daily_ingest", "skip", 0) as held:
         if not held:
-            log(f"another daily_ingest holds {lock_dir} — skipping")
+            log("brain lock held by another writer — skipping this run")
             return 0
+
+        config.ensure_current_week_raw_folder()
 
         if not dry_run:
             context_cadence.collect(today, log)
@@ -392,6 +391,9 @@ def self_test():
             print(f"FAIL: {label}: {detail}", file=sys.stderr)
 
     ws = Path(tempfile.mkdtemp(prefix="agentic-light-daily-ingest-test."))
+    lock_env = {k: os.environ.get(k) for k in ("BRAIN_LOCK_TEST", "BRAIN_LOCK_DIR")}
+    os.environ["BRAIN_LOCK_TEST"] = "1"                       # in-process run() must not touch the real lock dir
+    os.environ["BRAIN_LOCK_DIR"] = str(ws / "brain.lock.d")
     try:
         (ws / "brain" / "wiki").mkdir(parents=True)
         (ws / "brain" / "weekly_logs").mkdir(parents=True)
@@ -406,7 +408,7 @@ def self_test():
         # failure here would otherwise be invisible; see the checks below).
         syscfg = ws / "System_Config"
         syscfg.mkdir(exist_ok=True)
-        for name in ("context.py", "context_curate.py", "context_catalog.py", "context_validate.py"):
+        for name in ("context.py", "context_curate.py", "context_catalog.py", "context_validate.py", "brain_lock.py"):
             shutil.copy(Path(__file__).parent / name, syscfg / name)
 
         import config as _cfg  # same cached module object as the top-level import
@@ -538,6 +540,11 @@ def self_test():
               all("too-deep" not in c.name for c in find_candidate_clips(_cfg.RAW)))
     finally:
         _cfg.WORKSPACE, _cfg.BRAIN, _cfg.RAW, _cfg.LOG_DIR = orig
+        for key, value in lock_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
         from test_support import rmtree_force
         try:
             rmtree_force(ws)
