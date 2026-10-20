@@ -117,24 +117,37 @@ def publish(vault_path, manifest_path, binary):
         if initialized.returncode:
             fail("MemPalace initialization failed")
     indexed = skipped = deferred = 0
-    for source, before, row in records:
-        selected = mode(source, row)
-        if selected is None:
-            skipped += 1
-            continue
-        staged = snapshot(vault, source, before, row)
-        if staged is None:
-            deferred += 1
-            continue
-        try:
-            result = subprocess.run([binary, "--palace", str(palace), "mine", str(staged),
-                                     "--mode", selected, "--wing", row["classification"], "--direct"],
-                                    stdin=subprocess.DEVNULL, text=True, encoding="utf-8", capture_output=True, timeout=300)
-        except (OSError, subprocess.TimeoutExpired):
-            fail("MemPalace mine failed")
-        if result.returncode:
-            fail("MemPalace mine failed")
-        indexed += 1
+    staging = context_dir(vault) / "mempalace-staging"
+    staging.mkdir(parents=True, exist_ok=True)
+    directory(staging, "MemPalace staging")
+    with tempfile.TemporaryDirectory(prefix=".mempalace-batch-", dir=staging) as batch:
+        groups = {}
+        for source, before, row in records:
+            selected = mode(source, row)
+            if selected is None:
+                skipped += 1
+                continue
+            staged = snapshot(vault, source, before, row)
+            if staged is None:
+                deferred += 1
+                continue
+            key = (selected, row["classification"])
+            group = groups.setdefault(key, Path(batch) / selected / row["classification"])
+            group.mkdir(parents=True, exist_ok=True)
+            try:
+                os.link(staged, group / staged.name)
+            except OSError:
+                fail("MemPalace batch staging failed")
+            indexed += 1
+        for (selected, classification), group in sorted(groups.items()):
+            try:
+                result = subprocess.run([binary, "--palace", str(palace), "mine", str(group),
+                                         "--mode", selected, "--wing", classification, "--direct"],
+                                        stdin=subprocess.DEVNULL, text=True, encoding="utf-8", capture_output=True, timeout=300)
+            except (OSError, subprocess.TimeoutExpired):
+                fail("MemPalace mine failed")
+            if result.returncode:
+                fail("MemPalace mine failed")
     return {"deferred": deferred, "indexed": indexed, "skipped": skipped}
 
 

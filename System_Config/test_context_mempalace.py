@@ -65,13 +65,14 @@ class ContextMemPalaceFixtures(unittest.TestCase):
         ]))
         self.assertEqual(json.loads(result.stdout), {"deferred": 0, "indexed": 4, "skipped": 1})
         calls = self.trace.read_text(encoding="utf-8").splitlines()
-        self.assertEqual(len(calls), 5)
+        self.assertEqual(len(calls), 3)
         self.assertEqual(sum(" init " in call for call in calls), 1)
         self.assertIn(" init " + str(self.vault / "context"), calls[0])
-        self.assertEqual(sum("--mode convos" in call for call in calls), 3)
+        self.assertEqual(sum("--mode convos" in call for call in calls), 1)
         self.assertEqual(sum("--mode projects" in call for call in calls), 1)
         self.assertTrue((self.vault / "context/mempalace").is_dir())
-        staged = sorted((self.vault / "context/mempalace-staging").iterdir())
+        staged = sorted((self.vault / "context/mempalace-staging").rglob("*"))
+        staged = [path for path in staged if path.is_file()]
         self.assertEqual(len(staged), 4)
         self.assertTrue(all(SECRET in path.read_text(encoding="utf-8") for path in staged))
 
