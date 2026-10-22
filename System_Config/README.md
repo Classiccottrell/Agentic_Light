@@ -566,11 +566,17 @@ run through the daily, Monday, and Friday launchd jobs installed by
 `brain/context/weekly-evidence/2026-W43-work.md` (ignored, mode 0600).
 Classification and one to twelve explicit `--source` record stems are required;
 timezone defaults to UTC. Each selected record must have been observed in that
-ISO week and class. It deduplicates provider/full hash within the selected class, and reads only private Claude `.jsonl` MemPalace snapshots whose full hash
+ISO week and class. It deduplicates provider/full hash within the selected class, and reads only private Claude and Codex `.jsonl` MemPalace snapshots whose full hash
 matches. Original transcript paths are unnecessary. Only timestamped user and
 assistant text dated in that local week becomes excerpts; observation dates,
-`age`, and file times never establish activity dates. Other providers are counted
-as unsupported/date-unknown. Missing snapshots and malformed/oversized rows are
+`age`, and file times never establish activity dates. Codex rollouts date each
+message by its own row timestamp; user/assistant `response_item` messages only,
+no developer/tool/reasoning rows, assistant commentary, or injected context
+(`injected_excluded`). Forked rollouts replay parent history with fresh
+timestamps, so rows before `subagent_history_start_ordinal` (or the whole file
+when that header is unreadable) are `undated` and contribute nothing. Delegated
+sub-agent prompts are labeled `delegated-prompt`, not `user`. Antigravity and
+web-clipper are counted as unsupported/date-unknown. Missing snapshots and malformed/oversized rows are
 visible gaps. Limits: 32 MiB per snapshot, 64 MiB total, 32 KiB per row, 16 excerpts
 of 512 characters, 64 KiB packet. The excerpt cap reserves space even for
 HTML/Markdown escaping. Each deduplicated selected source receives an equal

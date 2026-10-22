@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build selected weekly activity evidence from verified private Claude snapshots."""
+"""Build selected weekly activity evidence from verified private Claude and Codex snapshots."""
 import argparse
 import datetime as dt
 import hashlib
@@ -19,6 +19,8 @@ MAX_ROW = 32768
 MAX_EXCERPTS = 16
 MAX_SOURCES = 12
 MAX_TEXT = 512
+# Codex injects these into user-role messages; they are system context, not human activity.
+INJECTED = ('<environment_context', '<hook_prompt', '<image', '# AGENTS.md instructions')
 
 
 def safe_directories(path):
@@ -26,8 +28,17 @@ def safe_directories(path):
         weekly.directory(parent, 'evidence directory')
 
 
-def excerpts(data, start, end, zone, counts, quota):
-    emitted = 0
+def stamped_day(row, zone):
+    stamp = row.get('timestamp')
+    if not isinstance(stamp, str):
+        raise ValueError()
+    timestamp = dt.datetime.fromisoformat(stamp.replace('Z', '+00:00'))
+    if timestamp.tzinfo is None:
+        raise ValueError()
+    return timestamp.astimezone(zone).date()
+
+
+def claude_messages(data, start, end, zone, counts):
     for raw in data.splitlines():
         if len(raw) > MAX_ROW:
             counts['gaps'] += 1
@@ -38,13 +49,7 @@ def excerpts(data, start, end, zone, counts, quota):
                 raise ValueError()
             if row.get('isMeta') or row.get('type') not in ('user', 'assistant'):
                 continue
-            stamp = row.get('timestamp')
-            if not isinstance(stamp, str):
-                raise ValueError()
-            timestamp = dt.datetime.fromisoformat(stamp.replace('Z', '+00:00'))
-            if timestamp.tzinfo is None:
-                raise ValueError()
-            day = timestamp.astimezone(zone).date()
+            day = stamped_day(row, zone)
             if not start <= day <= end:
                 continue
             message = row.get('message')
@@ -56,21 +61,97 @@ def excerpts(data, start, end, zone, counts, quota):
                                     and block.get('type') == 'text' and isinstance(block.get('text'), str))
             if not isinstance(content, str) or not content.strip():
                 raise ValueError()
-            if emitted >= quota:
-                counts['gaps'] += 1
-                continue
-            text = ' '.join(content.split())
-            if len(text) > MAX_TEXT:
-                counts['gaps'] += 1
-            # Render transcript text as inert Markdown, never as source-supplied links or HTML.
-            text = text[:MAX_TEXT].replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            for character in ('\\', '`', '*', '_', '[', ']'):
-                text = text.replace(character, '\\' + character)
-            counts['excerpts'] += 1
-            emitted += 1
-            yield f"> {day.isoformat()} {row['type']}: {text}"
+            yield day, row['type'], content
         except (ValueError, TypeError, OverflowError, UnicodeError):
             counts['gaps'] += 1
+
+
+def codex_messages(data, start, end, zone, counts):
+    """Yield dated Codex rollout messages.
+
+    Every rollout row carries its own UTC timestamp. A forked rollout replays its parent's
+    history with fresh timestamps, so rows before the first session_meta's
+    subagent_history_start_ordinal are undated and never counted. Only response_item
+    messages from user/assistant count; injected context and assistant commentary do not.
+    """
+    lines = data.splitlines()
+    first = None
+    try:
+        if lines and len(lines[0]) <= MAX_ROW:
+            first = json.loads(lines[0])
+        meta = first['payload'] if first['type'] == 'session_meta' else None
+        if not isinstance(meta, dict):
+            raise ValueError()
+        history_start = None
+        if 'forked_from_id' in meta:
+            history_start = meta.get('subagent_history_start_ordinal')
+            if not isinstance(history_start, int) or isinstance(history_start, bool):
+                raise ValueError()
+    except (ValueError, TypeError, KeyError, UnicodeError):
+        # No readable fork authority: nothing in this file can be dated.
+        counts['gaps'] += 1
+        counts['undated'] += 1
+        return
+    label_user = 'delegated-prompt' if meta.get('parent_thread_id') else 'user'
+    for raw in lines[1:]:
+        if len(raw) > MAX_ROW:
+            counts['gaps'] += 1
+            continue
+        try:
+            row = json.loads(raw)
+            payload = row.get('payload') if isinstance(row, dict) else None
+            if (not isinstance(payload, dict) or row.get('type') != 'response_item' or payload.get('type') != 'message'
+                    or payload.get('role') not in ('user', 'assistant')):
+                continue
+            role = payload['role']
+            if history_start is not None:
+                ordinal = row.get('ordinal')
+                if not isinstance(ordinal, int) or isinstance(ordinal, bool) or ordinal < history_start:
+                    counts['undated'] += 1
+                    continue
+            day = stamped_day(row, zone)
+            if not start <= day <= end:
+                continue
+            if role == 'assistant' and payload.get('phase') == 'commentary':
+                continue
+            blocks = payload.get('content')
+            if not isinstance(blocks, list):
+                raise ValueError()
+            kind = 'input_text' if role == 'user' else 'output_text'
+            texts = [block['text'] for block in blocks if isinstance(block, dict)
+                     and block.get('type') == kind and isinstance(block.get('text'), str)]
+            kept = [text for text in texts if not text.lstrip().startswith(INJECTED)]
+            counts['injected_excluded'] += len(texts) - len(kept)
+            if not texts:
+                raise ValueError()
+            if kept:
+                yield day, label_user if role == 'user' else role, '\n'.join(kept)
+        except (ValueError, TypeError, OverflowError, UnicodeError):
+            counts['gaps'] += 1
+
+
+PROVIDERS = {'claude': claude_messages, 'codex': codex_messages}
+
+
+def excerpts(messages, counts, quota):
+    emitted = 0
+    for day, label, content in messages:
+        if not content.strip():
+            counts['gaps'] += 1
+            continue
+        if emitted >= quota:
+            counts['gaps'] += 1
+            continue
+        text = ' '.join(content.split())
+        if len(text) > MAX_TEXT:
+            counts['gaps'] += 1
+        # Render transcript text as inert Markdown, never as source-supplied links or HTML.
+        text = text[:MAX_TEXT].replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        for character in ('\\', '`', '*', '_', '[', ']'):
+            text = text.replace(character, '\\' + character)
+        counts['excerpts'] += 1
+        emitted += 1
+        yield f"> {day.isoformat()} {label}: {text}"
 
 
 def publish(vault_path, week, classification, timezone, sources):
@@ -96,14 +177,14 @@ def publish(vault_path, week, classification, timezone, sources):
     output = vault / 'context/weekly-evidence' / f'{week}-{classification}.md'
     if os.path.lexists(output.parent):
         safe_directories(output.parent)
-    counts = {'selected_source_records': len(set(sources)), 'sources': len(selected), 'excerpts': 0, 'gaps': 0, 'unsupported_date_unknown': 0}
+    counts = {'selected_source_records': len(set(sources)), 'sources': len(selected), 'excerpts': 0, 'gaps': 0, 'unsupported_date_unknown': 0, 'undated': 0, 'injected_excluded': 0}
     lines = [MARKER.decode().rstrip(), f'# Selected weekly activity evidence — {week} — {classification}', '',
              f'Timezone: {timezone}. Sources observed during {week}; observation dates do not establish activity dates.', '',
              'Private excerpts; review before sharing. Coverage includes only explicitly selected sources; automatic full-week coverage remains open.', '']
     total = 0
     for record in selected.values():
         lines.append(f"- [[source-records/{record['stem']}|{record['provider']} source record]]")
-        if record['provider'] != 'claude':
+        if record['provider'] not in PROVIDERS:
             counts['unsupported_date_unknown'] += 1
             continue
         staging = vault / 'context/mempalace-staging'
@@ -111,7 +192,7 @@ def publish(vault_path, week, classification, timezone, sources):
             counts['gaps'] += 1
             continue
         safe_directories(staging)
-        snapshot = staging / f"claude-{record['hash'][:12]}.jsonl"
+        snapshot = staging / f"{record['provider']}-{record['hash'][:12]}.jsonl"
         if not os.path.lexists(snapshot):
             counts['gaps'] += 1
             continue
@@ -125,11 +206,13 @@ def publish(vault_path, week, classification, timezone, sources):
         total += len(data)
         if hashlib.sha256(data).hexdigest() != record['hash']:
             weekly.fail('snapshot hash mismatch')
-        lines.extend(excerpts(data, start, end, zone, counts, max(1, MAX_EXCERPTS // len(selected))))
+        messages = PROVIDERS[record['provider']](data, start, end, zone, counts)
+        lines.extend(excerpts(messages, counts, max(1, MAX_EXCERPTS // len(selected))))
     if not counts['excerpts']:
         lines.extend(('', 'No verified activity evidence for this week.'))
     lines.extend(('', 'Coverage: ' + json.dumps(counts, sort_keys=True),
                   'Gaps count missing/oversized snapshots, invalid or oversized rows, and truncated/omitted excerpts.',
+                  'Undated counts Codex rows or files whose timestamps cannot be tied to their own activity (forked-history replays, unreadable fork header).',
                   'Unsupported/date-unknown sources contribute no content.', ''))
     data = '\n'.join(lines).encode('utf-8')
     if len(data) > 65536:

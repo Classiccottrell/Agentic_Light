@@ -72,10 +72,10 @@ class EvidenceTests(unittest.TestCase):
 
     def test_gaps_and_bounds(self):
         self.source([self.row(None), self.row('no timestamp'), self.row('2026-10-20T10:00:00'), self.row('2026-10-20T10:00:00Z', 'x' * 40000)])
-        for provider in ('codex', 'antigravity', 'web-clipper'):
+        for provider in ('antigravity', 'web-clipper'):
             self.source([], provider=provider)
         counts = self.invoke()
-        self.assertEqual(counts['unsupported_date_unknown'], 3)
+        self.assertEqual(counts['unsupported_date_unknown'], 2)
         self.assertEqual(counts['gaps'], 4)
         self.assertLess(self.output.stat().st_size, 65536)
 
@@ -161,6 +161,87 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(counts['excerpts'], 16)
         self.assertEqual(counts['gaps'], 24)
         self.assertLessEqual(len(self.output.read_bytes()), 65536)
+
+    def meta(self, **extra):
+        return {'type': 'session_meta', 'ordinal': 0, 'timestamp': '2026-10-20T09:00:00.000Z', 'payload': {'id': 'S', 'base_instructions': 'META_SECRET', **extra}}
+
+    def message(self, ordinal, stamp, text='codex included', role='user', phase=None, kind=None, rtype='response_item'):
+        payload = {'type': 'message', 'role': role, 'id': f'm{ordinal}',
+                   'content': [{'type': kind or ('input_text' if role == 'user' else 'output_text'), 'text': text}]}
+        if phase:
+            payload['phase'] = phase
+        return {'type': rtype, 'ordinal': ordinal, 'timestamp': stamp, 'payload': payload}
+
+    def codex(self, rows, **kwargs):
+        return self.source(rows, provider='codex', **kwargs)
+
+    def test_codex_current_week_messages_only(self):
+        self.codex([self.meta(),
+                    self.message(1, '2026-10-20T10:00:00.000Z', 'DEVELOPER_SECRET', 'developer'),
+                    self.message(2, '2026-10-20T10:00:00.000Z', '<environment_context>INJECTED_SECRET</environment_context>'),
+                    self.message(3, '2026-10-20T10:00:01.000Z', 'codex user prompt'),
+                    self.message(4, '2026-10-20T10:00:02.000Z', 'COMMENTARY_SECRET', 'assistant', 'commentary'),
+                    self.message(5, '2026-10-20T10:00:03.000Z', 'codex final answer', 'assistant', 'final_answer'),
+                    self.message(6, '2026-10-12T10:00:00.000Z', 'LASTWEEK_SECRET'),
+                    self.message(7, '2026-10-20T10:00:04.000Z', 'EVENT_SECRET', rtype='event_msg'),
+                    {'type': 'response_item', 'ordinal': 8, 'timestamp': '2026-10-20T10:00:05.000Z', 'payload': {'type': 'function_call', 'arguments': 'TOOL_SECRET'}}])
+        counts = self.invoke()
+        text = self.output.read_text(encoding='utf-8')
+        self.assertEqual((counts['excerpts'], counts['injected_excluded'], counts['gaps'], counts['undated']), (2, 1, 0, 0))
+        self.assertIn('2026-10-20 user: codex user prompt', text)
+        self.assertIn('2026-10-20 assistant: codex final answer', text)
+        for secret in ('DEVELOPER_SECRET', 'INJECTED_SECRET', 'COMMENTARY_SECRET', 'LASTWEEK_SECRET', 'EVENT_SECRET', 'TOOL_SECRET', 'META_SECRET'):
+            self.assertNotIn(secret, text)
+
+    def test_codex_historical_messages_collected_this_week(self):
+        self.codex([self.meta(), self.message(1, '2026-09-20T10:00:00.000Z')], day='2026-10-21')
+        self.assertEqual(self.invoke()['excerpts'], 0)
+        self.assertIn('No verified activity evidence for this week.', self.output.read_text(encoding='utf-8'))
+
+    def test_codex_bad_timestamps_and_oversized_rows_are_gaps(self):
+        rows = [self.meta(), self.message(1, None), self.message(2, 'no timestamp'), self.message(3, '2026-10-20T10:00:00'),
+                self.message(4, '2026-10-20T10:00:00.000Z', 'x' * 40000), self.message(5, '2026-10-20T10:00:00.000Z', '')]
+        rows[1].pop('timestamp')
+        self.codex(rows)
+        counts = self.invoke()
+        self.assertEqual((counts['excerpts'], counts['gaps']), (0, 5))
+
+    def test_codex_fork_replay_is_undated(self):
+        self.codex([self.meta(forked_from_id='P', subagent_history_start_ordinal=3),
+                    self.message(1, '2026-10-20T10:00:00.000Z', 'REPLAY_SECRET'),
+                    self.message(2, '2026-10-20T10:00:00.000Z', 'REPLAY_SECRET', 'assistant', 'final_answer'),
+                    self.message(3, '2026-10-20T10:00:01.000Z', 'native prompt')])
+        counts = self.invoke()
+        self.assertEqual((counts['excerpts'], counts['undated']), (1, 2))
+        text = self.output.read_text(encoding='utf-8')
+        self.assertIn('native prompt', text)
+        self.assertNotIn('REPLAY_SECRET', text)
+
+    def test_codex_unreadable_fork_header_makes_file_undated(self):
+        message = self.message(1, '2026-10-20T10:00:00.000Z', 'HEADER_SECRET')
+        for rows in ([self.meta(forked_from_id='P'), message],
+                     [self.meta(forked_from_id='P', subagent_history_start_ordinal='3'), message],
+                     [message], [{'type': 'session_meta', 'payload': 'bad'}, message]):
+            for record in (self.vault / 'context/source-records').glob('*.md'):
+                record.unlink()
+            self.codex(rows)
+            counts = self.invoke()
+            self.assertEqual((counts['excerpts'], counts['undated']), (0, 1))
+            self.assertNotIn('HEADER_SECRET', self.output.read_text(encoding='utf-8'))
+
+    def test_codex_delegated_prompt_label(self):
+        self.codex([self.meta(parent_thread_id='P'), self.message(1, '2026-10-20T10:00:00.000Z')])
+        self.invoke()
+        self.assertIn('delegated-prompt: codex included', self.output.read_text(encoding='utf-8'))
+
+    def test_codex_hash_mismatch_preserves_prior_packet(self):
+        path = self.codex([self.meta(), self.message(1, '2026-10-20T10:00:00.000Z')])
+        self.invoke()
+        prior = self.output.read_bytes()
+        self.assertIn(b'codex included', prior)
+        path.write_bytes(path.read_bytes() + b'\n')
+        self.invoke(expected=1)
+        self.assertEqual(self.output.read_bytes(), prior)
 
     def test_human_and_symlink_protection(self):
         self.source([self.row('2026-10-20T10:00:00Z')])
