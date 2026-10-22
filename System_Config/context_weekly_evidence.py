@@ -26,7 +26,8 @@ def safe_directories(path):
         weekly.directory(parent, 'evidence directory')
 
 
-def excerpts(data, start, end, zone, counts):
+def excerpts(data, start, end, zone, counts, quota):
+    emitted = 0
     for raw in data.splitlines():
         if len(raw) > MAX_ROW:
             counts['gaps'] += 1
@@ -55,7 +56,7 @@ def excerpts(data, start, end, zone, counts):
                                     and block.get('type') == 'text' and isinstance(block.get('text'), str))
             if not isinstance(content, str) or not content.strip():
                 raise ValueError()
-            if counts['excerpts'] >= MAX_EXCERPTS:
+            if emitted >= quota:
                 counts['gaps'] += 1
                 continue
             text = ' '.join(content.split())
@@ -66,6 +67,7 @@ def excerpts(data, start, end, zone, counts):
             for character in ('\\', '`', '*', '_', '[', ']'):
                 text = text.replace(character, '\\' + character)
             counts['excerpts'] += 1
+            emitted += 1
             yield f"> {day.isoformat()} {row['type']}: {text}"
         except (ValueError, TypeError, OverflowError, UnicodeError):
             counts['gaps'] += 1
@@ -123,7 +125,7 @@ def publish(vault_path, week, classification, timezone, sources):
         total += len(data)
         if hashlib.sha256(data).hexdigest() != record['hash']:
             weekly.fail('snapshot hash mismatch')
-        lines.extend(excerpts(data, start, end, zone, counts))
+        lines.extend(excerpts(data, start, end, zone, counts, max(1, MAX_EXCERPTS // len(selected))))
     if not counts['excerpts']:
         lines.extend(('', 'No verified activity evidence for this week.'))
     lines.extend(('', 'Coverage: ' + json.dumps(counts, sort_keys=True),

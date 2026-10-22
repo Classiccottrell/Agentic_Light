@@ -1,7 +1,8 @@
 # System_Config
 
-Scripts and configuration for Agentic Light. **No launchd/cron — every
-script here runs by hand; that's the only way it runs in Agentic Light.**
+Scripts and configuration for Agentic Light. The private context cadence can
+run through the daily, Monday, and Friday launchd jobs installed by
+`install_context_cadence.sh`; other scripts retain their documented entry points.
 
 ## Scripts (this batch)
 
@@ -572,8 +573,10 @@ assistant text dated in that local week becomes excerpts; observation dates,
 as unsupported/date-unknown. Missing snapshots and malformed/oversized rows are
 visible gaps. Limits: 32 MiB per snapshot, 64 MiB total, 32 KiB per row, 16 excerpts
 of 512 characters, 64 KiB packet. The excerpt cap reserves space even for
-HTML/Markdown escaping. Selection order determines which sources reach the
-cumulative read/excerpt caps; omitted evidence is counted as gaps. This is
+HTML/Markdown escaping. Each deduplicated selected source receives an equal
+quota of `floor(16 / selected sources)` excerpts, at least one; unused slots
+are not redistributed. Selection order determines which sources reach the
+cumulative read cap; omitted evidence is counted as gaps. This is
 selected weekly activity evidence, not comprehensive coverage or a weekly
 summary. Automatic full-week coverage remains open; the command does not scan
 older observation weeks or run an LLM. Existing human files and

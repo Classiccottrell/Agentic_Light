@@ -149,6 +149,19 @@ class EvidenceTests(unittest.TestCase):
         self.invoke(expected=1)
         self.assertEqual(self.output.read_bytes(), prior)
 
+    def test_two_eligible_sources_receive_fair_excerpt_quota(self):
+        self.source([self.row('2026-10-20T10:00:00Z', 'FIRSTSOURCE')] * 20)
+        first = next((self.vault / 'context/source-records').glob('*.md')).stem
+        self.source([self.row('2026-10-20T10:00:00Z', 'SECONDSOURCE')] * 20)
+        second = next(record.stem for record in (self.vault / 'context/source-records').glob('*.md') if record.stem != first)
+        counts = self.invoke(sources=[first, second])
+        text = self.output.read_text(encoding='utf-8')
+        self.assertEqual(text.count('FIRSTSOURCE'), 8)
+        self.assertEqual(text.count('SECONDSOURCE'), 8)
+        self.assertEqual(counts['excerpts'], 16)
+        self.assertEqual(counts['gaps'], 24)
+        self.assertLessEqual(len(self.output.read_bytes()), 65536)
+
     def test_human_and_symlink_protection(self):
         self.source([self.row('2026-10-20T10:00:00Z')])
         self.output.parent.mkdir()
