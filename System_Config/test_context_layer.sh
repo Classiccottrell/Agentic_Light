@@ -122,4 +122,6 @@ printf '—%.0s' {1..4000} > "$TMP/ROADMAP.md"
 AGENTIC_LIGHT_CONTEXT_MAX_BYTES=256 python3 "$ROOT/System_Config/context_packet.py" --root "$TMP" > "$TMP/packet.txt"
 test "$(wc -c < "$TMP/packet.txt" | tr -d ' ')" -le 256
 
+python3 "$ROOT/System_Config/test_context_weekly_evidence.py"
+
 echo 'context layer fixture: PASS'

@@ -59,3 +59,11 @@ weekly note links separately to AI-session and gathered-context archives.
 
 Run `System_Config/install_context_cadence.sh` (or accept the bootstrap prompt)
 to schedule daily collection, Monday spin-up, and Friday closeout on macOS.
+
+For a private, timestamp-aware evidence packet, run
+`python3 System_Config/context_weekly_evidence.py --vault brain --week 2026-W43 --classification work --timezone America/Vancouver`.
+The ignored `context/weekly-evidence/2026-W43-work.md` contains bounded excerpts
+from verified private Claude staging snapshots. It considers only records
+observed that week, filters actual message timestamps to that local week, and
+reports coverage gaps. Other providers contribute counts only. The command is
+foreground-only; review the packet before sharing its private transcript text.

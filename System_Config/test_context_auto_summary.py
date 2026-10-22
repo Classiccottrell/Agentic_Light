@@ -45,6 +45,7 @@ class ContextAutoSummaryFixtures(unittest.TestCase):
         self.invoke()
         overview = self.vault / "context/weekly-overviews/2026-W42.md"
         text = overview.read_text(encoding="utf-8")
+        self.assertIn("Sources observed during 2026-W42; observation dates do not establish activity dates", text)
         self.assertIn("1 work source(s), 1 personal source(s), and 1 source(s) awaiting", text)
         archive = (self.vault / "context/weekly-sources/2026-W42.md").read_text(encoding="utf-8")
         self.assertIn("[[weekly-overviews/2026-W42|Read the automatic weekly overview]]", archive)

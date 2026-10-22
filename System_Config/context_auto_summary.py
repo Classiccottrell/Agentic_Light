@@ -26,7 +26,8 @@ def render(week, records):
                                   for record in records if record["classification"] == classification})
               for classification in weekly.CLASSIFICATIONS}
     lines = [MARKER.decode().rstrip(), "# Weekly context overview — " + week, "", "## Summary", "",
-             "This week gathered {work} work source(s), {personal} personal source(s), and "
+             "Sources observed during " + week + "; observation dates do not establish activity dates. "
+             "{work} work source(s), {personal} personal source(s), and "
              "{unsorted} source(s) awaiting classification.".format(**counts),
              "Use the linked AI-session and gathered-context archives to review the sources.", ""]
     return ("\n".join(lines)).encode()
