@@ -561,16 +561,20 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   but there's no defensive validation against hand-edited breakage.
 
 `context_weekly_evidence.py --vault brain --week 2026-W43 --classification work
---timezone America/Vancouver` builds a foreground-only private evidence packet at
+--source claude-<hash12>-2026-10-20 --timezone America/Vancouver` builds a foreground-only private evidence packet at
 `brain/context/weekly-evidence/2026-W43-work.md` (ignored, mode 0600).
-Classification is required; timezone defaults to UTC. It selects source records
-observed in that ISO week, deduplicates provider/full hash within the selected
-class, and reads only private Claude `.jsonl` MemPalace snapshots whose full hash
+Classification and one to twelve explicit `--source` record stems are required;
+timezone defaults to UTC. Each selected record must have been observed in that
+ISO week and class. It deduplicates provider/full hash within the selected class, and reads only private Claude `.jsonl` MemPalace snapshots whose full hash
 matches. Original transcript paths are unnecessary. Only timestamped user and
 assistant text dated in that local week becomes excerpts; observation dates,
 `age`, and file times never establish activity dates. Other providers are counted
 as unsupported/date-unknown. Missing snapshots and malformed/oversized rows are
-visible gaps. Limits: 8 MiB per snapshot, 32 MiB total, 32 KiB per row, 64 excerpts
-of 512 characters, 64 KiB packet. This is partial evidence, not a weekly summary;
-it does not scan older observation weeks or run an LLM. Existing human files and
+visible gaps. Limits: 32 MiB per snapshot, 64 MiB total, 32 KiB per row, 16 excerpts
+of 512 characters, 64 KiB packet. The excerpt cap reserves space even for
+HTML/Markdown escaping. Selection order determines which sources reach the
+cumulative read/excerpt caps; omitted evidence is counted as gaps. This is
+selected weekly activity evidence, not comprehensive coverage or a weekly
+summary. Automatic full-week coverage remains open; the command does not scan
+older observation weeks or run an LLM. Existing human files and
 symlink destinations are refused. `test_context_layer.sh` includes its fixtures.

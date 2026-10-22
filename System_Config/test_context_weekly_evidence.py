@@ -34,8 +34,11 @@ class EvidenceTests(unittest.TestCase):
     def row(self, stamp, text='included', role='user'):
         return {'type': role, 'timestamp': stamp, 'message': {'role': role, 'content': text}, 'private': 'METADATA_SECRET'}
 
-    def invoke(self, expected=0, zone='UTC'):
-        result = subprocess.run([sys.executable, str(SCRIPT), '--vault', str(self.vault), '--week', '2026-W43', '--classification', 'work', '--timezone', zone], capture_output=True, text=True, encoding='utf-8')
+    def invoke(self, expected=0, zone='UTC', sources=None):
+        if sources is None:
+            sources = [path.stem for path in (self.vault / 'context/source-records').glob('*.md') if 'classification: work' in path.read_text(encoding='utf-8')]
+        source_args = [value for source in sources for value in ('--source', source)]
+        result = subprocess.run([sys.executable, str(SCRIPT), '--vault', str(self.vault), '--week', '2026-W43', '--classification', 'work', '--timezone', zone, *source_args], capture_output=True, text=True, encoding='utf-8')
         self.assertEqual(result.returncode, expected, result.stderr)
         self.assertNotIn(str(self.vault), result.stdout + result.stderr)
         self.assertNotIn('included', result.stdout + result.stderr)
@@ -81,7 +84,7 @@ class EvidenceTests(unittest.TestCase):
         path.unlink()
         self.assertEqual(self.invoke()['gaps'], 1)
         self.source([self.row('2026-10-20T10:00:00Z')])
-        path.write_bytes(b'x' * (8 * 1024 * 1024 + 1))
+        path.write_bytes(b'x' * (32 * 1024 * 1024 + 1))
         self.assertEqual(self.invoke()['gaps'], 1)
         path.unlink()
         for record in (self.vault / 'context/source-records').glob('*.md'):
@@ -105,7 +108,7 @@ class EvidenceTests(unittest.TestCase):
         meta['isMeta'] = True
         self.source([meta, row] + [self.row('2026-10-20T10:00:00Z', 'a' * 600) for _ in range(70)])
         counts = self.invoke()
-        self.assertEqual(counts['excerpts'], 64)
+        self.assertEqual(counts['excerpts'], 16)
         self.assertGreater(counts['gaps'], 0)
         text = self.output.read_text(encoding='utf-8')
         self.assertIn('visible', text)
@@ -114,7 +117,40 @@ class EvidenceTests(unittest.TestCase):
         self.assertLess(len(self.output.read_bytes()), 65536)
         self.invoke()
 
+    def test_selection_required_and_wrong_identity_rejected(self):
+        path = self.source([self.row('2026-10-20T10:00:00Z')])
+        self.invoke(expected=2, sources=[])
+        self.invoke(expected=1, sources=['unknown'])
+        self.source([self.row('2026-10-20T10:00:00Z', 'personal')], classification='personal')
+        personal = next(record.stem for record in (self.vault / 'context/source-records').glob('*.md') if 'classification: personal' in record.read_text(encoding='utf-8'))
+        self.invoke(expected=1, sources=[personal])
+        self.source([self.row('2026-10-20T10:00:00Z', 'old observation')], day='2026-10-12')
+        old = next(record.stem for record in (self.vault / 'context/source-records').glob('*2026-10-12.md'))
+        self.invoke(expected=1, sources=[old])
+        selected = next(record.stem for record in (self.vault / 'context/source-records').glob('*.md') if path.stem in record.stem)
+        self.invoke(expected=1, sources=[selected] * 13)
+
+    def test_large_current_source_after_historical_selection(self):
+        self.source([self.row('2026-09-20T10:00:00Z', 'historical')])
+        historical = next((self.vault / 'context/source-records').glob('*.md')).stem
+        self.source([{'type': 'system', 'content': 'x' * 30000}] * 300 + [self.row('2026-10-20T10:00:00Z', 'current evidence')])
+        current = next(record.stem for record in (self.vault / 'context/source-records').glob('*.md') if record.stem != historical)
+        counts = self.invoke(sources=[historical, current])
+        self.assertEqual(counts['excerpts'], 1)
+        self.assertIn('current evidence', self.output.read_text(encoding='utf-8'))
+
+    def test_dense_escaping_and_later_hash_failure_preserve_packet(self):
+        path = self.source([self.row('2026-10-20T10:00:00Z', '&' * 512)] * 80)
+        counts = self.invoke()
+        self.assertGreater(counts['gaps'], 0)
+        self.assertLessEqual(self.output.stat().st_size, 65536)
+        prior = self.output.read_bytes()
+        path.write_bytes(b'changed')
+        self.invoke(expected=1)
+        self.assertEqual(self.output.read_bytes(), prior)
+
     def test_human_and_symlink_protection(self):
+        self.source([self.row('2026-10-20T10:00:00Z')])
         self.output.parent.mkdir()
         self.output.write_text('human', encoding='utf-8')
         self.invoke(expected=1)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a private foreground packet from verified, timestamped Claude snapshots."""
+"""Build selected weekly activity evidence from verified private Claude snapshots."""
 import argparse
 import datetime as dt
 import hashlib
@@ -12,10 +12,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import context_weekly as weekly
 
 MARKER = b'<!-- context-weekly-evidence: generated v1 -->\n'
-MAX_INPUT = 8 * 1024 * 1024
-MAX_TOTAL = 32 * 1024 * 1024
+MAX_INPUT = 32 * 1024 * 1024
+MAX_TOTAL = 64 * 1024 * 1024
 MAX_ROW = 32768
-MAX_EXCERPTS = 64
+# Sixteen excerpts leave room below 64 KiB even when each character expands to five bytes.
+MAX_EXCERPTS = 16
+MAX_SOURCES = 12
 MAX_TEXT = 512
 
 
@@ -69,7 +71,9 @@ def excerpts(data, start, end, zone, counts):
             counts['gaps'] += 1
 
 
-def publish(vault_path, week, classification, timezone):
+def publish(vault_path, week, classification, timezone, sources):
+    if not sources or len(sources) > MAX_SOURCES:
+        weekly.fail('select between one and twelve source records')
     try:
         zone = ZoneInfo(timezone)
     except (ZoneInfoNotFoundError, ValueError):
@@ -80,17 +84,20 @@ def publish(vault_path, week, classification, timezone):
     vault = vault.resolve()
     safe_directories(vault)
     records = weekly.selected_records(vault, week)
+    available = {record['stem']: record for record in records if record['classification'] == classification}
     selected = {}
-    for record in records:
-        if record['classification'] == classification:
-            selected.setdefault((record['provider'], record['hash']), record)
+    for stem in sources:
+        if stem not in available:
+            weekly.fail('source not observed in selected week and classification')
+        record = available[stem]
+        selected.setdefault((record['provider'], record['hash']), record)
     output = vault / 'context/weekly-evidence' / f'{week}-{classification}.md'
     if os.path.lexists(output.parent):
         safe_directories(output.parent)
-    counts = {'sources': len(selected), 'excerpts': 0, 'gaps': 0, 'unsupported_date_unknown': 0}
-    lines = [MARKER.decode().rstrip(), f'# Weekly activity evidence — {week} — {classification}', '',
+    counts = {'selected_source_records': len(set(sources)), 'sources': len(selected), 'excerpts': 0, 'gaps': 0, 'unsupported_date_unknown': 0}
+    lines = [MARKER.decode().rstrip(), f'# Selected weekly activity evidence — {week} — {classification}', '',
              f'Timezone: {timezone}. Sources observed during {week}; observation dates do not establish activity dates.', '',
-             'Private excerpts; review before sharing. Coverage is limited to the selected observation week.', '']
+             'Private excerpts; review before sharing. Coverage includes only explicitly selected sources; automatic full-week coverage remains open.', '']
     total = 0
     for record in selected.values():
         lines.append(f"- [[source-records/{record['stem']}|{record['provider']} source record]]")
@@ -137,10 +144,11 @@ def main(argv=None):
     parser.add_argument('--vault', required=True)
     parser.add_argument('--week', required=True)
     parser.add_argument('--classification', required=True, choices=weekly.CLASSIFICATIONS)
+    parser.add_argument('--source', required=True, action='append', help='source-record stem; repeat up to twelve times')
     parser.add_argument('--timezone', default='UTC', help='IANA timezone (default: UTC)')
     args = parser.parse_args(argv)
     try:
-        print(json.dumps(publish(args.vault, args.week, args.classification, args.timezone), sort_keys=True))
+        print(json.dumps(publish(args.vault, args.week, args.classification, args.timezone, args.source), sort_keys=True))
     except (ValueError, OSError):
         print('context weekly evidence failed: invalid input or protected destination', file=sys.stderr)
         return 1

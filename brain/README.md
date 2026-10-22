@@ -61,9 +61,10 @@ Run `System_Config/install_context_cadence.sh` (or accept the bootstrap prompt)
 to schedule daily collection, Monday spin-up, and Friday closeout on macOS.
 
 For a private, timestamp-aware evidence packet, run
-`python3 System_Config/context_weekly_evidence.py --vault brain --week 2026-W43 --classification work --timezone America/Vancouver`.
+`python3 System_Config/context_weekly_evidence.py --vault brain --week 2026-W43 --classification work --source claude-<hash12>-2026-10-20 --timezone America/Vancouver`.
 The ignored `context/weekly-evidence/2026-W43-work.md` contains bounded excerpts
-from verified private Claude staging snapshots. It considers only records
-observed that week, filters actual message timestamps to that local week, and
-reports coverage gaps. Other providers contribute counts only. The command is
+from verified private Claude staging snapshots. Select one to twelve source-record stems with repeated `--source` arguments.
+Each must match the week and classification. The packet filters actual message
+timestamps to that local week and reports selected-source counts and coverage
+gaps. Automatic full-week coverage remains open. Other providers contribute counts only. The command is
 foreground-only; review the packet before sharing its private transcript text.
