@@ -30,23 +30,6 @@ if [ ! -e "$CONFIG" ] && [ ! -L "$CONFIG" ]; then
   exit 1
 fi
 
-# Hold the shared brain lock for the whole collect (discover + intake + weekly). Re-exec ONCE under the
-# wrapper; under a lock-holding parent (daily/Friday) the wrapper re-enters and just runs us. No wrapper
-# next to this script (a bare copy) -> run unlocked, exactly as before.
-if [ -z "${CONTEXT_COLLECT_LOCKED:-}" ] && [ -f "$SCRIPT_DIR/brain_lock.py" ]; then
-  export CONTEXT_COLLECT_LOCKED=1
-  exec python3 "$SCRIPT_DIR/brain_lock.py" run --mode wait --timeout "${BRAIN_LOCK_SHORT_WAIT:-60}" \
-    --name context_collect -- bash "$SCRIPT_DIR/context_collect.sh" "$RUN_DATE"
-fi
-
-python3 "$SCRIPT_DIR/context_discover.py" --config "$CONFIG" --out "$MANIFEST" --date "$RUN_DATE" || exit $?
-python3 "$SCRIPT_DIR/context_intake.py" --vault "$VAULT" --manifest "$MANIFEST" --date "$RUN_DATE" || exit $?
-WEEK="$(python3 -c 'import datetime, sys; value = datetime.date.fromisoformat(sys.argv[1]).isocalendar(); print(f"{value.year}-W{value.week:02d}")' "$RUN_DATE")" || exit $?
-YEAR="${WEEK%%-W*}"
-NOTE="$VAULT/weekly_logs/$YEAR/$WEEK.md"
-if [ -f "$NOTE" ] && [ ! -L "$NOTE" ]; then
-  python3 "$SCRIPT_DIR/context_weekly.py" --vault "$VAULT" --week "$WEEK" --note "$NOTE"
-else
-  python3 "$SCRIPT_DIR/context_weekly.py" --vault "$VAULT" --week "$WEEK"
-fi
-
+# The Python composer holds the shared lock and invokes nested writer mains in
+# the same process. No environment flag grants descendants acquisition rights.
+exec python3 "$SCRIPT_DIR/context_collect.py" "$RUN_DATE"

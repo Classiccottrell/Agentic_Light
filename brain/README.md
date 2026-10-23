@@ -66,3 +66,9 @@ next daily or Friday run writes it. See `System_Config/README.md` for the modes.
 
 Run `System_Config/install_context_cadence.sh` (or accept the bootstrap prompt)
 to schedule daily collection, Monday spin-up, and Friday closeout on macOS.
+
+Lock ownership belongs to one process/thread. Known nested context jobs compose
+in-process; spawned children and sibling threads cannot inherit write authority.
+Existing locks are retained after crashes or ambiguous PID state. Quiesce writers
+and inspect ownership before manual recovery; never delete an active/unknown lock
+based on age. Atomic per-file writes do not make multi-file updates transactions.

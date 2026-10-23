@@ -36,7 +36,7 @@ SENTINEL_MASTER = None
 
 class Workspace(unittest.TestCase):
     def setUp(self):
-        self.ws = Path(tempfile.mkdtemp(prefix="brainlock-adopt."))
+        self.ws = Path(tempfile.mkdtemp(prefix="brainlock-adopt.")).resolve()
         self.addCleanup(rmtree_force, self.ws)
         self.sys = self.ws / "System_Config"
         self.sys.mkdir()
@@ -99,7 +99,7 @@ class EveryWriterUsesTheSharedLock(unittest.TestCase):
 
     def test_context_collect_wraps_itself_in_the_run_wrapper(self):
         text = (HERE / "context_collect.sh").read_text(encoding="utf-8")
-        self.assertIn("brain_lock.py", text)
+        self.assertIn("context_collect.py", text)
 
     def test_every_self_test_workspace_copy_list_includes_brain_lock(self):
         for name in ("daily_ingest", "monday_init", "friday_process", "log_session"):
@@ -223,7 +223,7 @@ class LogSession(Workspace):
         self.assertFalse(self.lock.exists())
         self.assertFalse((self.sys / "logs" / "log_session.pending").exists())
 
-    def test_a_child_of_a_holder_reenters_and_writes_at_once(self):
+    def test_a_child_of_a_holder_spools_instead_of_bypassing(self):
         note = self.note()
         code = ("import subprocess, sys\n"
                 "import brain_lock\n"
@@ -234,8 +234,44 @@ class LogSession(Workspace):
         out = subprocess.run([sys.executable, "-c", code], cwd=str(self.sys), env={**self.env, "PYTHONPATH": str(self.sys)},
                              capture_output=True, encoding="utf-8")
         self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertIn("exit 9", note.read_text(encoding="utf-8"))
-        self.assertFalse((self.sys / "logs" / "log_session.pending").exists())
+        self.assertNotIn("exit 9", note.read_text(encoding="utf-8"))
+        self.assertTrue((self.sys / "logs/log_session.pending").is_file())
+
+
+class InProcessCadence(Workspace):
+    def test_cadence_composes_nested_writers_under_one_owner(self):
+        raw = self.ws / "source.jsonl"
+        raw.write_text("fixture", encoding="utf-8")
+        (self.sys / "context-sources.local.json").write_text(json.dumps({"sources": [
+            {"provider": "codex", "root": str(raw), "suffix": ".jsonl", "age": "current",
+             "classification": "work", "status": "captured"}]}), encoding="utf-8")
+        note = self.brain / "weekly_logs/2026/2026-W10.md"
+        note.write_text("# week\n## Agent Sessions\n", encoding="utf-8")
+        code = ("import brain_lock, context_cadence, config\n"
+                "from pathlib import Path\n"
+                "with brain_lock.guard('outer', 'wait', 1) as held:\n"
+                " assert held\n"
+                " context_cadence.friday('2026-03-06','2026-W10', Path(%r), print)\n"
+                " assert brain_lock.owned()\n" % str(note))
+        out = subprocess.run([sys.executable, "-c", code], cwd=str(self.sys),
+                             env={**self.env, "PYTHONPATH": str(self.sys)}, capture_output=True,
+                             encoding="utf-8", timeout=8)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertNotIn("failed; continuing", out.stdout)
+        self.assertTrue((self.brain / "context/weekly-sources/2026-W10.md").is_file())
+        self.assertIn("weekly-sources", note.read_text(encoding="utf-8"))
+        self.assertFalse(self.lock.exists())
+
+    def test_composed_failures_keep_the_old_continue_contract(self):
+        import context_cadence
+        messages = []
+        def nonzero():
+            raise SystemExit(7)
+        def exception():
+            raise ValueError("fixture")
+        self.assertFalse(context_cadence._composed(nonzero, messages.append, "fixture"))
+        self.assertFalse(context_cadence._composed(exception, messages.append, "fixture"))
+        self.assertEqual(len(messages), 2)
 
 
 class SpoolFlush(Workspace):
@@ -300,7 +336,7 @@ class ContextCli(Workspace):
                              env=self.env, capture_output=True, encoding="utf-8")
         self.assertEqual(out.returncode, 75, out.stderr)
 
-    def test_a_cli_under_a_holding_parent_reenters(self):
+    def test_a_cli_under_a_holding_parent_is_refused(self):
         code = ("import subprocess, sys\n"
                 "import brain_lock\n"
                 "assert brain_lock.acquire('skip', 0) == 0\n"
@@ -308,7 +344,7 @@ class ContextCli(Workspace):
                 "print(r.returncode)\n" % (str(self.sys / "context_auto_summary.py"), str(self.brain)))
         out = subprocess.run([sys.executable, "-c", code], cwd=str(self.sys), env={**self.env, "PYTHONPATH": str(self.sys)},
                              capture_output=True, encoding="utf-8")
-        self.assertNotEqual(out.stdout.strip(), "75", "child of a holder must re-enter, not time out")
+        self.assertEqual(out.stdout.strip(), "75", "a child must not inherit acquisition authority")
 
 
 if __name__ == "__main__":

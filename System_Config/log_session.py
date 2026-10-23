@@ -330,7 +330,7 @@ def main():
     # Shared brain lock, session-hook budget: wait only BRAIN_LOCK_HOOK_WAIT seconds (default 5). If a long
     # ingest holds it, SPOOL the whole entry to logs/log_session.pending (outside brain/) and exit 0; the next
     # run that gets the lock flushes it first. Never dropped, never written unlocked. A child of a lock holder
-    # (e.g. the pipeline under a Friday run) re-enters via BRAIN_LOCK_OWNER_PID and writes at once.
+    # (e.g. a pipeline child of a Friday run) spools instead of inheriting parent authority.
     if brain_lock.acquire("wait", brain_lock.hook_wait_seconds()) != 0:
         _spool(entry)
         print(f"log_session.py: brain lock busy — spooled to {PENDING}; the next run flushes it", file=sys.stderr)

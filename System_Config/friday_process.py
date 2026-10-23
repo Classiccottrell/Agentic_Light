@@ -218,7 +218,7 @@ def self_test():
         (ws / "brain" / "weekly_logs" / "2026").mkdir(parents=True)
         shutil.copy(Path(__file__), syscfg / "friday_process.py")
         shutil.copy(Path(__file__).parent / "config.py", syscfg / "config.py")
-        for name in ("brain_lock.py", "log_session.py", "context_cadence.py", "context_weekly.py", "context_auto_summary.py"):
+        for name in ("brain_lock.py", "log_session.py", "context_cadence.py", "context_collect.py", "context_discover.py", "context_intake.py", "context_weekly.py", "context_auto_summary.py", "context_mempalace.py"):
             shutil.copy(Path(__file__).parent / name, syscfg / name)
 
         note = ws / "brain" / "weekly_logs" / "2026" / "2026-W10.md"

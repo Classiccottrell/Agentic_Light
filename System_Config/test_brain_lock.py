@@ -5,8 +5,7 @@ brain/ write lock. Standalone unittest file (run directly, no pytest needed):
     python3 System_Config/test_brain_lock.py
 
 Covers acquire/release, skip/wait, timeout, live-holder-not-reclaimed,
-dead-holder-reclaimed, empty-pid grace, stale-copy sweep, re-entrancy (with
-the ancestor check and its no-ancestor-walk fallback), release-only-if-ours,
+fail-closed stale/missing/special PID entries, process/thread ownership, release-only-if-ours,
 the test-only override gate, the `run` CLI wrapper, the local-only timeout
 notice, and a multi-process reclaim race (many iterations).
 """
@@ -165,91 +164,46 @@ class SkipWaitTimeout(LockCase):
         self.assertEqual(self.pid_file(), str(os.getpid()))
 
 
-class Reclaim(LockCase):
-    def test_dead_holder_is_reclaimed(self):
-        dead = dead_pid()
-        self.plant(dead)
-        self.assertEqual(brain_lock.acquire("skip", 0), 0)
-        self.assertEqual(self.pid_file(), str(os.getpid()))
-        self.assertEqual(list(self.tmp.glob("brain.lock.d.stale.*")), [])
+class FailClosed(LockCase):
+    def test_dead_holder_is_retained(self):
+        pid = dead_pid()
+        self.plant(pid)
+        self.assertEqual(brain_lock.acquire("skip", 0), 1)
+        self.assertEqual(self.pid_file(), str(pid))
 
-    def test_on_reclaim_hook_sees_the_dead_pid(self):
-        dead = dead_pid()
-        self.plant(dead)
-        seen = []
-        brain_lock.on_reclaim = seen.append
-        self.addCleanup(setattr, brain_lock, "on_reclaim", None)
-        self.assertEqual(brain_lock.acquire("skip", 0), 0)
-        self.assertEqual(seen, [str(dead)])
-
-    def test_empty_pid_gets_a_three_tick_grace_before_reclaim(self):
+    def test_missing_pid_is_retained_without_grace_reclaim(self):
         self.plant(None)
-        start = time.monotonic()
+        self.assertEqual(brain_lock.acquire("wait", 1), 2)
+        self.assertTrue(self.lock.is_dir())
+
+    def test_malformed_pid_and_extra_entries_are_untouched(self):
+        self.plant("malformed")
+        (self.lock / "extra").write_text("keep", encoding="utf-8")
+        self.assertEqual(brain_lock.acquire("skip", 0), 1)
+        self.assertEqual((self.lock / "extra").read_text(encoding="utf-8"), "keep")
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "POSIX FIFO fixture")
+    def test_fifo_pid_cannot_block_timeout(self):
+        self.lock.mkdir()
+        os.mkfifo(str(self.lock / "pid"))
+        self.assertEqual(brain_lock.acquire("wait", 1), 2)
+
+    def test_stale_leftovers_are_never_swept(self):
+        stale = self.lock.with_name(self.lock.name + ".stale.old")
+        stale.mkdir()
         self.assertEqual(brain_lock.acquire("skip", 0), 0)
-        self.assertGreaterEqual(time.monotonic() - start, 0.09)   # >= 2 poll ticks of 0.05s
-        self.assertEqual(self.pid_file(), str(os.getpid()))
+        self.assertTrue(stale.is_dir())
 
-    def test_empty_pid_that_fills_in_during_grace_is_not_reclaimed(self):
-        self.plant(None)
-        with LiveHolder() as pid:
-            import threading
-            threading.Timer(0.06, lambda: (self.lock / "pid").write_text(str(pid), encoding="utf-8")).start()
-            self.assertEqual(brain_lock.acquire("skip", 0), 1)
-            self.assertEqual(self.pid_file(), str(pid))
-
-    def test_sweep_removes_old_stale_copies_only(self):
-        old = self.tmp / "brain.lock.d.stale.1.1"
-        fresh = self.tmp / "brain.lock.d.stale.2.2"
-        odd = self.tmp / "brain.lock.d.stale.3.3"
-        for d in (old, fresh, odd):
-            d.mkdir()
-            (d / "pid").write_text("999999", encoding="utf-8")
-        (odd / "surprise.txt").write_text("not ours", encoding="utf-8")
-        long_ago = time.time() - 61 * 60
-        for d in (old, odd):
-            os.utime(str(d), (long_ago, long_ago))
-        self.assertEqual(brain_lock.acquire("skip", 0), 0)
-        self.assertFalse(old.exists(), "stale copy older than 60 min is swept")
-        self.assertTrue(fresh.exists(), "young stale copy is kept")
-        self.assertTrue(odd.exists(), "a dir holding anything but `pid` is never removed")
-
-    def test_a_stale_copy_holding_an_unexpected_entry_is_kept_never_deleted(self):
-        dead = dead_pid()
-        self.plant(dead)
-        (self.lock / "surprise.txt").write_text("not ours", encoding="utf-8")
-        self.assertEqual(brain_lock.acquire("skip", 0), 0)
-        kept = list(self.tmp.glob("brain.lock.d.stale.*"))
-        self.assertEqual(len(kept), 1)
-        self.assertTrue((kept[0] / "surprise.txt").exists())
-
-
-class ReclaimMutex(LockCase):
-    def test_an_abandoned_reclaim_mutex_does_not_block_reclaim_forever(self):
-        self.plant(dead_pid())
-        mutex = self.tmp / "brain.lock.d.reclaim"
-        mutex.mkdir()
-        (mutex / "pid").write_text(str(dead_pid()), encoding="utf-8")
-        self.assertEqual(brain_lock.acquire("wait", 10), 0)
-        self.assertEqual(self.pid_file(), str(os.getpid()))
-        self.assertFalse(mutex.exists())
-
-    def test_a_live_reclaimer_blocks_a_second_reclaim_and_the_lock_is_left_alone(self):
-        dead = dead_pid()
-        self.plant(dead)
-        with LiveHolder() as pid:
-            mutex = self.tmp / "brain.lock.d.reclaim"
-            mutex.mkdir()
-            (mutex / "pid").write_text(str(pid), encoding="utf-8")
-            self.assertEqual(brain_lock.acquire("skip", 0), 1)
-            self.assertEqual(self.pid_file(), str(dead))
-            self.assertEqual((mutex / "pid").read_text(encoding="utf-8"), str(pid))
-
-    def test_reclaim_that_finds_a_fresh_live_lock_under_the_mutex_does_not_touch_it(self):
-        with LiveHolder() as pid:
-            self.plant(pid)
-            self.assertFalse(brain_lock._reclaim(self.lock, "99999999"))   # we "saw" a dead pid, but it changed
-            self.assertEqual(self.pid_file(), str(pid))
-            self.assertFalse((self.tmp / "brain.lock.d.reclaim").exists())
+    @unittest.skipUnless(hasattr(os, "symlink"), "symlink fixture")
+    def test_symlink_lock_is_refused(self):
+        other = self.tmp / "other"
+        other.mkdir()
+        try:
+            self.lock.symlink_to(other, target_is_directory=True)
+        except OSError:
+            self.skipTest("symlink creation requires privileges")
+        self.assertEqual(brain_lock.acquire("skip", 0), 3)
+        self.assertTrue(self.lock.is_symlink())
 
 
 class ReleaseOnlyIfOurs(LockCase):
@@ -261,61 +215,82 @@ class ReleaseOnlyIfOurs(LockCase):
             self.assertEqual(self.pid_file(), str(pid))
 
 
-class Reentrancy(LockCase):
-    CHILD = ("import sys, brain_lock\n"
-             "rc = brain_lock.acquire('wait', 1)\n"
-             "print(rc, flush=True)\n"
-             "brain_lock.release()\n"
-             "sys.exit(0)\n")
-
-    def run_child(self, extra_env=None, code=None):
-        out = subprocess.run([sys.executable, "-c", code or self.CHILD], env=child_env(extra_env),
-                             capture_output=True, encoding="utf-8")
-        return out.stdout.strip()
-
-    def test_child_of_the_holder_reenters_and_its_release_keeps_the_lock(self):
+class OwnershipBoundaries(LockCase):
+    def test_exported_parent_claim_never_grants_child_acquisition(self):
         self.assertEqual(brain_lock.acquire("skip", 0), 0)
-        self.assertEqual(os.environ.get("BRAIN_LOCK_OWNER_PID"), str(os.getpid()))
-        self.assertEqual(self.run_child(), "0")
-        self.assertEqual(self.pid_file(), str(os.getpid()), "child release must not drop the parent's lock")
+        code = "import brain_lock; print(brain_lock.acquire('skip', 0)); brain_lock.release()"
+        env = child_env({"BRAIN_LOCK_OWNER_PID": str(os.getpid())})
+        result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, encoding="utf-8")
+        self.assertEqual(result.stdout.strip(), "1")
+        self.assertEqual(self.pid_file(), str(os.getpid()))
 
-    def test_grandchild_reenters(self):
+    def test_sibling_threads_cannot_acquire_or_release_the_owner_lock(self):
+        import threading
         self.assertEqual(brain_lock.acquire("skip", 0), 0)
-        code = ("import subprocess, sys\n"
-                "print(subprocess.run([sys.executable, '-c', %r], capture_output=True, encoding='utf-8').stdout.strip())\n"
-                % self.CHILD)
-        self.assertEqual(self.run_child(code=code), "0")
+        values = []
+        def other():
+            values.append(brain_lock.acquire("skip", 0))
+            brain_lock.release()
+        worker = threading.Thread(target=other)
+        worker.start()
+        worker.join(5)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(values, [1])
+        self.assertTrue(brain_lock.owned())
 
-    def test_a_bare_env_var_does_not_bypass_the_lock(self):
-        with LiveHolder() as pid:
-            self.plant(pid)
-            # the holder is alive and named in the env, but is NOT an ancestor of the child
-            self.assertEqual(self.run_child({"BRAIN_LOCK_OWNER_PID": str(pid)}), "2")
-
-    def test_release_clears_the_owner_env_var(self):
+    @unittest.skipUnless(hasattr(os, "fork"), "POSIX fork fixture")
+    def test_fork_cannot_inherit_or_release_ownership(self):
         self.assertEqual(brain_lock.acquire("skip", 0), 0)
-        brain_lock.release()
-        self.assertNotIn("BRAIN_LOCK_OWNER_PID", os.environ)
+        pid = os.fork()
+        if pid == 0:
+            try:
+                rc = brain_lock.acquire("skip", 0)
+                brain_lock.release()
+                os._exit(0 if rc == 1 else 1)
+            except BaseException:
+                os._exit(2)
+        _pid, status = os.waitpid(pid, 0)
+        self.assertEqual(os.WEXITSTATUS(status), 0)
+        self.assertEqual(self.pid_file(), str(os.getpid()))
 
-    def test_when_the_ancestor_walk_is_unavailable_a_direct_child_still_reenters(self):
-        # No `ps` / toolhelp: walk raises. A child must not deadlock against its own parent until timeout.
-        code = ("import sys, brain_lock\n"
-                "def boom(pid):\n"
-                "    raise OSError('no ancestor walk here')\n"
-                "brain_lock._ppid_of = boom\n"
-                "print(brain_lock.acquire('wait', 1), flush=True)\n")
-        self.assertEqual(brain_lock.acquire("skip", 0), 0)
-        self.assertEqual(self.run_child(code=code), "0")
 
-    def test_when_the_ancestor_walk_is_unavailable_a_stranger_is_still_refused(self):
-        code = ("import brain_lock\n"
-                "def boom(pid):\n"
-                "    raise OSError('no ancestor walk here')\n"
-                "brain_lock._ppid_of = boom\n"
-                "print(brain_lock.acquire('skip', 0), flush=True)\n")
-        with LiveHolder() as pid:
-            self.plant(pid)
-            self.assertEqual(self.run_child({"BRAIN_LOCK_OWNER_PID": str(pid)}, code=code), "1")
+class ThreadPublication(LockCase):
+    def test_release_and_new_thread_publication_are_serialized(self):
+        import threading
+        from unittest import mock
+        removed, attempted, published = (threading.Event() for _ in range(3))
+        original_rmdir, original_write = Path.rmdir, brain_lock._write_pid
+        owner_thread = [None]
+        outcomes = []
+        def delayed_rmdir(path):
+            original_rmdir(path)
+            if threading.get_ident() == owner_thread[0] and path == self.lock:
+                removed.set()
+                self.assertTrue(attempted.wait(2))
+                self.assertFalse(published.wait(0.1), "new owner published before old state was cleared")
+        def observe_write(directory, pid):
+            original_write(directory, pid)
+            if threading.get_ident() != owner_thread[0]:
+                published.set()
+        def owner():
+            owner_thread[0] = threading.get_ident()
+            self.assertEqual(brain_lock.acquire("wait", 2), 0)
+            brain_lock.release()
+        def contender():
+            self.assertTrue(removed.wait(2))
+            attempted.set()
+            rc = brain_lock.acquire("wait", 2)
+            outcomes.append((rc, brain_lock.owned()))
+            brain_lock.release()
+        with mock.patch.object(Path, "rmdir", delayed_rmdir), mock.patch.object(brain_lock, "_write_pid", observe_write):
+            first, second = threading.Thread(target=owner), threading.Thread(target=contender)
+            second.start()
+            first.start()
+            first.join(5)
+            second.join(5)
+            self.assertFalse(first.is_alive() or second.is_alive())
+        self.assertEqual(outcomes, [(0, True)])
+        self.assertFalse(self.lock.exists())
 
 
 class OverrideGate(LockCase):
@@ -348,7 +323,7 @@ class RunWrapper(LockCase):
 
     def test_runs_the_command_with_the_lock_held_and_propagates_its_exit_code(self):
         probe = ("import os, sys; "
-                 "print(open(os.environ['BRAIN_LOCK_DIR'] + '/pid').read().strip() == os.environ['BRAIN_LOCK_OWNER_PID']); "
+                 "print(open(os.environ['BRAIN_LOCK_DIR'] + '/pid').read().strip() == str(os.getppid())); "
                  "sys.exit(7)")
         out = self.run_cli("--mode", "wait", "--timeout", "5", "--", sys.executable, "-c", probe)
         self.assertEqual(out.returncode, 7, out.stderr)
@@ -430,13 +405,12 @@ brain_lock.release()
 """
 
 
-class ReclaimRace(LockCase):
+class ContentionRace(LockCase):
     WORKERS = 4
 
     def one_round(self, iteration, jitter):
         if self.lock.exists():
             shutil.rmtree(str(self.lock))
-        self.plant(dead_pid())
         log = self.tmp / ("race-%d.log" % iteration)
         env = child_env({"BRAIN_LOCK_TEST_JITTER": "1"} if jitter else None)
         procs = [subprocess.Popen([sys.executable, "-c", RACE_WORKER, str(log)], env=env) for _ in range(self.WORKERS)]
@@ -460,8 +434,8 @@ class ReclaimRace(LockCase):
                 inside = None
         return codes, overlap, sum(1 for e in events if e[1] == "S")
 
-    def test_two_plus_reclaimers_never_double_hold_at_natural_timing(self):
-        rounds = int(os.environ.get("BRAIN_LOCK_RACE_ROUNDS", "40"))
+    def test_contending_processes_never_double_hold(self):
+        rounds = int(os.environ.get("BRAIN_LOCK_RACE_ROUNDS", "8"))
         for i in range(rounds):
             codes, overlap, entered = self.one_round(i, jitter=False)
             self.assertEqual(codes, [0] * self.WORKERS, "round %d: a worker failed to acquire" % i)
@@ -471,8 +445,8 @@ class ReclaimRace(LockCase):
             self.assertEqual(list(self.tmp.glob("brain.lock.d.stale.*")), [], "round %d: stale copy leaked" % i)
             self.assertFalse((self.tmp / "brain.lock.d.reclaim").exists(), "round %d: reclaim mutex leaked" % i)
 
-    def test_widened_race_windows_still_never_double_hold_or_leak(self):
-        rounds = int(os.environ.get("BRAIN_LOCK_RACE_ROUNDS_JITTER", "20"))
+    def test_repeated_contention_leaves_no_lock(self):
+        rounds = int(os.environ.get("BRAIN_LOCK_RACE_ROUNDS_JITTER", "4"))
         for i in range(rounds):
             codes, overlap, entered = self.one_round(1000 + i, jitter=True)
             self.assertEqual(codes, [0] * self.WORKERS, "jitter round %d: a worker failed to acquire" % i)

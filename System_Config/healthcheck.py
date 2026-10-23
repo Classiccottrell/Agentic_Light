@@ -368,7 +368,7 @@ def run(report):
     elif holder_pid and brain_lock._alive(holder_pid):
         report.check("PASS", "Brain lock", f"held by live pid {holder_pid}")
     else:
-        report.check("WARN", "Brain lock", f"stale (holder {holder_pid or 'unknown'} gone) — the next writer reclaims it")
+        report.check("WARN", "Brain lock", f"stale (holder {holder_pid or 'unknown'} gone) — quiesce writers and inspect before manual recovery")
     pending = SYSCFG / "logs" / "log_session.pending"
     parked = SYSCFG / "logs" / "log_session.pending.failed"
     if parked.is_file() and parked.stat().st_size:

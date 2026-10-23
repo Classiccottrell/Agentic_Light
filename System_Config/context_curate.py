@@ -73,7 +73,7 @@ def apply_links(source, accepted):
     return True
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("path", type=Path)
     parser.add_argument("--root", type=Path, required=True)
@@ -81,7 +81,7 @@ def main():
     mode.add_argument("--suggest", action="store_true")
     mode.add_argument("--apply", action="store_true")
     mode.add_argument("--review", action="store_true")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if not args.apply:   # --suggest/--review only read
         return _run(args)
     with brain_lock.guard("context_curate", "wait", brain_lock.short_wait_seconds()) as held:

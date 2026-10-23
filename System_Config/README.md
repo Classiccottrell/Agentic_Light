@@ -145,56 +145,31 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   their primary jobs. `CONTEXT_MEMPALACE_BIN` optionally refreshes a private
   local MemPalace index. `install_context_cadence.sh` installs the three macOS
   launchd jobs, and bootstrap offers the same opt-in installation.
-- **`brain_lock.py`** — the ONE shared write lock for `brain/` (stdlib only,
-  no `config.py` import, so `log_session.py` stays config-independent).
-  Lock = directory `System_Config/logs/brain.lock.d` holding a `pid` file
-  (mkdir is atomic on macOS, Linux and Windows). **skip** mode returns 1
-  at once if a live pid holds it; **wait** mode polls once a second up to a
-  timeout, then returns 2 (3 = config error). A dead holder is reclaimed
-  atomically: reclaimers are serialised by a second mkdir mutex
-  (`brain.lock.d.reclaim`), the dir is renamed aside, the moved copy is
-  re-checked, and only then discarded (a live lock is never deleted); an
-  empty `pid` file gets a 3-tick grace (a live holder can sit between its
-  mkdir and its pid write); `brain.lock.d.stale.*` leftovers older than 60
-  minutes are swept. Release only removes a lock whose `pid` is ours. A
-  child of the holder re-enters through `BRAIN_LOCK_OWNER_PID` plus an
-  ancestor check (parent walk via `ps`, or a Toolhelp snapshot on Windows; if
-  the walk is unavailable only the direct parent is accepted), so a bare env
-  var cannot bypass the lock. In-process nesting is counted (daily_ingest →
-  `monday_init.run()`). Liveness uses `os.kill(pid, 0)` on POSIX and ctypes
-  `OpenProcess` on Windows (where `os.kill(pid, 0)` would terminate the
-  process). Python API: `brain_lock.acquire(mode, timeout)` / `release()` /
-  `guard(name, mode, timeout)`; a wait timeout logs and raises a **local**
-  desktop notice (osascript / notify-send, never a webhook), deduped per
-  hour via `System_Config/logs/.brain-lock-notified-*`. Shell scripts wrap a
-  command instead of holding across calls:
-  `python3 System_Config/brain_lock.py run --mode wait --timeout 900 -- <cmd>`
-  (exit 75 on wait timeout; skip + busy exits 0 without running).
-  Modes in use: **skip** — `daily_ingest.py`; **wait** (`BRAIN_LOCK_WAIT`,
-  900s, then local notice + exit 75) — `monday_init.py`, `friday_process.py`;
-  **short wait** (`BRAIN_LOCK_SHORT_WAIT`, 60s, exit 75) — `context_collect.sh`
-  and the context writers `context_weekly.py`, `context_weekly_curate.py`,
-  `context_auto_summary.py`, `context_intake.py`, `context_mempalace.py`,
-  `context_curate.py --apply`; **hook** (`BRAIN_LOCK_HOOK_WAIT`, 5s, then
-  spool) — `log_session.py`. Deliberately not locked: derived, rebuildable
-  caches (`memory_index.py`'s SQLite file has its own locking;
-  `context_catalog.py build` writes disposable `brain/index/`) and
-  `context_discover.py` (writes `System_Config/context-manifest.local.json`,
-  outside `brain/`). Test-only knobs (honoured only with `BRAIN_LOCK_TEST=1`):
-  `BRAIN_LOCK_DIR=<tmp>/x.lock.d` (parent must exist under the system temp
-  dir, else refused with rc 3), `BRAIN_LOCK_TEST_POLL`, `BRAIN_LOCK_TEST_JITTER`.
-  Residual: if a holder stalls between mkdir and pid write for more than 3
-  ticks it can be reclaimed out from under itself; a put-back that loses its
-  slot leaves a `.stale.*` copy (swept after 60 min).
-- **`test_brain_lock.py`** / **`test_brain_lock_adoption.py`** — unittest
-  files (run directly). The first covers acquire/release, skip/wait/timeout,
-  live holder never reclaimed, dead holder reclaimed, empty-pid grace, stale
-  sweep, reclaim mutex, re-entrancy (with and without an ancestor walk),
-  release-only-if-ours, the override gate, the `run` wrapper, the local
-  timeout notice, and a four-process reclaim race (40 natural + 20 jittered
-  rounds, asserting no two holders overlap). The second runs each real
-  writer against a throwaway workspace copy while a live process holds that
-  copy's lock, asserting the mode and that nothing was written.
+- **`brain_lock.py`** — one shared stdlib write lock for `brain/`, at
+  `System_Config/logs/brain.lock.d` (PID file). Modes: skip → rc 1 for any
+  existing lock; wait → bounded monotonic timeout, rc 2; config errors → rc 3.
+  Existing dead, empty, malformed or special PID entries are never reclaimed
+  or swept. Quiesce all writers/children, inspect ownership, then remove only
+  the PID and empty directory deliberately; never use age alone or recursive deletion.
+  Same-process, same-thread nesting is counted; threads, forked children and
+  descendants cannot acquire/release an owner's lock through inherited state
+  or environment. A process-local mutex serializes ownership publication/release
+  and resets after fork. SIGKILL/power loss can leave a lock for manual recovery.
+  `guard(name, mode, timeout)` releases on exceptions; wait timeout produces a
+  deduplicated local desktop notice, never a webhook. Test overrides are gated
+  by `BRAIN_LOCK_TEST=1` and restricted under the system temporary directory.
+  `run --mode wait --timeout N -- <command>` holds the lock for an external
+  command; that command must not invoke another lock-taking writer.
+  All source-of-truth writers use the shared lock: daily ingest (skip),
+  Monday/Friday (wait), context writers (short wait), and session logging
+  (brief wait then spool). Derived SQLite/index caches retain their own contracts.
+  `context_collect.sh` delegates to `context_collect.py`; fixed known context
+  writer mains compose in-process while an outer job owns the lock, preserving
+  failure isolation without granting sibling subprocesses lock authority.
+- **`test_brain_lock.py`** / **`test_brain_lock_adoption.py`** — isolated
+  acquisition/release, bounded waits, fail-closed stale/special entries, thread
+  publication, fork/descendant refusal, same-thread nesting, contention, real
+  writer adoption, in-process cadence, and session-spool replay regressions.
 - **`log_session.py`** — launcher-level session logger (deterministic, no
   AI call). `log_session.py --provider <name> --role <role> --status
   <exit-code> --reason <exit|timeout|signal|refused> [--note <path>]`
@@ -222,7 +197,7 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   flushes spooled entries first, in order (`log_session.flush_pending()`);
   `healthcheck.py` WARNs while any are still waiting. An entry that cannot be replayed
   is parked in `log_session.pending.failed`. A child of a lock holder
-  re-enters the lock and writes at once. `pipeline/run.py`'s own
+  spools as well; only the owning process/thread may nest directly. `pipeline/run.py`'s own
   `pipeline/logs/.run.*.lock` is a per-target-repo run lock, not a brain
   lock. `--self-test` runs
   its own checks against temp fixtures (including a temp copy of the
@@ -369,8 +344,7 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   Takes the shared brain lock in **skip** mode (a repeatable ingest: if
   another writer holds it, the run logs "skipping" and exits 0; the next
   schedule retries). The lock is pid-based, so a long ingest is never
-  reclaimed from under itself while its process lives, and a crashed one is
-  reclaimed at once. `--dry-run` (or `DRY_RUN=1`) preview.
+  reclaimed automatically; a crashed owner requires deliberate recovery. `--dry-run` (or `DRY_RUN=1`) preview.
   Each agent call is recorded by `log_session.py`, which creates a typed
   session record and links it from the weekly note; the model is explicitly
   barred from editing weekly logs.
