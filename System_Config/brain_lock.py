@@ -60,6 +60,19 @@ def _reset():
     _OWNER_PID, _OWNER_THREAD, _IDENTITY = None, None, None
 
 
+def _after_fork():
+    # Called before child user code/threads: do not inherit a potentially locked
+    # thread mutex or let several new child threads race lazy replacement.
+    global _STATE_LOCK, _STATE_PID
+    _STATE_LOCK = threading.RLock()
+    _STATE_PID = os.getpid()
+    _reset()
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_after_fork)
+
+
 def _log(message):
     if log_hook is not None:
         try:

@@ -254,6 +254,46 @@ class OwnershipBoundaries(LockCase):
         self.assertEqual(self.pid_file(), str(os.getpid()))
 
 
+class ForkMutexReset(LockCase):
+    @unittest.skipUnless(hasattr(os, "fork"), "POSIX fork fixture")
+    def test_child_resets_mutex_held_by_another_parent_thread(self):
+        import threading
+        ready, unblock = threading.Event(), threading.Event()
+        self.assertEqual(brain_lock.acquire("skip", 0), 0)
+        def parent_thread():
+            with brain_lock._process_lock():
+                ready.set()
+                unblock.wait(5)
+        thread = threading.Thread(target=parent_thread)
+        thread.start()
+        self.assertTrue(ready.wait(2))
+        pid = os.fork()
+        if pid == 0:
+            try:
+                rc = brain_lock.acquire("skip", 0)
+                brain_lock.release()
+                os._exit(0 if rc == 1 else 1)
+            except BaseException:
+                os._exit(2)
+        deadline = time.monotonic() + 3
+        result, status = 0, 0
+        try:
+            while time.monotonic() < deadline:
+                result, status = os.waitpid(pid, os.WNOHANG)
+                if result:
+                    break
+                time.sleep(0.01)
+            if not result:
+                os.kill(pid, 9)
+                os.waitpid(pid, 0)
+                self.fail("child inherited a locked mutex")
+            self.assertEqual(os.WEXITSTATUS(status), 0)
+        finally:
+            unblock.set()
+            thread.join(3)
+        self.assertTrue(brain_lock.owned())
+
+
 class ThreadPublication(LockCase):
     def test_release_and_new_thread_publication_are_serialized(self):
         import threading
