@@ -88,7 +88,7 @@ Agentic_Light/
 │   ├── monday_init.py · friday_process.py · daily_ingest.py · run_agent.py · test_run_agent.py
 │   ├── context_collect.sh · context_collect.py · context_discover.py · context_intake.py · context_weekly.py · context_weekly_curate.py · context_auto_summary.py · context_mempalace.py · context_cadence.py
 │   ├── install_context_cadence.sh · test_context_cadence.py · test_context_collect.py · test_context_discover.py · test_context_intake.py · test_context_weekly.py · test_context_weekly_curate.py · test_context_auto_summary.py · test_context_mempalace.py · test_context_schedule.sh
-│   ├── log_session.py · route_skill.py · context.py · context_packet.py · test_context_packet.py ·
+│   ├── log_session.py · test_session_spool.py · route_skill.py · context.py · context_packet.py · test_context_packet.py ·
 │   │   test_encoding.py
 │   ├── context_catalog.py · context_curate.py · context_validate.py · test_support.py (shared
 │   │   test-fixture helper, not a test itself)
