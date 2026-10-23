@@ -3,8 +3,6 @@
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE="$(cd "$SCRIPT_DIR/.." && pwd)"
-VAULT="${CONTEXT_VAULT:-$WORKSPACE/brain}"
 CONFIG="${CONTEXT_SOURCES_CONFIG:-$SCRIPT_DIR/context-sources.local.json}"
 MANIFEST="${CONTEXT_MANIFEST:-$SCRIPT_DIR/context-manifest.local.json}"
 
