@@ -28,3 +28,9 @@ System_Config/context-manifest.local.json
 System_Config/context-manifest.local.json.context-discover
 brain/context/
 brain/raw/.ingested.log
+
+# Shared brain write lock (System_Config/brain_lock.py): lock dir (+ reclaim mutex / stale copies), spooled session entries, per-hour notice markers
+System_Config/logs/brain.lock.d*
+System_Config/logs/log_session.pending*
+System_Config/logs/.log_session.pending*
+System_Config/logs/.brain-lock-notified-*

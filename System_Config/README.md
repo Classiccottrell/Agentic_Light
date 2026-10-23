@@ -55,7 +55,9 @@ network request, global installation or background job runs automatically.
   Provides `acquire_lock(lock_dir, max_age=3600)`, an atomic-`mkdir` lock
   (a context manager) shared by the scripts below — a lock older than
   `max_age` seconds is treated as abandoned by a killed/crashed run and
-  reclaimed once. Provides `ensure_current_week_raw_folder()`, an idempotent
+  reclaimed once. That helper now guards only `pipeline/run.py`'s
+  per-target-repo run lock; every `brain/` writer takes the shared
+  `brain_lock.py` instead (below). Provides `ensure_current_week_raw_folder()`, an idempotent
   `mkdir -p` of the current ISO week's `brain/raw/YYYY/Wnn label/` folder;
   called by both `monday_init.py` and `daily_ingest.py` so a note always has
   somewhere to land regardless of which script runs first. `week_info()`
@@ -128,8 +130,9 @@ network request, global installation or background job runs automatically.
   `date`); `config.resolve_agent_provider()`/`config.validate_config()` run
   first (warn-only), the explicit equivalent of what bash's automatic
   `source`-time side effect used to give every caller for free.
-  `config.acquire_lock` (10 min stale-reclaim); `--dry-run` (or `DRY_RUN=1`)
-  preview. `--self-test` covers ISO-week edge cases (a Sunday anchoring back
+  Takes the shared brain lock in **wait** mode (`BRAIN_LOCK_WAIT`, default
+  900s); on timeout it raises a local notice and exits 75 without writing.
+  `--dry-run` (or `DRY_RUN=1`) preview. `--self-test` covers ISO-week edge cases (a Sunday anchoring back
   to Monday, a month-crossing label, the 2025-12-29 → 2026-W01/Q4 ISO-year
   rollover) plus a real isolated-workspace dry-run/write/idempotency/
   vacation-recovery integration run.
@@ -146,8 +149,13 @@ network request, global installation or background job runs automatically.
   insert grows it), and a "no row matched the week tag" outcome here
   also keeps the backup (logged as a WARNING, not a validation failure).
   Optional `[YYYY-Www]` positional argument
-  (defaults to the current ISO week). `config.acquire_lock` (10 min
-  stale-reclaim); `--dry-run` (or `DRY_RUN=1`) preview; `--self-test` covers
+  (defaults to the current ISO week). Takes the shared brain lock in
+  **wait** mode for the whole write phase — the context-cadence hooks, the
+  note read, the close-out stamp and the Master Note edit — and the
+  "already closed out" check runs under it, so a second run that waited
+  sees the first run's stamp and exits; timeout = local notice + exit 75,
+  nothing written. `--dry-run` (or `DRY_RUN=1`) takes no lock and writes
+  nothing; `--self-test` covers
   the stamp/rewrite logic directly plus a real isolated-workspace run. No
   microsite regen and no GitHub Pages publish here.
 - **Private context cadence** — `context_collect.sh` reads only the ignored,
@@ -159,6 +167,31 @@ network request, global installation or background job runs automatically.
   their primary jobs. `CONTEXT_MEMPALACE_BIN` optionally refreshes a private
   local MemPalace index. `install_context_cadence.sh` installs the three macOS
   launchd jobs, and bootstrap offers the same opt-in installation.
+- **`brain_lock.py`** — one shared stdlib write lock for `brain/`, at
+  `System_Config/logs/brain.lock.d` (PID file). Modes: skip → rc 1 for any
+  existing lock; wait → bounded monotonic timeout, rc 2; config errors → rc 3.
+  Existing dead, empty, malformed or special PID entries are never reclaimed
+  or swept. Quiesce all writers/children, inspect ownership, then remove only
+  the PID and empty directory deliberately; never use age alone or recursive deletion.
+  Same-process, same-thread nesting is counted; threads, forked children and
+  descendants cannot acquire/release an owner's lock through inherited state
+  or environment. A process-local mutex serializes ownership publication/release
+  and resets after fork. SIGKILL/power loss can leave a lock for manual recovery.
+  `guard(name, mode, timeout)` releases on exceptions; wait timeout produces a
+  deduplicated local desktop notice, never a webhook. Test overrides are gated
+  by `BRAIN_LOCK_TEST=1` and restricted under the system temporary directory.
+  `run --mode wait --timeout N -- <command>` holds the lock for an external
+  command; that command must not invoke another lock-taking writer.
+  All source-of-truth writers use the shared lock: daily ingest (skip),
+  Monday/Friday (wait), context writers (short wait), and session logging
+  (brief wait then spool). Derived SQLite/index caches retain their own contracts.
+  `context_collect.sh` delegates to `context_collect.py`; fixed known context
+  writer mains compose in-process while an outer job owns the lock, preserving
+  failure isolation without granting sibling subprocesses lock authority.
+- **`test_brain_lock.py`** / **`test_brain_lock_adoption.py`** — isolated
+  acquisition/release, bounded waits, fail-closed stale/special entries, thread
+  publication, fork/descendant refusal, same-thread nesting, contention, real
+  writer adoption, in-process cadence, and session-spool replay regressions.
 - **`log_session.py`** — launcher-level session logger (deterministic, no
   AI call). `log_session.py --provider <name> --role <role> --status
   <exit-code> --reason <exit|timeout|signal|refused> [--note <path>]`
@@ -177,9 +210,25 @@ network request, global installation or background job runs automatically.
   weekly line. `LOG_SESSION_RECORDS_DIR` provides the equivalent isolated
   fixture destination. If
   `monday_init.py` fails or the note is still missing, it prints a warning
-  to stderr and exits 0 (logging never fails the pipeline). No lock
-  conflict: `monday_init.py` locks `System_Config/logs/monday_init.lock`,
-  `pipeline/run.py` locks `pipeline/logs/.run.*.lock`. `--self-test` runs
+  to stderr and exits 0 (logging never fails the pipeline). Writes take the
+  shared brain lock with a short wait (`BRAIN_LOCK_HOOK_WAIT`, default 5s).
+  If a long ingest holds it, the whole entry (session record + note line)
+  is **spooled** as a closed mode-600 JSON file, atomically published as
+  `System_Config/logs/log_session.pending.entry.*`
+  (outside `brain/`), the script exits 0, and the next writer that holds the
+  lock — `log_session.py` itself, `daily_ingest.py`, or `friday_process.py` —
+  flushes a snapshot of published entries first (`log_session.flush_pending()`);
+  `healthcheck.py` WARNs while any are still waiting. An entry that cannot be replayed
+  is parked in `log_session.pending.failed` before acknowledgement. Failed
+  publications remain hidden `.log_session.pending.writing.*` files for inspection.
+  Legacy append files (including historical `.flushing.<pid>` crash files)
+  remain in place, tracked by inode, byte offset, and prefix
+  hash so an old open writer can append safely after a drain. A crash between
+  note write and acknowledgement can replay an entry; delivery is at least once,
+  without a cross-file transaction or fsync durability guarantee. A child of a lock holder
+  spools as well; only the owning process/thread may nest directly. `pipeline/run.py`'s own
+  `pipeline/logs/.run.*.lock` is a per-target-repo run lock, not a brain
+  lock. `--self-test` runs
   its own checks against temp fixtures (including a temp copy of the
   workspace scripts for the auto-init path; the real vault is never
   touched). Called once by `pipeline/run.py` after the coder step completes.
@@ -321,9 +370,10 @@ network request, global installation or background job runs automatically.
   idempotent re-scans; quarantines a clip after 3 failed attempts
   (`brain/raw/.failed.log`); stops the run after 2 consecutive failures
   (suspected quota/budget wall — remaining clips retry next run).
-  `config.acquire_lock`, stale-reclaim threshold sized to
-  `MAX_CLIPS_PER_RUN × (MAX_SECONDS + 30s)` so a legitimately long ingest is
-  never reclaimed from under itself; `--dry-run` (or `DRY_RUN=1`) preview.
+  Takes the shared brain lock in **skip** mode (a repeatable ingest: if
+  another writer holds it, the run logs "skipping" and exits 0; the next
+  schedule retries). The lock is pid-based, so a long ingest is never
+  reclaimed automatically; a crashed owner requires deliberate recovery. `--dry-run` (or `DRY_RUN=1`) preview.
   Each agent call is recorded by `log_session.py`, which creates a typed
   session record and links it from the weekly note; the model is explicitly
   barred from editing weekly logs.
@@ -429,7 +479,8 @@ network request, global installation or background job runs automatically.
 - **`healthcheck.py`** — layered PASS/WARN/FAIL check: directory layout,
   agent/skill roster frontmatter completeness, brain scaffolding
   (`wiki/index.md`, current weekly note, Master Note sentinel), read-only
-  provider configuration/executable resolution, pipeline log recency, and
+  provider configuration/executable resolution, pipeline log recency, the
+  shared brain lock (WARN on a dead holder or spooled/parked session lines), and
   doc currency (including a WARN if `CLAUDE.md`'s Directory Map's
   `System_Config/*` listing drifts from actual `.sh`/`.py`/`.json` files on
   disk).

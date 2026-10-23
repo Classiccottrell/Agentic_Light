@@ -23,6 +23,10 @@ import time
 from datetime import date
 from pathlib import Path
 
+import brain_lock
+import contextlib
+import io
+import context_curate
 import config
 
 # daily_ingest's OWN defaults (180s / $1.00) differ from run_agent.py's
@@ -154,20 +158,12 @@ def wiki_has_link(wiki_dir, needle):
 
 
 def curate_new_wiki_pages(root, src_link, log_path):
-    """After a successful ingest adds [[src_link]] to one or more wiki
-    pages, run context.py's `curate --apply` on each so cross-links get
-    suggested/applied. Subprocess, not import — context.py's own contract
-    is "log the output, a failed page never stops the ingest loop", the
-    opposite of route_skill/context_packet's clean importable functions.
+    """Curate new wiki links synchronously under the owning process's brain lock.
 
-    daily_ingest.sh referenced "$ROOT" here with no matching definition
-    anywhere it sourced (config.sh only ever defined WORKSPACE) — under
-    bash's `set -u` this would abort the instant a real ingest ever
-    matched a wikilink, so curation was, in practice, dead code in
-    daily_ingest.sh. This port uses config.WORKSPACE (clearly the intended
-    value) and is the first version where curation actually runs; expect
-    it to be the first to write '## Related Context' sections and
-    brain/records/sessions/curation-*.md."""
+    The fixed context_curate main keeps its own nested guard; failures are logged
+    per page and do not undo the already-recorded ingest. No child inherits lock
+    authority or blocks waiting for a lock held by its own parent.
+    """
     wiki_dir = root / "brain" / "wiki"
     needle = f"[[{src_link}]]"
     pages = []
@@ -178,18 +174,20 @@ def curate_new_wiki_pages(root, src_link, log_path):
                     pages.append(p)
             except OSError:
                 continue
-    context_py = root / "System_Config" / "context.py"
     for page in pages:
-        proc = subprocess.run(
-            [sys.executable, str(context_py), "--root", str(root), "curate", str(page), "--apply"],
-            capture_output=True, encoding="utf-8", env={**os.environ, "PYTHONUTF8": "1"},
-        )
+        output = io.StringIO()
+        errors = io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+            try:
+                rc = context_curate.main([str(page), "--root", str(root), "--apply"])
+            except (Exception, SystemExit):
+                rc = 1
         with open(log_path, "a", encoding="utf-8", newline="\n") as f:
-            if proc.stdout:
-                f.write(proc.stdout)
-            if proc.stderr:
-                f.write(proc.stderr)
-        if proc.returncode != 0:
+            if output.getvalue():
+                f.write(output.getvalue())
+            if errors.getvalue():
+                f.write(errors.getvalue())
+        if rc != 0:
             with open(log_path, "a", encoding="utf-8", newline="\n") as f:
                 f.write(f"[{_ts()}] WARN: curation failed for {page} — ingest remains recorded\n")
 
@@ -249,14 +247,14 @@ def run(dry_run=False, run_agent_fn=None):
     today = date.today().isoformat()
     weekly_note = f"weekly_logs/{year}/{year}-W{week}.md"
 
-    config.ensure_current_week_raw_folder()
-
-    lock_dir = log_dir / "daily_ingest.lock"
-    lock_max_age = (int(os.environ.get("MAX_SECONDS", ra.MAX_SECONDS)) + 30) * MAX_CLIPS_PER_RUN + 300
-    with config.acquire_lock(lock_dir, max_age=lock_max_age) as held:
+    with brain_lock.guard("daily_ingest", "skip", 0) as held:
         if not held:
-            log(f"another daily_ingest holds {lock_dir} — skipping")
+            log("brain lock held by another writer — skipping this run")
             return 0
+
+        config.ensure_current_week_raw_folder()
+        if not dry_run:
+            log_session.flush_pending()   # session lines spooled while a long job held the lock
 
         if not dry_run:
             context_cadence.collect(today, log)
@@ -392,6 +390,9 @@ def self_test():
             print(f"FAIL: {label}: {detail}", file=sys.stderr)
 
     ws = Path(tempfile.mkdtemp(prefix="agentic-light-daily-ingest-test."))
+    lock_env = {k: os.environ.get(k) for k in ("BRAIN_LOCK_TEST", "BRAIN_LOCK_DIR")}
+    os.environ["BRAIN_LOCK_TEST"] = "1"                       # in-process run() must not touch the real lock dir
+    os.environ["BRAIN_LOCK_DIR"] = str(ws / "brain.lock.d")
     try:
         (ws / "brain" / "wiki").mkdir(parents=True)
         (ws / "brain" / "weekly_logs").mkdir(parents=True)
@@ -406,7 +407,7 @@ def self_test():
         # failure here would otherwise be invisible; see the checks below).
         syscfg = ws / "System_Config"
         syscfg.mkdir(exist_ok=True)
-        for name in ("context.py", "context_curate.py", "context_catalog.py", "context_validate.py"):
+        for name in ("context.py", "context_curate.py", "context_catalog.py", "context_validate.py", "brain_lock.py"):
             shutil.copy(Path(__file__).parent / name, syscfg / name)
 
         import config as _cfg  # same cached module object as the top-level import
@@ -538,6 +539,11 @@ def self_test():
               all("too-deep" not in c.name for c in find_candidate_clips(_cfg.RAW)))
     finally:
         _cfg.WORKSPACE, _cfg.BRAIN, _cfg.RAW, _cfg.LOG_DIR = orig
+        for key, value in lock_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
         from test_support import rmtree_force
         try:
             rmtree_force(ws)

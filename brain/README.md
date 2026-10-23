@@ -57,5 +57,18 @@ When its ignored `System_Config/context-sources.local.json` exists,
 files. It writes only hashes and labels under ignored `brain/context/`; the
 weekly note links separately to AI-session and gathered-context archives.
 
+Every script that writes under `brain/` takes one shared lock,
+`System_Config/brain_lock.py`, so a Friday close-out, a daily ingest and a
+session log never edit the same note at once. Repeatable ingests skip when it
+is busy; the weekly jobs wait, then raise a local notice and stop without
+writing; `log_session.py` spools its line to `System_Config/logs/` and the
+next daily or Friday run writes it. See `System_Config/README.md` for the modes.
+
 Run `System_Config/install_context_cadence.sh` (or accept the bootstrap prompt)
 to schedule daily collection, Monday spin-up, and Friday closeout on macOS.
+
+Lock ownership belongs to one process/thread. Known nested context jobs compose
+in-process; spawned children and sibling threads cannot inherit write authority.
+Existing locks are retained after crashes or ambiguous PID state. Quiesce writers
+and inspect ownership before manual recovery; never delete an active/unknown lock
+based on age. Atomic per-file writes do not make multi-file updates transactions.

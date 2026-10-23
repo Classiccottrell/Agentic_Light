@@ -9,6 +9,7 @@ import re
 import stat
 import sys
 import tempfile
+import brain_lock
 
 
 ARCHIVE_MARKER = b"<!-- context-weekly: generated v1 -->\n"
@@ -307,6 +308,13 @@ def main(argv=None):
     parser.add_argument("--week", required=True)
     parser.add_argument("--note", type=Path)
     args = parser.parse_args(argv)
+    with brain_lock.guard("context_weekly", "wait", brain_lock.short_wait_seconds()) as held:
+        if not held:
+            return 75   # EX_TEMPFAIL: brain lock busy, nothing written
+        return _run(args)
+
+
+def _run(args):
     try:
         print(json.dumps(publish(args.vault, args.week, args.note), sort_keys=True))
     except ValueError as error:

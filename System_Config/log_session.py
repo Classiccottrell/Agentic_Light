@@ -17,17 +17,26 @@ the target file (never auto-created). If the default current-week note is
 missing, monday_init.py is run first to create it from the template.
 """
 import argparse
+import contextlib
+import io
+import json
+import hashlib
+import time
 import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import traceback
 from datetime import date
 from pathlib import Path
 
+import brain_lock
+
 ROOT = Path(os.path.abspath(__file__)).parent.parent
 BRAIN = ROOT / "brain"
+PENDING = ROOT / "System_Config" / "logs" / "log_session.pending"
 
 
 def _child_env():
@@ -57,8 +66,8 @@ def _atomic_write(path, text):
         raise
 
 
-def append_session_line(note_path, provider, role, status, reason, record_id=""):
-    ts = _now_str()
+def append_session_line(note_path, provider, role, status, reason, record_id="", ts=None):
+    ts = ts or _now_str()
     suffix = f" · [[{record_id}|session record]]" if record_id else ""
     line = f"- {ts}: {provider} / {role} — exit {status} ({reason}){suffix}"
     text = note_path.read_text(encoding="utf-8")
@@ -189,7 +198,7 @@ def self_test():
     tmp.unlink()
 
     # Missing current-week note: run a copy of this script + monday_init.py
-    # + config.py + template from a temp workspace, so the real vault is
+    # + its fixed writer dependencies + template from a temp workspace, so the real vault is
     # never touched.
     os.environ.pop("LOG_SESSION_NOTE", None)
     os.environ.pop("LOG_SESSION_RECORDS_DIR", None)
@@ -199,7 +208,9 @@ def self_test():
     shutil.copy(Path(__file__), ws / "System_Config" / "log_session.py")
     shutil.copy(ROOT / "System_Config" / "monday_init.py", ws / "System_Config" / "monday_init.py")
     shutil.copy(ROOT / "System_Config" / "config.py", ws / "System_Config" / "config.py")
+    shutil.copy(ROOT / "System_Config" / "brain_lock.py", ws / "System_Config" / "brain_lock.py")
     shutil.copy(ROOT / "System_Config" / "context_cadence.py", ws / "System_Config" / "context_cadence.py")
+    shutil.copy(ROOT / "System_Config" / "context_weekly.py", ws / "System_Config" / "context_weekly.py")
     (ws / "brain" / "weekly_logs" / "Weekly_Note_Template.md").write_text(
         "# W{{WEEK_NUM}} {{YEAR}} — TEMPLATE-MARKER\n---\n\n## Agent Sessions\n"
         "> Auto-appended after each launcher-completed session.\n\n---\n",
@@ -210,7 +221,7 @@ def self_test():
     proc = subprocess.run(
         [sys.executable, str(ws / "System_Config" / "log_session.py"),
          "--provider", "claude", "--role", "coder", "--status", "0", "--reason", "exit"],
-        capture_output=True, encoding="utf-8", env=_child_env(),
+        capture_output=True, encoding="utf-8", env=_child_env(), timeout=15,
     )
     check("missing note auto-created via monday_init.py", note.is_file())
     if note.is_file():
@@ -230,7 +241,7 @@ def self_test():
          "--provider", "codex", "--role", "coder", "--status", "0", "--reason", "exit",
          "--task", "Add a fixture", "--target-repo", str(ws / "target"),
          "--run-id", "fixture-run", "--branch", "agentic-light/fixture-run", "--log", str(log)],
-        capture_output=True, encoding="utf-8", env=_child_env(),
+        capture_output=True, encoding="utf-8", env=_child_env(), timeout=15,
     )
     record = ws / "brain" / "records" / "sessions" / "session-fixture-run.md"
     check("typed session record exits successfully", proc_record.returncode == 0, proc_record.stderr)
@@ -251,7 +262,7 @@ def self_test():
     proc2 = subprocess.run(
         [sys.executable, str(ws / "System_Config" / "log_session.py"),
          "--provider", "claude", "--role", "coder", "--status", "0", "--reason", "exit"],
-        capture_output=True, encoding="utf-8", env=_child_env(),
+        capture_output=True, encoding="utf-8", env=_child_env(), timeout=15,
     )
     check("non-zero exit when monday_init.py fails should still be 0", proc2.returncode == 0, proc2.returncode)
     check("note not written despite monday_init.py failure", not note.is_file())
@@ -261,7 +272,7 @@ def self_test():
         [sys.executable, str(ws / "System_Config" / "log_session.py"),
          "--provider", "claude", "--role", "coder", "--status", "0", "--reason", "exit",
          "--note", str(ws / "nope.md")],
-        capture_output=True, encoding="utf-8", env=_child_env(),
+        capture_output=True, encoding="utf-8", env=_child_env(), timeout=15,
     )
     check("explicit missing --note exits 0", proc3.returncode == 0, proc3.returncode)
     check("explicit --note does not trigger auto-create", not (ws / "nope.md").exists() and not (ws / "brain" / "weekly_logs" / f"{year}").is_dir())
@@ -312,16 +323,179 @@ def main():
     if any(metadata) and not all(metadata):
         print("session metadata requires --task, --target-repo, --run-id, --branch, and --log", file=sys.stderr)
         return 1
-    record_id = ""
     if all(metadata):
-        try:
-            record_id = write_session_record(args.provider, args.role, args.status, args.reason,
-                                             args.task, args.target_repo, args.run_id, args.branch, args.log)
+        try:   # validate up front so a bad call fails loudly now instead of being spooled and rejected later
+            session_record_text(args.provider, args.role, args.status, args.reason, *metadata)
         except ValueError as error:
             print("session record failed: " + str(error), file=sys.stderr)
             return 1
 
-    note = Path(args.note) if args.note else None
+    entry = {"provider": args.provider, "role": args.role, "status": args.status, "reason": args.reason,
+             "note": args.note, "metadata": list(metadata) if all(metadata) else [], "ts": _now_str()}
+
+    # Shared brain lock, session-hook budget: wait only BRAIN_LOCK_HOOK_WAIT seconds (default 5). If a long
+    # ingest holds it, SPOOL the whole entry to logs/log_session.pending.entry.* (outside brain/) and exit 0; the next
+    # run that gets the lock flushes it first. Never dropped, never written unlocked. A child of a lock holder
+    # (e.g. a pipeline child of a Friday run) spools instead of inheriting parent authority.
+    if brain_lock.acquire("wait", brain_lock.hook_wait_seconds()) != 0:
+        _spool(entry)
+        print(f"log_session.py: brain lock busy — spooled to {PENDING}; the next run flushes it", file=sys.stderr)
+        return 0
+    try:
+        flush_pending()
+        return _process(entry)
+    finally:
+        brain_lock.release()
+
+
+def _spool(entry):
+    """Publish one complete mode-0600 queue entry without sharing append FDs.
+
+    The flusher only sees .entry.* names after the writer has closed its file.
+    Hidden .writing.* files are incomplete evidence, never consumed/deleted here.
+    """
+    PENDING.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(dir=str(PENDING.parent), prefix="." + PENDING.name + ".writing.")
+    ready = PENDING.with_name(PENDING.name + ".entry.%020d.%s" % (time.time_ns(), Path(temporary).name.rsplit(".", 1)[-1]))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(json.dumps(entry, sort_keys=True) + "\n")
+        os.replace(temporary, str(ready))
+    except BaseException:
+        # Keep a failed publication as evidence; it has no ready name and cannot
+        # be mistaken for a complete row by a concurrent flusher.
+        raise
+
+
+def _park(raw):
+    """Retain malformed/rejected rows; this append-only file is never renamed."""
+    fd = os.open(str(PENDING.with_name(PENDING.name + ".failed")), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    with os.fdopen(fd, "ab") as stream:
+        stream.write(raw if raw.endswith(b"\n") else raw + b"\n")
+
+
+def _replay(raw):
+    try:
+        failed = _process(json.loads(raw.decode("utf-8"))) != 0
+    except (ValueError, KeyError, TypeError):
+        failed = True
+    if failed:
+        _park(raw)
+
+
+def _write_legacy_cursor(cursor, pending):
+    path = pending.with_name(pending.name + ".cursor")
+    fd, temporary = tempfile.mkstemp(dir=str(path.parent), prefix="." + path.name + ".")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(json.dumps(cursor, sort_keys=True) + "\n")
+        os.replace(temporary, str(path))
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def _flush_legacy(pending):
+    """Replay complete LF records by inode+offset, never rename/unlink legacy.
+
+    An old-version writer may still have its append descriptor open when we
+    drain. Keeping the original inode/path and a checkpoint lets later appends
+    appear on the next flush. Replacement/truncation/prefix change resets the
+    cursor conservatively (at-least-once replay, never skip unseen new bytes).
+    """
+    if not pending.is_file():
+        return
+    try:
+        cursor = json.loads(pending.with_name(pending.name + ".cursor").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        cursor = {}
+    if not isinstance(cursor, dict):
+        cursor = {}
+    with open(pending, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        data = stream.read()
+    identity = [info.st_dev, info.st_ino]
+    offset = cursor.get("offset", 0)
+    if (cursor.get("identity") != identity or not isinstance(offset, int) or isinstance(offset, bool) or offset < 0 or offset > len(data)
+            or cursor.get("prefix_sha256") != hashlib.sha256(data[:offset]).hexdigest()):
+        offset = 0
+    end = data.rfind(b"\n") + 1
+    if end <= offset:
+        return
+    prefix = hashlib.sha256(data[:offset])
+    for line in data[offset:end].split(b"\n")[:-1]:
+        raw = line + b"\n"
+        if raw.strip():
+            _replay(raw)
+        offset += len(raw)
+        prefix.update(raw)
+        _write_legacy_cursor({"identity": identity, "offset": offset,
+                              "prefix_sha256": prefix.hexdigest()}, pending)
+
+
+def _legacy_paths():
+    # Old releases renamed the append target to .flushing.<pid>. Keep these
+    # inodes too: an old writer may still hold an append descriptor to one.
+    historical = [path for path in PENDING.parent.glob(PENDING.name + ".flushing.*")
+                  if re.fullmatch(r"[0-9]+", path.name.rsplit(".", 1)[-1])]
+    return [PENDING, *sorted(historical)]
+
+
+def legacy_pending(pending=None):
+    """Whether any retained legacy append file has unacknowledged bytes."""
+    if pending is None:
+        return any(legacy_pending(path) for path in _legacy_paths())
+    try:
+        with open(pending, "rb") as stream:
+            info, data = os.fstat(stream.fileno()), stream.read()
+        if not data:
+            return False
+        cursor = json.loads(pending.with_name(pending.name + ".cursor").read_text(encoding="utf-8"))
+        if not isinstance(cursor, dict):
+            return True
+        return not (cursor.get("identity") == [info.st_dev, info.st_ino]
+                    and cursor.get("offset") == len(data)
+                    and cursor.get("prefix_sha256") == hashlib.sha256(data).hexdigest())
+    except FileNotFoundError:
+        return pending.exists()
+    except (OSError, ValueError):
+        return True
+
+
+def pending_ready():
+    """Return a fixed snapshot of complete published entries only."""
+    return sorted(PENDING.parent.glob(PENDING.name + ".entry.*"))
+
+
+def flush_pending():
+    """Replay under the brain lock. Concurrent publications wait for next flush.
+
+    Delivery is at least once across a crash between note write and queue/cursor
+    acknowledgement; no cross-file transaction or fsync durability is promised.
+    """
+    if not brain_lock.owned():
+        raise RuntimeError("flush_pending requires the shared brain lock")
+    ready = pending_ready()
+    for path in _legacy_paths():
+        _flush_legacy(path)
+    for path in ready:
+        _replay(path.read_bytes())
+        path.unlink()
+
+
+def _process(entry):
+    """Write one entry (session record + weekly-note line). Caller holds the brain lock."""
+    record_id = ""
+    if entry["metadata"]:
+        task, target_repo, run_id, branch, log_path = entry["metadata"]
+        try:
+            record_id = write_session_record(entry["provider"], entry["role"], entry["status"], entry["reason"],
+                                             task, target_repo, run_id, branch, log_path)
+        except ValueError as error:
+            print("session record failed: " + str(error), file=sys.stderr)
+            return 1
+
+    note = Path(entry["note"]) if entry["note"] else None
     if note is not None:
         if not note.is_file():
             print(f"log_session.py: no weekly note at {note} — skipping (explicit --note is never auto-created)", file=sys.stderr)
@@ -330,20 +504,29 @@ def main():
         note = current_week_note()
         if not note.is_file():
             print(f"log_session.py: no weekly note at {note} — running monday_init.py to create it", file=sys.stderr)
-            monday_init_py = ROOT / "System_Config" / "monday_init.py"
-            result = subprocess.run([sys.executable, str(monday_init_py)],
-                                     capture_output=True, encoding="utf-8", env=_child_env())
-            if result.stdout:
-                print(result.stdout, end="", file=sys.stderr)
-            if result.stderr:
-                print(result.stderr, end="", file=sys.stderr)
-            if result.returncode != 0:
+            # Same-process composition lets Monday nest under this thread's
+            # lock; a child process must never inherit lock ownership.
+            output, errors = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+                try:
+                    import monday_init
+                    rc = monday_init.run(dry_run=os.environ.get("DRY_RUN", "0") == "1")
+                except SystemExit as error:
+                    rc = error.code if isinstance(error.code, int) else (0 if error.code is None else 1)
+                    if rc and not isinstance(error.code, int):
+                        print(error.code, file=sys.stderr)
+                except Exception:
+                    traceback.print_exc()
+                    rc = 1
+            print(output.getvalue(), end="", file=sys.stderr)
+            print(errors.getvalue(), end="", file=sys.stderr)
+            if rc != 0:
                 print("log_session.py: monday_init.py exited non-zero", file=sys.stderr)
             if not note.is_file():
                 print(f"log_session.py: weekly note still missing at {note} after monday_init.py — skipping", file=sys.stderr)
                 return 0
 
-    append_session_line(note, args.provider, args.role, args.status, args.reason, record_id)
+    append_session_line(note, entry["provider"], entry["role"], entry["status"], entry["reason"], record_id, ts=entry["ts"])
     return 0
 
 

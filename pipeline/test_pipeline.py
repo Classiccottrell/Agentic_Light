@@ -174,6 +174,8 @@ def run_pipeline(task, target_repo, coder_cmd=CODER_STUB, human_gate_cmd=None, e
     env["AGENTIC_LIGHT_TEST_MODE"] = "1"
     env["LOG_SESSION_NOTE"] = str(LOG_SESSION_NOTE)
     env["LOG_SESSION_RECORDS_DIR"] = str(SESSION_RECORDS)
+    env["BRAIN_LOCK_TEST"] = "1"                              # keep fixtures off the real brain lock
+    env["BRAIN_LOCK_DIR"] = str(TMP_ROOT / "brain.lock.d")
     env["PYTHONUTF8"] = "1"
     if coder_cmd is not None:
         env["PIPELINE_CODER_CMD"] = str(coder_cmd)

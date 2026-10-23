@@ -3,8 +3,6 @@
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE="$(cd "$SCRIPT_DIR/.." && pwd)"
-VAULT="${CONTEXT_VAULT:-$WORKSPACE/brain}"
 CONFIG="${CONTEXT_SOURCES_CONFIG:-$SCRIPT_DIR/context-sources.local.json}"
 MANIFEST="${CONTEXT_MANIFEST:-$SCRIPT_DIR/context-manifest.local.json}"
 
@@ -30,14 +28,6 @@ if [ ! -e "$CONFIG" ] && [ ! -L "$CONFIG" ]; then
   exit 1
 fi
 
-python3 "$SCRIPT_DIR/context_discover.py" --config "$CONFIG" --out "$MANIFEST" --date "$RUN_DATE" || exit $?
-python3 "$SCRIPT_DIR/context_intake.py" --vault "$VAULT" --manifest "$MANIFEST" --date "$RUN_DATE" || exit $?
-WEEK="$(python3 -c 'import datetime, sys; value = datetime.date.fromisoformat(sys.argv[1]).isocalendar(); print(f"{value.year}-W{value.week:02d}")' "$RUN_DATE")" || exit $?
-YEAR="${WEEK%%-W*}"
-NOTE="$VAULT/weekly_logs/$YEAR/$WEEK.md"
-if [ -f "$NOTE" ] && [ ! -L "$NOTE" ]; then
-  python3 "$SCRIPT_DIR/context_weekly.py" --vault "$VAULT" --week "$WEEK" --note "$NOTE"
-else
-  python3 "$SCRIPT_DIR/context_weekly.py" --vault "$VAULT" --week "$WEEK"
-fi
-
+# The Python composer holds the shared lock and invokes nested writer mains in
+# the same process. No environment flag grants descendants acquisition rights.
+exec python3 "$SCRIPT_DIR/context_collect.py" "$RUN_DATE"

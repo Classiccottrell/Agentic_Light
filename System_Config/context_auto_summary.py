@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 
 import context_weekly as weekly
+import brain_lock
 
 
 MARKER = weekly.AUTO_SUMMARY_MARKER
@@ -50,6 +51,13 @@ def main(argv=None):
     parser.add_argument("--vault", required=True)
     parser.add_argument("--week", required=True)
     args = parser.parse_args(argv)
+    with brain_lock.guard("context_auto_summary", "wait", brain_lock.short_wait_seconds()) as held:
+        if not held:
+            return 75   # EX_TEMPFAIL: brain lock busy, nothing written
+        return _run(args)
+
+
+def _run(args):
     try:
         weekly.week_bounds(args.week)
         print(json.dumps(publish(args.vault, args.week), sort_keys=True))

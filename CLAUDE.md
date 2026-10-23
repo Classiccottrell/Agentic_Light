@@ -22,6 +22,7 @@ command below.
 - `python3 System_Config/test_providers.py` — fake-provider check for ordered pre-launch fallback, one invocation, and no retry after failure.
 - `python3 System_Config/test_run_agent.py` — regression test for the gemini/agy `--add-dir` write-confinement contract (stubs `agy` to emulate its silent-cwd-ignoring bug so a future edit that drops the flag fails loudly instead of regressing writes).
 - `python3 pipeline/run.py` — Task Input → coder → ESLint gate → Playwright gate → Human Gate → `gh pr create`.
+- `python3 System_Config/test_brain_lock.py` / `python3 System_Config/test_brain_lock_adoption.py` — the shared `brain/` write lock (`System_Config/brain_lock.py`): lock semantics + multi-process contention and process/thread ownership regressions, and a per-writer check that every `brain/` writer takes it in the right mode (skip / wait / short / hook-spool).
 - `python3 pipeline/test_pipeline.py` — integration test for the whole pipeline gate/lock/secret-scan contract.
 - `python3 skills/skills.py list` — list available skills; `python3 skills/skills.py run <name> [args...]` runs `skills/<name>/run_<name>.py` (or `.sh`, or the sole `run_*` entrypoint found).
 - `python3 System_Config/monday_init.py` — weekly initializer: creates the current week's note from the template, the `brain/raw/` folder, and a Master Note Weekly Index row (backup → edit → validate → rollback); Vacation Recovery inserts one synthetic catch-up row if the last logged week is more than 7 days behind. `--dry-run` (or `DRY_RUN=1`) previews; `--self-test` runs its own fixtures (ISO-week edge cases + a real isolated-workspace run).
@@ -83,11 +84,11 @@ Agentic_Light/
 ├── .obsidian/{app,appearance,core-plugins,community-plugins,graph}.json
 ├── Projects/_TEMPLATE/{BRIEF.md,README.md,spec.md,tasks.md,Plan.md,active/.gitkeep,archive/.gitkeep}
 ├── System_Config/
-│   ├── config.py · test_providers.py · mcp.defaults.json · new_agent.py · README.md · logs/.gitkeep
+│   ├── config.py · brain_lock.py · test_brain_lock.py · test_brain_lock_adoption.py · test_providers.py · mcp.defaults.json · new_agent.py · README.md · logs/.gitkeep
 │   ├── monday_init.py · friday_process.py · daily_ingest.py · run_agent.py · test_run_agent.py
-│   ├── context_collect.sh · context_discover.py · context_intake.py · context_weekly.py · context_weekly_curate.py · context_auto_summary.py · context_mempalace.py · context_cadence.py
+│   ├── context_collect.sh · context_collect.py · context_discover.py · context_intake.py · context_weekly.py · context_weekly_curate.py · context_auto_summary.py · context_mempalace.py · context_cadence.py
 │   ├── install_context_cadence.sh · test_context_cadence.py · test_context_collect.py · test_context_discover.py · test_context_intake.py · test_context_weekly.py · test_context_weekly_curate.py · test_context_auto_summary.py · test_context_mempalace.py · test_context_schedule.sh
-│   ├── log_session.py · route_skill.py · context.py · context_packet.py · test_context_packet.py ·
+│   ├── log_session.py · test_session_spool.py · route_skill.py · context.py · context_packet.py · test_context_packet.py ·
 │   │   test_encoding.py
 │   ├── context_catalog.py · context_curate.py · context_validate.py · test_support.py (shared
 │   │   test-fixture helper, not a test itself)

@@ -26,6 +26,7 @@ import time
 from datetime import date, timedelta
 from pathlib import Path
 
+import brain_lock
 import config
 import context_cadence
 
@@ -197,11 +198,10 @@ def run(dry_run=False, today=None):
     def link_context():
         context_cadence.link_week(f"{ctx['year']}-W{ctx['week_num']}", ctx["note_file"], context_log)
 
-    lock_dir = log_dir / "monday_init.lock"
-    with config.acquire_lock(lock_dir, max_age=600) as held:
+    with brain_lock.guard("monday_init", "wait", brain_lock.wait_seconds()) as held:
         if not held:
-            print(f"[monday_init] another run holds {lock_dir} — skipping", file=sys.stderr)
-            return 0
+            print("[monday_init] brain lock busy — exiting WITHOUT writing", file=sys.stderr)
+            return 75
 
         config.ensure_current_week_raw_folder()
         print(f"[monday_init] raw folder ready: raw/{ctx['year']}/W{ctx['week_num']} {ctx['week_label']}")
@@ -274,6 +274,7 @@ def self_test():
         (ws / "brain" / "weekly_logs").mkdir(parents=True)
         shutil.copy(Path(__file__), syscfg / "monday_init.py")
         shutil.copy(Path(__file__).parent / "config.py", syscfg / "config.py")
+        shutil.copy(Path(__file__).parent / "brain_lock.py", syscfg / "brain_lock.py")
         shutil.copy(Path(__file__).parent / "context_cadence.py", syscfg / "context_cadence.py")
         shutil.copy(Path(__file__).parent / "context_weekly.py", syscfg / "context_weekly.py")
         (ws / "brain" / "weekly_logs" / "Weekly_Note_Template.md").write_text(

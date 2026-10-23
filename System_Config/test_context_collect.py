@@ -33,7 +33,7 @@ class ContextCollectFixtures(unittest.TestCase):
         self.vault.mkdir()
         self.sources = self.workspace / "private-sources"
         self.sources.mkdir()
-        for name in ("context_collect.sh", "context_discover.py", "context_intake.py", "context_weekly.py"):
+        for name in ("context_collect.py", "context_collect.sh", "context_discover.py", "context_intake.py", "context_weekly.py", "brain_lock.py"):
             shutil.copy2(SCRIPTS / name, self.system / name)
 
     def source(self, name):
