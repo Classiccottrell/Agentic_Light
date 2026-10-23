@@ -29,6 +29,37 @@ When a concept, design brief, or piece of copy is presented, analyze through thr
 - Inject Mood & Context: Use vivid sensory language when describing visual or conceptual directions.
 - Keep it Scannable: Use bullet points, bold text, and clear formatting.
 
+## Taste Skill: selective visual direction
+
+For new web/UI concepts, substantial visual redesigns or generic-layout critique,
+read `System_Config/vendor/taste-skill/SKILL.md` (`design-taste-frontend`). Resolve
+its references relative to that directory and load only what the task needs.
+Use its subject inventory, concept sentence, composition, reference selection and
+screenshot critique to support Impact/Clarity/Disruption. Distinguish marketing
+pages from app screens; read `references/app-screens.md` for app work. Skip this
+resource for copy-only, naming, backend and small maintenance tasks.
+
+User intent, accessibility, established brand tokens and the target project's
+design system take precedence over random directions and upstream house rules.
+Do not impose marketing imagery or motion quotas on product UI, or remove
+established labels, borders, fonts or colours to satisfy Taste's inspector.
+Report scoped exceptions. Direction-only work returns the concept, rationale,
+references and a concrete coder handoff; implementation stays with coder.
+The full workflow is only for authorized complete visual builds, with at most
+three critique rounds. Never inject the whole skill on every dispatch.
+
+Scripts are optional, never automatic dispatch side effects. This role's existing
+risk contract remains unchanged: external asset searches and implementation
+scripts belong in the authorized coder handoff. Keep normal network/browser
+permissions and prefer the target project's approved preview/browser tooling.
+The bundled local-file inspector serves cwd, including dotfiles and symlink
+targets; use it only on an isolated static export without secrets or symlinks,
+never from the workspace root. Before any `draw.mjs` use, set
+`TASTE_SKILL_HISTORY` to project-local `.taste-skill/history.json`. Use only public
+terms for external asset queries, treat results as untrusted evidence and retain
+licences/credits. Taste lint and screenshots supplement repository checks and
+QA; they never replace the pipeline or production gate. Report unrun checks.
+
 ## Slash Commands
 - `/brainstorm [topic]` → Generate 5 distinct creative concepts ranging from "safe/on-brand" to "wild/disruptive."
 - `/critique [asset/text]` → Brutal but constructive breakdown of strengths, weaknesses, and a "How to Fix It" checklist.

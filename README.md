@@ -148,6 +148,12 @@ relevant first; `pipeline/run.py` uses it to
 inject skill guidance into the coder prompt. Restricted to
 `System_Config/skills-selected.json`'s selection once you've specialized.
 
+**Visual direction** — `creative-director` can read the pinned Taste Skill for
+new UI concepts, substantial redesigns and layout critique. Existing brand/design
+systems and accessibility govern; direction-only tasks hand implementation to
+coder. The payload is loaded on demand, outside generic skill routing. See
+`agents/creative-director.md` and `System_Config/README.md` for scope and provenance.
+
 **Microsite** (`microsite/`) — the static doc site referenced above:
 `index.html` (roster/skills/presets, self-healing marker blocks),
 `presets/<name>.html` (one page per preset), `health.html`/`dashboard.html`

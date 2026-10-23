@@ -188,6 +188,17 @@ workspace's own automation layer — also intentionally kept.
 `archivist` and `rally` are **excluded from this roster by design** — Agentic
 Light has no archival pipeline and no rally/broadcast agent; do not add them.
 
+## Creative director visual guidance
+
+For new web/UI concepts, substantial visual redesigns and generic-layout critique,
+dispatch `creative-director` with the workspace-local path
+`System_Config/vendor/taste-skill/SKILL.md`. The role reads the pinned skill and
+only relevant references on demand; do not paste the full payload into every
+prompt or add it to the generic coder skill router. Existing design systems,
+accessibility, user intent and the role's risk contract govern. Direction-only
+work produces a coder handoff; full build loops require that task scope.
+See `agents/creative-director.md` for script and verification boundaries.
+
 ## `.obsidian/` Is Shipped
 
 Unlike the parent workspace (which gitignores `.obsidian/`), Agentic Light

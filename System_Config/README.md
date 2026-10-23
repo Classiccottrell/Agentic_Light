@@ -3,6 +3,28 @@
 Scripts and configuration for Agentic Light. **No launchd/cron — every
 script here runs by hand; that's the only way it runs in Agentic Light.**
 
+## Creative director visual guidance
+
+`vendor/taste-skill/` is an unchanged copy of Leonxlnx's MIT-licensed
+[design-taste-frontend](https://github.com/Leonxlnx/taste-skill), pinned to commit
+`6010f91a9935f1c167dfc500fb1a475681892e6b`; the repository-root `LICENSE` is retained.
+Updates are manual after reviewing the upstream diff and scripts.
+
+`agents/creative-director.md` selectively loads it for visual concepts, substantial
+redesigns and layout critique. It stays outside `skills/` and the generic router,
+so small maintenance and nonvisual tasks do not inherit its broad trigger or full
+build loop. Existing brand/design systems and accessibility take precedence.
+External searches and implementation scripts stay with the authorized coder
+handoff; the creative director's existing risk metadata is unchanged.
+
+Node 22+ is needed for the optional browser scripts. Prefer approved project
+preview/browser tooling. The bundled local-file inspector serves cwd, including
+dotfiles and symlink targets: use only an isolated static export without secrets
+or symlinks. Before a draw, set `TASTE_SKILL_HISTORY` to a project-local
+`.taste-skill/history.json`. Asset queries must use public terms; preserve source
+licences and credits. Taste checks supplement existing checks and QA. No script,
+network request, global installation or background job runs automatically.
+
 ## Scripts (this batch)
 
 - **`config.py`** — shared, relocatable configuration module (a library, not
