@@ -17,6 +17,8 @@ the target file (never auto-created). If the default current-week note is
 missing, monday_init.py is run first to create it from the template.
 """
 import argparse
+import contextlib
+import io
 import json
 import os
 import re
@@ -24,6 +26,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import traceback
 from datetime import date
 from pathlib import Path
 
@@ -193,7 +196,7 @@ def self_test():
     tmp.unlink()
 
     # Missing current-week note: run a copy of this script + monday_init.py
-    # + config.py + template from a temp workspace, so the real vault is
+    # + its fixed writer dependencies + template from a temp workspace, so the real vault is
     # never touched.
     os.environ.pop("LOG_SESSION_NOTE", None)
     os.environ.pop("LOG_SESSION_RECORDS_DIR", None)
@@ -205,6 +208,7 @@ def self_test():
     shutil.copy(ROOT / "System_Config" / "config.py", ws / "System_Config" / "config.py")
     shutil.copy(ROOT / "System_Config" / "brain_lock.py", ws / "System_Config" / "brain_lock.py")
     shutil.copy(ROOT / "System_Config" / "context_cadence.py", ws / "System_Config" / "context_cadence.py")
+    shutil.copy(ROOT / "System_Config" / "context_weekly.py", ws / "System_Config" / "context_weekly.py")
     (ws / "brain" / "weekly_logs" / "Weekly_Note_Template.md").write_text(
         "# W{{WEEK_NUM}} {{YEAR}} — TEMPLATE-MARKER\n---\n\n## Agent Sessions\n"
         "> Auto-appended after each launcher-completed session.\n\n---\n",
@@ -215,7 +219,7 @@ def self_test():
     proc = subprocess.run(
         [sys.executable, str(ws / "System_Config" / "log_session.py"),
          "--provider", "claude", "--role", "coder", "--status", "0", "--reason", "exit"],
-        capture_output=True, encoding="utf-8", env=_child_env(),
+        capture_output=True, encoding="utf-8", env=_child_env(), timeout=15,
     )
     check("missing note auto-created via monday_init.py", note.is_file())
     if note.is_file():
@@ -235,7 +239,7 @@ def self_test():
          "--provider", "codex", "--role", "coder", "--status", "0", "--reason", "exit",
          "--task", "Add a fixture", "--target-repo", str(ws / "target"),
          "--run-id", "fixture-run", "--branch", "agentic-light/fixture-run", "--log", str(log)],
-        capture_output=True, encoding="utf-8", env=_child_env(),
+        capture_output=True, encoding="utf-8", env=_child_env(), timeout=15,
     )
     record = ws / "brain" / "records" / "sessions" / "session-fixture-run.md"
     check("typed session record exits successfully", proc_record.returncode == 0, proc_record.stderr)
@@ -256,7 +260,7 @@ def self_test():
     proc2 = subprocess.run(
         [sys.executable, str(ws / "System_Config" / "log_session.py"),
          "--provider", "claude", "--role", "coder", "--status", "0", "--reason", "exit"],
-        capture_output=True, encoding="utf-8", env=_child_env(),
+        capture_output=True, encoding="utf-8", env=_child_env(), timeout=15,
     )
     check("non-zero exit when monday_init.py fails should still be 0", proc2.returncode == 0, proc2.returncode)
     check("note not written despite monday_init.py failure", not note.is_file())
@@ -266,7 +270,7 @@ def self_test():
         [sys.executable, str(ws / "System_Config" / "log_session.py"),
          "--provider", "claude", "--role", "coder", "--status", "0", "--reason", "exit",
          "--note", str(ws / "nope.md")],
-        capture_output=True, encoding="utf-8", env=_child_env(),
+        capture_output=True, encoding="utf-8", env=_child_env(), timeout=15,
     )
     check("explicit missing --note exits 0", proc3.returncode == 0, proc3.returncode)
     check("explicit --note does not trigger auto-create", not (ws / "nope.md").exists() and not (ws / "brain" / "weekly_logs" / f"{year}").is_dir())
@@ -395,14 +399,23 @@ def _process(entry):
         note = current_week_note()
         if not note.is_file():
             print(f"log_session.py: no weekly note at {note} — running monday_init.py to create it", file=sys.stderr)
-            monday_init_py = ROOT / "System_Config" / "monday_init.py"
-            result = subprocess.run([sys.executable, str(monday_init_py)],
-                                     capture_output=True, encoding="utf-8", env=_child_env())
-            if result.stdout:
-                print(result.stdout, end="", file=sys.stderr)
-            if result.stderr:
-                print(result.stderr, end="", file=sys.stderr)
-            if result.returncode != 0:
+            # Same-process composition lets Monday nest under this thread's
+            # lock; a child process must never inherit lock ownership.
+            output, errors = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+                try:
+                    import monday_init
+                    rc = monday_init.run(dry_run=os.environ.get("DRY_RUN", "0") == "1")
+                except SystemExit as error:
+                    rc = error.code if isinstance(error.code, int) else (0 if error.code is None else 1)
+                    if rc and not isinstance(error.code, int):
+                        print(error.code, file=sys.stderr)
+                except Exception:
+                    traceback.print_exc()
+                    rc = 1
+            print(output.getvalue(), end="", file=sys.stderr)
+            print(errors.getvalue(), end="", file=sys.stderr)
+            if rc != 0:
                 print("log_session.py: monday_init.py exited non-zero", file=sys.stderr)
             if not note.is_file():
                 print(f"log_session.py: weekly note still missing at {note} after monday_init.py — skipping", file=sys.stderr)

@@ -78,7 +78,7 @@ class Workspace(unittest.TestCase):
 
     def run_py(self, script, *args):
         return subprocess.run([sys.executable, str(self.sys / script), *args], cwd=str(self.ws), env=self.env,
-                              capture_output=True, encoding="utf-8")
+                              capture_output=True, encoding="utf-8", timeout=15)
 
     def tree(self):
         return sorted(str(p.relative_to(self.ws)) for p in self.brain.rglob("*") if p.is_file())
@@ -177,6 +177,55 @@ class LogSession(Workspace):
     def call(self, note, status="0", *extra):
         return self.run_py("log_session.py", "--provider", "claude", "--role", "coder", "--status", status,
                            "--reason", "exit", "--note", str(note), *extra)
+
+    def default_call(self):
+        # Keep the production wait long: the subprocess timeout catches any
+        # accidental nested child writer without hanging the suite for 900s.
+        return subprocess.run(
+            [sys.executable, str(self.sys / "log_session.py"), "--provider", "claude",
+             "--role", "coder", "--status", "0", "--reason", "exit"],
+            cwd=str(self.ws), env={**self.env, "BRAIN_LOCK_WAIT": "900"},
+            capture_output=True, encoding="utf-8", timeout=8)
+
+    def current_note(self):
+        year, week, _ = date.today().isocalendar()
+        return self.brain / "weekly_logs" / str(year) / f"{year}-W{week:02d}.md"
+
+    def test_missing_default_note_is_created_under_the_logger_lock(self):
+        self.assertFalse(self.current_note().exists())
+        out = self.default_call()
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(out.stdout, "")
+        self.assertIn("claude / coder — exit 0 (exit)", self.current_note().read_text(encoding="utf-8"))
+        self.assertIn("[monday_init]", out.stderr)
+        self.assertNotIn("failed; continuing", out.stderr)
+        self.assertFalse(self.lock.exists())
+
+    def test_missing_template_skips_default_note_without_failing_logger(self):
+        (self.brain / "weekly_logs" / "Weekly_Note_Template.md").unlink()
+        out = self.default_call()
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(out.stdout, "")
+        self.assertIn("monday_init.py exited non-zero", out.stderr)
+        self.assertIn("weekly note still missing", out.stderr)
+        self.assertFalse(self.current_note().exists())
+        self.assertFalse(self.lock.exists())
+
+    def test_dry_run_environment_keeps_default_note_missing(self):
+        self.env["DRY_RUN"] = "1"
+        out = self.default_call()
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(out.stdout, "")
+        self.assertIn("Would create:", out.stderr)
+        self.assertFalse(self.current_note().exists())
+        self.assertFalse(self.lock.exists())
+
+    def test_explicit_missing_note_never_runs_monday(self):
+        out = self.call(self.ws / "missing.md")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertNotIn("running monday_init.py", out.stderr)
+        self.assertFalse(self.current_note().exists())
+        self.assertFalse(self.lock.exists())
 
     def test_busy_lock_spools_outside_brain_exits_0_and_the_next_run_flushes_in_order(self):
         note = self.note()
