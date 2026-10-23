@@ -206,6 +206,16 @@ class EvidenceTests(unittest.TestCase):
         counts = self.invoke()
         self.assertEqual((counts['excerpts'], counts['gaps']), (0, 5))
 
+    def test_codex_oversized_nonmessage_is_not_an_activity_gap(self):
+        self.codex([self.meta(),
+                    {'type': 'response_item', 'ordinal': 1, 'timestamp': '2026-10-20T10:00:00Z',
+                     'payload': {'type': 'function_call', 'arguments': 'TOOL_SECRET' * 5000}},
+                    self.message(2, '2026-10-20T10:00:01Z', 'MESSAGE_SECRET' * 5000)])
+        counts = self.invoke()
+        self.assertEqual((counts['excerpts'], counts['gaps']), (0, 1))
+        self.assertNotIn('TOOL_SECRET', self.output.read_text(encoding='utf-8'))
+        self.assertNotIn('MESSAGE_SECRET', self.output.read_text(encoding='utf-8'))
+
     def test_codex_fork_replay_is_undated(self):
         self.codex([self.meta(forked_from_id='P', subagent_history_start_ordinal=3),
                     self.message(1, '2026-10-20T10:00:00.000Z', 'REPLAY_SECRET'),
@@ -221,6 +231,7 @@ class EvidenceTests(unittest.TestCase):
         message = self.message(1, '2026-10-20T10:00:00.000Z', 'HEADER_SECRET')
         for rows in ([self.meta(forked_from_id='P'), message],
                      [self.meta(forked_from_id='P', subagent_history_start_ordinal='3'), message],
+                     [self.meta(forked_from_id='P', subagent_history_start_ordinal=-1), message],
                      [message], [{'type': 'session_meta', 'payload': 'bad'}, message]):
             for record in (self.vault / 'context/source-records').glob('*.md'):
                 record.unlink()

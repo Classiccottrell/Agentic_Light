@@ -85,7 +85,7 @@ def codex_messages(data, start, end, zone, counts):
         history_start = None
         if 'forked_from_id' in meta:
             history_start = meta.get('subagent_history_start_ordinal')
-            if not isinstance(history_start, int) or isinstance(history_start, bool):
+            if not isinstance(history_start, int) or isinstance(history_start, bool) or history_start < 0:
                 raise ValueError()
     except (ValueError, TypeError, KeyError, UnicodeError):
         # No readable fork authority: nothing in this file can be dated.
@@ -95,6 +95,14 @@ def codex_messages(data, start, end, zone, counts):
     label_user = 'delegated-prompt' if meta.get('parent_thread_id') else 'user'
     for raw in lines[1:]:
         if len(raw) > MAX_ROW:
+            try:
+                item = json.loads(raw)
+                payload = item.get('payload') if isinstance(item, dict) else None
+                if (not isinstance(payload, dict) or item.get('type') != 'response_item'
+                        or payload.get('type') != 'message' or payload.get('role') not in ('user', 'assistant')):
+                    continue
+            except (ValueError, TypeError, UnicodeError):
+                pass
             counts['gaps'] += 1
             continue
         try:
@@ -211,7 +219,7 @@ def publish(vault_path, week, classification, timezone, sources):
     if not counts['excerpts']:
         lines.extend(('', 'No verified activity evidence for this week.'))
     lines.extend(('', 'Coverage: ' + json.dumps(counts, sort_keys=True),
-                  'Gaps count missing/oversized snapshots, invalid or oversized rows, and truncated/omitted excerpts.',
+                  'Gaps count missing/oversized snapshots, invalid rows, oversized message rows, and truncated/omitted excerpts.',
                   'Undated counts Codex rows or files whose timestamps cannot be tied to their own activity (forked-history replays, unreadable fork header).',
                   'Unsupported/date-unknown sources contribute no content.', ''))
     data = '\n'.join(lines).encode('utf-8')

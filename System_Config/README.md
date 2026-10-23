@@ -576,7 +576,7 @@ no developer/tool/reasoning rows, assistant commentary, or injected context
 timestamps, so rows before `subagent_history_start_ordinal` (or the whole file
 when that header is unreadable) are `undated` and contribute nothing. Delegated
 sub-agent prompts are labeled `delegated-prompt`, not `user`. Antigravity and
-web-clipper are counted as unsupported/date-unknown. Missing snapshots and malformed/oversized rows are
+web-clipper are counted as unsupported/date-unknown. Missing snapshots, malformed rows, and oversized message rows are
 visible gaps. Limits: 32 MiB per snapshot, 64 MiB total, 32 KiB per row, 16 excerpts
 of 512 characters, 64 KiB packet. The excerpt cap reserves space even for
 HTML/Markdown escaping. Each deduplicated selected source receives an equal
