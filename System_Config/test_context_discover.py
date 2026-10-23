@@ -56,6 +56,13 @@ class ContextDiscoverFixtures(unittest.TestCase):
     def marker(self):
         return self.out.with_name(self.out.name + ".context-discover")
 
+    def test_exact_filename_suffix_skips_sibling_logs(self):
+        wanted = self.source("agy/brain/a/.system_generated/logs/transcript.jsonl")
+        self.source("agy/brain/a/.system_generated/logs/transcript_full.jsonl")
+        self.write_config([self.entry("antigravity", self.data / "agy", "transcript.jsonl")])
+        self.invoke()
+        self.assertEqual([row["path"] for row in json.loads(self.out.read_text(encoding="utf-8"))["sources"]], [str(wanted)])
+
     def test_explicit_recursive_sources_emit_all_providers_without_duplicates(self):
         claude = self.source("claude/nested/session.jsonl")
         codex = self.source("codex/rollout.jsonl")

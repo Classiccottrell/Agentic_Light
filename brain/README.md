@@ -63,8 +63,8 @@ to schedule daily collection, Monday spin-up, and Friday closeout on macOS.
 For a private, timestamp-aware evidence packet, run
 `python3 System_Config/context_weekly_evidence.py --vault brain --week 2026-W43 --classification work --source claude-<hash12>-2026-10-20 --timezone America/Vancouver`.
 The ignored `context/weekly-evidence/2026-W43-work.md` contains bounded excerpts
-from verified private Claude and Codex staging snapshots (`--source codex-<hash12>-<date>`). Select one to twelve source-record stems with repeated `--source` arguments.
+from verified private Claude, Codex and Antigravity (`transcript.jsonl` only) staging snapshots (`--source codex-<hash12>-<date>`). Select one to twelve source-record stems with repeated `--source` arguments.
 Each must match the week and classification. The packet filters actual message
 timestamps to that local week and reports selected-source counts and coverage
-gaps. Automatic full-week coverage remains open. Antigravity and web-clipper contribute counts only. The command is
+gaps. Automatic full-week coverage remains open. Web-clipper contributes counts only. The command is
 foreground-only; review the packet before sharing its private transcript text.

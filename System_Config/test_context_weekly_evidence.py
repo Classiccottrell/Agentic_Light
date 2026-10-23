@@ -72,10 +72,9 @@ class EvidenceTests(unittest.TestCase):
 
     def test_gaps_and_bounds(self):
         self.source([self.row(None), self.row('no timestamp'), self.row('2026-10-20T10:00:00'), self.row('2026-10-20T10:00:00Z', 'x' * 40000)])
-        for provider in ('antigravity', 'web-clipper'):
-            self.source([], provider=provider)
+        self.source([], provider='web-clipper')
         counts = self.invoke()
-        self.assertEqual(counts['unsupported_date_unknown'], 2)
+        self.assertEqual(counts['unsupported_date_unknown'], 1)
         self.assertEqual(counts['gaps'], 4)
         self.assertLess(self.output.stat().st_size, 65536)
 
@@ -250,6 +249,65 @@ class EvidenceTests(unittest.TestCase):
         self.invoke()
         prior = self.output.read_bytes()
         self.assertIn(b'codex included', prior)
+        path.write_bytes(path.read_bytes() + b'\n')
+        self.invoke(expected=1)
+        self.assertEqual(self.output.read_bytes(), prior)
+
+    def agy(self, step, stamp, kind=('USER_EXPLICIT', 'USER_INPUT'), content='agy included', **extra):
+        row = {'step_index': step, 'created_at': stamp, 'source': kind[0], 'type': kind[1], 'status': 'DONE', 'content': content}
+        row.update(extra)
+        return row
+
+    def request(self, text='agy included'):
+        return f'<USER_REQUEST>{text}</USER_REQUEST>\n<ADDITIONAL_METADATA>META_SECRET</ADDITIONAL_METADATA>\n<USER_SETTINGS_CHANGE>SETTINGS_SECRET</USER_SETTINGS_CHANGE>'
+
+    def test_antigravity_transcript_current_week_only(self):
+        planner = ('MODEL', 'PLANNER_RESPONSE')
+        self.source([self.agy(0, '2026-10-20T10:00:00Z', content=self.request()),
+                     self.agy(1, '2026-10-20T10:00:01Z', planner, 'agy answer', thinking='THINKING_SECRET', tool_calls=[{'args': 'TOOL_SECRET'}]),
+                     self.agy(2, '2026-10-20T10:00:02Z', planner, None, tool_calls=[{'args': 'TOOL_SECRET'}]),
+                     self.agy(3, '2026-10-12T10:00:00Z', content=self.request('LASTWEEK_SECRET')),
+                     self.agy(4, '2026-10-20T10:00:03Z', ('SYSTEM', 'CONVERSATION_HISTORY'), 'HISTORY_SECRET'),
+                     self.agy(5, '2026-10-20T10:00:04Z', ('MODEL', 'VIEW_FILE'), 'FILE_SECRET'),
+                     self.agy(3, '2026-10-20T10:00:03Z', ('SYSTEM', 'SYSTEM_MESSAGE'), 'SYSTEM_SECRET')], provider='antigravity')
+        counts = self.invoke()
+        text = self.output.read_text(encoding='utf-8')
+        self.assertEqual((counts['excerpts'], counts['injected_excluded'], counts['gaps']), (2, 2, 0))
+        self.assertIn('2026-10-20 prompt: agy included', text)
+        self.assertIn('2026-10-20 assistant: agy answer', text)
+        for secret in ('META_SECRET', 'SETTINGS_SECRET', 'THINKING_SECRET', 'TOOL_SECRET', 'LASTWEEK_SECRET', 'HISTORY_SECRET', 'FILE_SECRET', 'SYSTEM_SECRET'):
+            self.assertNotIn(secret, text)
+
+    def test_antigravity_historical_rows_collected_this_week(self):
+        self.source([self.agy(0, '2026-09-20T10:00:00Z', content=self.request())], provider='antigravity', day='2026-10-21')
+        self.assertEqual(self.invoke()['excerpts'], 0)
+
+    def test_antigravity_bad_rows_are_gaps(self):
+        planner = ('MODEL', 'PLANNER_RESPONSE')
+        rows = [self.agy(0, None, content=self.request()), self.agy(1, 'garbage', content=self.request()),
+                self.agy(2, '2026-10-20T10:00:00', content=self.request()),
+                self.agy(3, '2026-10-20T10:00:00Z', content='no request wrapper'),
+                self.agy(4, '2026-10-20T10:00:00Z', content=self.request('a') + self.request('b')),
+                self.agy(5, '2026-10-20T10:00:00Z', planner, 'truncated', truncated_fields=['content']),
+                self.agy(6, '2026-10-20T10:00:00Z', planner, 'x' * 40000)]
+        self.source(rows, provider='antigravity')
+        counts = self.invoke()
+        self.assertEqual((counts['excerpts'], counts['gaps']), (0, 7))
+
+    def test_antigravity_db_record_is_never_decoded(self):
+        data = b'SQLite format 3\x00 DB_SECRET'
+        digest = hashlib.sha256(data).hexdigest()
+        (self.vault / f'context/source-records/antigravity-{digest[:12]}-2026-10-20.md').write_text(
+            f'---\ngenerated: context-intake-v1\nprovider: antigravity\nage: current\nclassification: work\nstatus: decoder-required\ndate: 2026-10-20\n---\n<!-- generated-context-intake-v1 -->\nprivate-source:sha256:{digest}\n', encoding='utf-8')
+        counts = self.invoke()
+        self.assertEqual((counts['excerpts'], counts['gaps']), (0, 1))
+        self.assertNotIn('DB_SECRET', self.output.read_text(encoding='utf-8'))
+
+    def test_antigravity_hash_mismatch_preserves_prior_packet(self):
+        path = self.source([self.agy(0, '2026-10-20T10:00:00Z', content=self.request())], provider='antigravity')
+        self.invoke()
+        prior = self.output.read_bytes()
+        self.assertIn(b'agy included', prior)
         path.write_bytes(path.read_bytes() + b'\n')
         self.invoke(expected=1)
         self.assertEqual(self.output.read_bytes(), prior)

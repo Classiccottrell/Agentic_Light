@@ -575,8 +575,17 @@ no developer/tool/reasoning rows, assistant commentary, or injected context
 (`injected_excluded`). Forked rollouts replay parent history with fresh
 timestamps, so rows before `subagent_history_start_ordinal` (or the whole file
 when that header is unreadable) are `undated` and contribute nothing. Delegated
-sub-agent prompts are labeled `delegated-prompt`, not `user`. Antigravity and
-web-clipper are counted as unsupported/date-unknown. Missing snapshots, malformed rows, and oversized message rows are
+sub-agent prompts are labeled `delegated-prompt`, not `user`. Antigravity is
+read from its CLI `brain/<id>/.system_generated/logs/transcript.jsonl` (an
+undocumented internal log that may change between versions; configure the
+source with `"suffix": "transcript.jsonl"`, which excludes
+`transcript_full.jsonl`): each row's own `created_at`, `USER_REQUEST` bodies
+labeled `prompt` (most are automated headless runs, not human typing) and
+planner text only, never thinking, tool calls, SYSTEM rows or injected
+metadata/settings blocks (`injected_excluded`); rows with truncated content are
+gaps. Antigravity `.db` conversation stores are not decoded (undocumented
+protobuf blobs plus WAL that a file hash does not cover); such records show as
+missing-snapshot gaps. Web-clipper is counted as unsupported/date-unknown. Missing snapshots, malformed rows, and oversized message rows are
 visible gaps. Limits: 32 MiB per snapshot, 64 MiB total, 32 KiB per row, 16 excerpts
 of 512 characters, 64 KiB packet. The excerpt cap reserves space even for
 HTML/Markdown escaping. Each deduplicated selected source receives an equal

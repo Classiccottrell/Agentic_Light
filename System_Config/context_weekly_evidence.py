@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Build selected weekly activity evidence from verified private Claude and Codex snapshots."""
+"""Build selected weekly activity evidence from verified private Claude, Codex, and Antigravity snapshots."""
 import argparse
 import datetime as dt
 import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import sys
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -20,6 +21,8 @@ MAX_EXCERPTS = 16
 MAX_SOURCES = 12
 MAX_TEXT = 512
 # Codex injects these into user-role messages; they are system context, not human activity.
+REQUEST = re.compile(r'<USER_REQUEST>(.*?)</USER_REQUEST>', re.DOTALL)
+AGY_INJECTED = re.compile(r'<(?:ADDITIONAL_METADATA|USER_SETTINGS_CHANGE)>')
 INJECTED = ('<environment_context', '<hook_prompt', '<image', '# AGENTS.md instructions')
 
 
@@ -28,8 +31,8 @@ def safe_directories(path):
         weekly.directory(parent, 'evidence directory')
 
 
-def stamped_day(row, zone):
-    stamp = row.get('timestamp')
+def stamped_day(row, zone, field='timestamp'):
+    stamp = row.get(field)
     if not isinstance(stamp, str):
         raise ValueError()
     timestamp = dt.datetime.fromisoformat(stamp.replace('Z', '+00:00'))
@@ -138,7 +141,50 @@ def codex_messages(data, start, end, zone, counts):
             counts['gaps'] += 1
 
 
-PROVIDERS = {'claude': claude_messages, 'codex': codex_messages}
+def antigravity_messages(data, start, end, zone, counts):
+    """Yield dated Antigravity CLI transcript.jsonl messages.
+
+    The log (brain/<id>/.system_generated/logs/transcript.jsonl) is an undocumented internal
+    format that may change between versions. Each row has its own created_at. Only
+    USER_EXPLICIT/USER_INPUT requests and MODEL/PLANNER_RESPONSE text count; thinking, tool
+    calls, SYSTEM rows, and injected metadata/settings blocks never do. Most prompts are
+    automated (headless agy runs), so they are labeled 'prompt', not 'user'.
+    """
+    for raw in data.splitlines():
+        if len(raw) > MAX_ROW:
+            counts['gaps'] += 1
+            continue
+        try:
+            row = json.loads(raw)
+            if not isinstance(row, dict):
+                raise ValueError()
+            kind = (row.get('source'), row.get('type'))
+            if kind not in (('USER_EXPLICIT', 'USER_INPUT'), ('MODEL', 'PLANNER_RESPONSE')):
+                continue
+            day = stamped_day(row, zone, 'created_at')
+            if not start <= day <= end:
+                continue
+            content = row.get('content')
+            if not isinstance(content, str):
+                if kind[1] == 'USER_INPUT':
+                    raise ValueError()
+                continue  # tool-only planner steps carry no text
+            truncated = row.get('truncated_fields')
+            if truncated and (not isinstance(truncated, list) or 'content' in truncated):
+                raise ValueError()
+            if kind[1] == 'USER_INPUT':
+                bodies = REQUEST.findall(content)
+                if len(bodies) != 1:
+                    raise ValueError()
+                counts['injected_excluded'] += len(AGY_INJECTED.findall(content))
+                yield day, 'prompt', bodies[0]
+            else:
+                yield day, 'assistant', content
+        except (ValueError, TypeError, OverflowError, UnicodeError):
+            counts['gaps'] += 1
+
+
+PROVIDERS = {'claude': claude_messages, 'codex': codex_messages, 'antigravity': antigravity_messages}
 
 
 def excerpts(messages, counts, quota):

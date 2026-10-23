@@ -16,7 +16,7 @@ PROVIDERS = {"claude", "codex", "antigravity", "web-clipper"}
 AGES = {"old", "current"}
 CLASSIFICATIONS = {"work", "personal", "unsorted"}
 TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
-SUFFIX = re.compile(r"^\.[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
+SUFFIX = re.compile(r"^\.?[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
 FIELDS = {"provider", "root", "suffix", "age", "classification", "status"}
 
 

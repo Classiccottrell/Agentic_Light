@@ -10,11 +10,11 @@
     },
     {
       "provider": "antigravity",
-      "root": "/absolute/path/to/antigravity-conversations",
-      "suffix": ".db",
+      "root": "/absolute/path/to/antigravity-cli/brain",
+      "suffix": "transcript.jsonl",
       "age": "current",
       "classification": "unsorted",
-      "status": "decoder-required"
+      "status": "captured"
     }
   ]
 }
