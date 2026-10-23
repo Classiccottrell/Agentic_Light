@@ -20,6 +20,8 @@ import argparse
 import contextlib
 import io
 import json
+import hashlib
+import time
 import os
 import re
 import shutil
@@ -332,7 +334,7 @@ def main():
              "note": args.note, "metadata": list(metadata) if all(metadata) else [], "ts": _now_str()}
 
     # Shared brain lock, session-hook budget: wait only BRAIN_LOCK_HOOK_WAIT seconds (default 5). If a long
-    # ingest holds it, SPOOL the whole entry to logs/log_session.pending (outside brain/) and exit 0; the next
+    # ingest holds it, SPOOL the whole entry to logs/log_session.pending.entry.* (outside brain/) and exit 0; the next
     # run that gets the lock flushes it first. Never dropped, never written unlocked. A child of a lock holder
     # (e.g. a pipeline child of a Friday run) spools instead of inheriting parent authority.
     if brain_lock.acquire("wait", brain_lock.hook_wait_seconds()) != 0:
@@ -347,34 +349,137 @@ def main():
 
 
 def _spool(entry):
+    """Publish one complete mode-0600 queue entry without sharing append FDs.
+
+    The flusher only sees .entry.* names after the writer has closed its file.
+    Hidden .writing.* files are incomplete evidence, never consumed/deleted here.
+    """
     PENDING.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(str(PENDING), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    fd, temporary = tempfile.mkstemp(dir=str(PENDING.parent), prefix="." + PENDING.name + ".writing.")
+    ready = PENDING.with_name(PENDING.name + ".entry.%020d.%s" % (time.time_ns(), Path(temporary).name.rsplit(".", 1)[-1]))
     try:
-        os.write(fd, (json.dumps(entry, sort_keys=True) + "\n").encode("utf-8"))   # one atomic append per entry
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(json.dumps(entry, sort_keys=True) + "\n")
+        os.replace(temporary, str(ready))
+    except BaseException:
+        # Keep a failed publication as evidence; it has no ready name and cannot
+        # be mistaken for a complete row by a concurrent flusher.
+        raise
+
+
+def _park(raw):
+    """Retain malformed/rejected rows; this append-only file is never renamed."""
+    fd = os.open(str(PENDING.with_name(PENDING.name + ".failed")), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    with os.fdopen(fd, "ab") as stream:
+        stream.write(raw if raw.endswith(b"\n") else raw + b"\n")
+
+
+def _replay(raw):
+    try:
+        failed = _process(json.loads(raw.decode("utf-8"))) != 0
+    except (ValueError, KeyError, TypeError):
+        failed = True
+    if failed:
+        _park(raw)
+
+
+def _write_legacy_cursor(cursor, pending):
+    path = pending.with_name(pending.name + ".cursor")
+    fd, temporary = tempfile.mkstemp(dir=str(path.parent), prefix="." + path.name + ".")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(json.dumps(cursor, sort_keys=True) + "\n")
+        os.replace(temporary, str(path))
     finally:
-        os.close(fd)
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def _flush_legacy(pending):
+    """Replay complete LF records by inode+offset, never rename/unlink legacy.
+
+    An old-version writer may still have its append descriptor open when we
+    drain. Keeping the original inode/path and a checkpoint lets later appends
+    appear on the next flush. Replacement/truncation/prefix change resets the
+    cursor conservatively (at-least-once replay, never skip unseen new bytes).
+    """
+    if not pending.is_file():
+        return
+    try:
+        cursor = json.loads(pending.with_name(pending.name + ".cursor").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        cursor = {}
+    if not isinstance(cursor, dict):
+        cursor = {}
+    with open(pending, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        data = stream.read()
+    identity = [info.st_dev, info.st_ino]
+    offset = cursor.get("offset", 0)
+    if (cursor.get("identity") != identity or not isinstance(offset, int) or isinstance(offset, bool) or offset < 0 or offset > len(data)
+            or cursor.get("prefix_sha256") != hashlib.sha256(data[:offset]).hexdigest()):
+        offset = 0
+    end = data.rfind(b"\n") + 1
+    if end <= offset:
+        return
+    prefix = hashlib.sha256(data[:offset])
+    for line in data[offset:end].split(b"\n")[:-1]:
+        raw = line + b"\n"
+        if raw.strip():
+            _replay(raw)
+        offset += len(raw)
+        prefix.update(raw)
+        _write_legacy_cursor({"identity": identity, "offset": offset,
+                              "prefix_sha256": prefix.hexdigest()}, pending)
+
+
+def _legacy_paths():
+    # Old releases renamed the append target to .flushing.<pid>. Keep these
+    # inodes too: an old writer may still hold an append descriptor to one.
+    historical = [path for path in PENDING.parent.glob(PENDING.name + ".flushing.*")
+                  if re.fullmatch(r"[0-9]+", path.name.rsplit(".", 1)[-1])]
+    return [PENDING, *sorted(historical)]
+
+
+def legacy_pending(pending=None):
+    """Whether any retained legacy append file has unacknowledged bytes."""
+    if pending is None:
+        return any(legacy_pending(path) for path in _legacy_paths())
+    try:
+        with open(pending, "rb") as stream:
+            info, data = os.fstat(stream.fileno()), stream.read()
+        if not data:
+            return False
+        cursor = json.loads(pending.with_name(pending.name + ".cursor").read_text(encoding="utf-8"))
+        if not isinstance(cursor, dict):
+            return True
+        return not (cursor.get("identity") == [info.st_dev, info.st_ino]
+                    and cursor.get("offset") == len(data)
+                    and cursor.get("prefix_sha256") == hashlib.sha256(data).hexdigest())
+    except FileNotFoundError:
+        return pending.exists()
+    except (OSError, ValueError):
+        return True
+
+
+def pending_ready():
+    """Return a fixed snapshot of complete published entries only."""
+    return sorted(PENDING.parent.glob(PENDING.name + ".entry.*"))
 
 
 def flush_pending():
-    """Replay spooled entries in order (call ONLY while holding the brain lock; friday_process and
-    daily_ingest do, so a spooled line never waits for the next manual pipeline run). The file is renamed
-    first so entries spooled meanwhile by other processes land in a fresh file, not in the one being read."""
-    if PENDING.is_file():
-        try:
-            os.replace(str(PENDING), str(PENDING.with_name(PENDING.name + ".flushing.%d" % os.getpid())))
-        except OSError:
-            return
-    for path in sorted(PENDING.parent.glob(PENDING.name + ".flushing.*")):
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            try:
-                failed = _process(json.loads(line)) != 0
-            except (ValueError, KeyError, TypeError):
-                failed = True
-            if failed:   # never loop on a poison entry: park it where a human can look
-                with open(str(PENDING.with_name(PENDING.name + ".failed")), "a", encoding="utf-8", newline="\n") as parked:
-                    parked.write(line + "\n")
+    """Replay under the brain lock. Concurrent publications wait for next flush.
+
+    Delivery is at least once across a crash between note write and queue/cursor
+    acknowledgement; no cross-file transaction or fsync durability is promised.
+    """
+    if not brain_lock.owned():
+        raise RuntimeError("flush_pending requires the shared brain lock")
+    ready = pending_ready()
+    for path in _legacy_paths():
+        _flush_legacy(path)
+    for path in ready:
+        _replay(path.read_bytes())
         path.unlink()
 
 

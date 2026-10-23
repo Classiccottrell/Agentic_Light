@@ -234,7 +234,7 @@ class LogSession(Workspace):
         self.assertEqual(first.returncode, 0, first.stderr)
         self.assertNotIn("exit 11", note.read_text(encoding="utf-8"))
         pending = self.sys / "logs" / "log_session.pending"
-        entries = [json.loads(line) for line in pending.read_text(encoding="utf-8").splitlines()]
+        entries = [json.loads(path.read_text(encoding="utf-8")) for path in pending.parent.glob(pending.name + ".entry.*")]
         self.assertEqual(len(entries), 1)
         self.unhold()
         second = self.call(note, "22")
@@ -243,7 +243,7 @@ class LogSession(Workspace):
         self.assertIn("exit 11", text)
         self.assertIn("exit 22", text)
         self.assertLess(text.index("exit 11"), text.index("exit 22"), "spooled entry keeps its place")
-        self.assertFalse(pending.exists())
+        self.assertFalse(list(pending.parent.glob(pending.name + ".entry.*")))
         self.assertFalse(self.lock.exists())
 
     def test_busy_lock_spools_the_session_record_too(self):
@@ -284,7 +284,7 @@ class LogSession(Workspace):
                              capture_output=True, encoding="utf-8")
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertNotIn("exit 9", note.read_text(encoding="utf-8"))
-        self.assertTrue((self.sys / "logs/log_session.pending").is_file())
+        self.assertTrue(list((self.sys / "logs").glob("log_session.pending.entry.*")))
 
 
 class InProcessCadence(Workspace):
@@ -339,7 +339,7 @@ class SpoolFlush(Workspace):
         out = self.run_py("friday_process.py", "2026-W10")
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertIn("2026-03-05 10:00:00: claude / coder — exit 7 (exit)", note.read_text(encoding="utf-8"))
-        self.assertFalse((self.sys / "logs" / "log_session.pending").exists())
+        self.assertTrue((self.sys / "logs" / "log_session.pending.cursor").is_file())
 
     def test_daily_ingest_flushes_spooled_entries_even_with_nothing_to_ingest(self):
         note = self.brain / "weekly_logs" / "2026" / "2026-W10.md"

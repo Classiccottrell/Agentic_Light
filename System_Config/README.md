@@ -191,12 +191,19 @@ script here runs by hand; that's the only way it runs in Agentic Light.**
   to stderr and exits 0 (logging never fails the pipeline). Writes take the
   shared brain lock with a short wait (`BRAIN_LOCK_HOOK_WAIT`, default 5s).
   If a long ingest holds it, the whole entry (session record + note line)
-  is **spooled** as one JSON line to `System_Config/logs/log_session.pending`
+  is **spooled** as a closed mode-600 JSON file, atomically published as
+  `System_Config/logs/log_session.pending.entry.*`
   (outside `brain/`), the script exits 0, and the next writer that holds the
   lock — `log_session.py` itself, `daily_ingest.py`, or `friday_process.py` —
-  flushes spooled entries first, in order (`log_session.flush_pending()`);
+  flushes a snapshot of published entries first (`log_session.flush_pending()`);
   `healthcheck.py` WARNs while any are still waiting. An entry that cannot be replayed
-  is parked in `log_session.pending.failed`. A child of a lock holder
+  is parked in `log_session.pending.failed` before acknowledgement. Failed
+  publications remain hidden `.log_session.pending.writing.*` files for inspection.
+  Legacy append files (including historical `.flushing.<pid>` crash files)
+  remain in place, tracked by inode, byte offset, and prefix
+  hash so an old open writer can append safely after a drain. A crash between
+  note write and acknowledgement can replay an entry; delivery is at least once,
+  without a cross-file transaction or fsync durability guarantee. A child of a lock holder
   spools as well; only the owning process/thread may nest directly. `pipeline/run.py`'s own
   `pipeline/logs/.run.*.lock` is a per-target-repo run lock, not a brain
   lock. `--self-test` runs

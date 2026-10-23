@@ -369,11 +369,11 @@ def run(report):
         report.check("PASS", "Brain lock", f"held by live pid {holder_pid}")
     else:
         report.check("WARN", "Brain lock", f"stale (holder {holder_pid or 'unknown'} gone) — quiesce writers and inspect before manual recovery")
-    pending = SYSCFG / "logs" / "log_session.pending"
+    import log_session
     parked = SYSCFG / "logs" / "log_session.pending.failed"
     if parked.is_file() and parked.stat().st_size:
         report.check("WARN", "Session spool", "log_session.pending.failed holds entries that could not be replayed — inspect, then delete")
-    elif pending.is_file() and pending.stat().st_size:
+    elif log_session.pending_ready() or log_session.legacy_pending():
         report.check("WARN", "Session spool", "session lines are spooled in logs/log_session.pending — flushed by the next daily/Friday run")
     else:
         report.check("PASS", "Session spool", "nothing spooled")
