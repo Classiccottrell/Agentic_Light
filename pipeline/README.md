@@ -18,6 +18,12 @@ python3 pipeline/run.py --help   # print usage and exit
 
 ## Flow
 
+0. **Coordination agreement** — before gate validation or target work, read the
+   harness-root [AGENT_COORDINATION.md](../AGENT_COORDINATION.md) as UTF-8. A
+   missing, unreadable, invalid or empty agreement stops the run with an actionable
+   error. The normal provider coder prompt receives its exact text before the
+   task, skill guidance and optional reference context. Provider configuration and
+   the existing custom-coder command interface stay unchanged.
 0. **Pre-flight sensitive-file scan** — before the coder step, `run.py` scans
    the target repo for filenames matching `.env*`, `*.key`, `*.pem`,
    `id_rsa*` (including gitignored files — that's normally where a real

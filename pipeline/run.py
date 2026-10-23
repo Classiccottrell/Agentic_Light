@@ -335,6 +335,15 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
     print("=" * 50)
     print()
 
+    # Harness rules must reach providers running in an external target's cwd.
+    try:
+        coordination_text = (ROOT / "AGENT_COORDINATION.md").read_text(encoding="utf-8")
+        if not coordination_text.strip():
+            raise ValueError("empty agreement")
+    except (OSError, UnicodeError, ValueError):
+        print("FAILED: restore a readable, non-empty UTF-8 AGENT_COORDINATION.md in the harness root before running the pipeline.")
+        return 1
+
     # Gate-config validation up front — before anything runs.
     gate_config_path = PIPELINE_DIR / "gate-config.json"
     gates_from_config = None
@@ -431,6 +440,7 @@ def _run_body(task_desc, target_repo, run_id, run_log_path, branch_name):
         # search.
         task = f"Target repo: {target_repo}. Task: {task_desc}. Implement the change on the current branch. Do not run shell commands, create branches, or commit — the pipeline handles all git operations."
         prompt = assemble_coder_prompt(coder_role, skill_context, context_packet_text, task)
+        prompt = f"Harness coordination rules (AGENT_COORDINATION.md):\n{coordination_text}\n\nTask and reference context:\n{prompt}"
         coder_rc = ra.run_agent(prompt, log=str(run_log_path), brain=str(target_repo))
         coder_provider = config.AGENT_PROVIDER or "unknown"
 

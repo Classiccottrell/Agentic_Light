@@ -110,6 +110,13 @@ writes `microsite/status.json`/`status.js`, which `health.html` and
 
 ## Governance
 
+Read [AGENT_COORDINATION.md](AGENT_COORDINATION.md) before sharing a task across
+assistants: agree on one lead and file ownership, preserve existing work, hand off
+exact checks and blockers, and follow the same repository approval gates. The
+agreement applies to the providers already enabled in this harness.
+The pipeline checks that it is readable before target work and includes it in the
+normal provider coder prompt ahead of task and reference context.
+
 `GOVERNANCE.md` (repo root, generated — `python3 System_Config/gen_governance.py`)
 is where "what can an agent here actually do, and what needs my sign-off"
 lives: per-role scope pulled from `agents/*.md`, the human approval gate

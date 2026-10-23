@@ -249,6 +249,17 @@ actually do, and what requires a human's own explicit sign-off before it
 ships?** It documents the mechanism `pipeline/run.py` already enforces; it
 does not add new mechanism.
 
+## Agent Coordination
+
+Read [AGENT_COORDINATION.md](AGENT_COORDINATION.md) before taking ownership,
+editing in parallel or handing work to another assistant. Use one task lead,
+explicit file ownership and handoffs with exact checks and blockers. Preserve
+existing changes and follow the same repository approval gates across the
+providers this harness already enables.
+The pipeline checks that the agreement is readable before target work and
+prepends its exact text to the normal provider coder prompt ahead of task and
+reference context. Provider configuration and custom-coder arguments are unchanged.
+
 ## 1. Per-Role Scope
 
 Pulled from each role file's own frontmatter (`description` + `tools` +

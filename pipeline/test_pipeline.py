@@ -14,6 +14,7 @@ porting config.sh, see config.py's module docstring), so fake `gh`/`claude`
 binaries only need a plain PATH prepend here — no $HOME juggling.
 """
 import contextlib
+import io
 import json
 import importlib.util
 import os
@@ -24,6 +25,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(os.path.abspath(__file__)).parent.parent
 RUN = ROOT / "pipeline" / "run.py"
@@ -509,6 +511,9 @@ def fixture_9():
     calls9_text = CALLS9.read_text(encoding="utf-8") if CALLS9.exists() else ""
     check("fixture9a: coder stub invoked with real prompt", f"Target repo: {repo9_p}" in calls9_text, calls9_text)
     check("fixture9a: context packet absent by default", "Resume context packet:" not in calls9_text, calls9_text)
+    coordination = (ROOT / "AGENT_COORDINATION.md").read_text(encoding="utf-8")
+    check("fixture9a: exact coordination agreement reaches provider", coordination in calls9_text, calls9_text)
+    check("fixture9a: coordination precedes task", calls9_text.index("Harness coordination rules") < calls9_text.index("Target repo:"), calls9_text)
     print("fixture 9a (context packet absent by default): PASS")
 
     CALLS9.write_text("", encoding="utf-8")
@@ -522,7 +527,26 @@ def fixture_9():
     check("fixture9b: coder role contract is injected", role_marker in calls9_text, calls9_text)
     check("fixture9b: prompt keeps role, context, task order",
           role_marker in calls9_text and calls9_text.index(role_marker) < calls9_text.index("Resume context packet:") < calls9_text.index(task_marker), calls9_text)
+    check("fixture9b: coordination precedes reference context", calls9_text.index("Harness coordination rules") < calls9_text.index("Resume context packet:"), calls9_text)
     print("fixture 9b (context packet present with opt-in flag): PASS")
+
+
+def fixture_coordination_preflight():
+    spec = importlib.util.spec_from_file_location("coordination_pipeline_fixture", RUN)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for name, content in (("missing", None), ("empty", b" \n"), ("invalid-utf8", b"\xff")):
+        harness = TMP_ROOT / ("coordination-" + name)
+        harness.mkdir()
+        if content is not None:
+            (harness / "AGENT_COORDINATION.md").write_bytes(content)
+        output = io.StringIO()
+        with mock.patch.object(module, "ROOT", harness), mock.patch.object(module.ra, "run_agent") as agent, mock.patch.object(module, "_sensitive_hits") as target_scan, contextlib.redirect_stdout(output):
+            rc = module._run_body("task", TMP_ROOT / "unused-target", "coordination-test", TMP_ROOT / "unused.log", "unused-branch")
+        check("coordination " + name + ": fails before agent", rc == 1 and not agent.called, output.getvalue())
+        check("coordination " + name + ": no target work", not target_scan.called, output.getvalue())
+        check("coordination " + name + ": actionable failure", "restore a readable, non-empty UTF-8 AGENT_COORDINATION.md" in output.getvalue(), output.getvalue())
+    print("fixture coordination (missing/empty/invalid agreement stops before target work): PASS")
 
 
 def fixture_10():
@@ -666,6 +690,7 @@ def main():
         fixture_7()
         fixture_8()
         fixture_9()
+        fixture_coordination_preflight()
         fixture_10()
         fixture_11()
     finally:

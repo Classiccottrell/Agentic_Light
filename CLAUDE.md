@@ -4,6 +4,13 @@ Lighter sibling of the parent workspace: Obsidian second brain + dev pipeline
 + self-bootstrapping. Private context collection can opt into a macOS daily,
 Monday, and Friday cadence.
 
+## Agent Coordination
+
+Read [AGENT_COORDINATION.md](AGENT_COORDINATION.md) before taking ownership,
+editing in parallel or handing work to another assistant. It governs task leads,
+file ownership, preservation of existing work, handoffs and shared approval gates
+for whichever providers this harness already enables.
+
 ## Build / Run
 
 Windows note: `python3` may not exist (or may be a Microsoft Store stub)
