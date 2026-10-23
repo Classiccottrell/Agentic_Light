@@ -59,6 +59,7 @@ class ContextDiscoverFixtures(unittest.TestCase):
     def test_exact_filename_suffix_skips_sibling_logs(self):
         wanted = self.source("agy/brain/a/.system_generated/logs/transcript.jsonl")
         self.source("agy/brain/a/.system_generated/logs/transcript_full.jsonl")
+        self.source("agy/brain/a/.system_generated/logs/backup-transcript.jsonl")
         self.write_config([self.entry("antigravity", self.data / "agy", "transcript.jsonl")])
         self.invoke()
         self.assertEqual([row["path"] for row in json.loads(self.out.read_text(encoding="utf-8"))["sources"]], [str(wanted)])

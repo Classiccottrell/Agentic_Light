@@ -81,6 +81,9 @@ def entry(raw):
 def candidates(config):
     root = config["root"]
     suffix = config["suffix"]
+    def matches(name):
+        return name.endswith(suffix) if suffix.startswith(".") else name == suffix
+
     try:
         info = root.lstat()
     except OSError:
@@ -88,7 +91,7 @@ def candidates(config):
     if root.is_symlink():
         fail("source root is a symlink")
     if stat.S_ISREG(info.st_mode):
-        if not root.name.endswith(suffix):
+        if not matches(root.name):
             fail("source file does not match suffix")
         return [root]
     if not stat.S_ISDIR(info.st_mode):
@@ -101,10 +104,10 @@ def candidates(config):
     for base, directories, files in os.walk(root, followlinks=False, onerror=unreadable):
         for name in sorted(directories):
             path = Path(base) / name
-            if name.endswith(suffix):
+            if matches(name):
                 regular(path, "source candidate")
         for name in sorted(files):
-            if name.endswith(suffix):
+            if matches(name):
                 path = Path(base) / name
                 regular(path, "source candidate")
                 found.append(path)

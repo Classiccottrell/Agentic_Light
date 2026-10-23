@@ -289,10 +289,15 @@ class EvidenceTests(unittest.TestCase):
                 self.agy(3, '2026-10-20T10:00:00Z', content='no request wrapper'),
                 self.agy(4, '2026-10-20T10:00:00Z', content=self.request('a') + self.request('b')),
                 self.agy(5, '2026-10-20T10:00:00Z', planner, 'truncated', truncated_fields=['content']),
-                self.agy(6, '2026-10-20T10:00:00Z', planner, 'x' * 40000)]
+                self.agy(6, '2026-10-20T10:00:00Z', planner, 'x' * 40000),
+                self.agy(7, '2026-10-20T10:00:00Z', content=self.request('NESTED_SECRET <ADDITIONAL_METADATA>')),
+                self.agy(8, '2026-10-20T10:00:00Z', content=self.request('FAILED_SECRET'), status='FAILED'),
+                self.agy(9, '2026-10-20T10:00:00Z', planner, 'MALFORMED_SECRET', truncated_fields='')]
         self.source(rows, provider='antigravity')
         counts = self.invoke()
-        self.assertEqual((counts['excerpts'], counts['gaps']), (0, 7))
+        self.assertEqual((counts['excerpts'], counts['gaps']), (0, 10))
+        for secret in ('NESTED_SECRET', 'FAILED_SECRET', 'MALFORMED_SECRET'):
+            self.assertNotIn(secret, self.output.read_text(encoding='utf-8'))
 
     def test_antigravity_db_record_is_never_decoded(self):
         data = b'SQLite format 3\x00 DB_SECRET'

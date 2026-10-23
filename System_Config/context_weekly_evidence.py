@@ -164,17 +164,19 @@ def antigravity_messages(data, start, end, zone, counts):
             day = stamped_day(row, zone, 'created_at')
             if not start <= day <= end:
                 continue
+            if row.get('status') != 'DONE':
+                raise ValueError()
             content = row.get('content')
             if not isinstance(content, str):
                 if kind[1] == 'USER_INPUT':
                     raise ValueError()
                 continue  # tool-only planner steps carry no text
             truncated = row.get('truncated_fields')
-            if truncated and (not isinstance(truncated, list) or 'content' in truncated):
+            if truncated is not None and (not isinstance(truncated, list) or 'content' in truncated):
                 raise ValueError()
             if kind[1] == 'USER_INPUT':
                 bodies = REQUEST.findall(content)
-                if len(bodies) != 1:
+                if len(bodies) != 1 or AGY_INJECTED.search(bodies[0]):
                     raise ValueError()
                 counts['injected_excluded'] += len(AGY_INJECTED.findall(content))
                 yield day, 'prompt', bodies[0]

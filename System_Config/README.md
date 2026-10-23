@@ -581,7 +581,7 @@ undocumented internal log that may change between versions; configure the
 source with `"suffix": "transcript.jsonl"`, which excludes
 `transcript_full.jsonl`): each row's own `created_at`, `USER_REQUEST` bodies
 labeled `prompt` (most are automated headless runs, not human typing) and
-planner text only, never thinking, tool calls, SYSTEM rows or injected
+completed (`DONE`) planner text only, never thinking, tool calls, SYSTEM rows or injected
 metadata/settings blocks (`injected_excluded`); rows with truncated content are
 gaps. Antigravity `.db` conversation stores are not decoded (undocumented
 protobuf blobs plus WAL that a file hash does not cover); such records show as
