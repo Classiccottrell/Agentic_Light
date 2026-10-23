@@ -193,6 +193,10 @@ def _build_clean_fork(tmp, fixture_name, preset_name, roles=None):
     for name in CONTEXT_SCRIPTS:
         (root / "System_Config" / name).write_text(
             (REAL_ROOT / "System_Config" / name).read_text(encoding="utf-8"), encoding="utf-8")
+    # The real pipeline requires the coordination agreement at the target
+    # root before launching any writer, including this acceptance fixture.
+    (root / "AGENT_COORDINATION.md").write_text(
+        (REAL_ROOT / "AGENT_COORDINATION.md").read_text(encoding="utf-8"), encoding="utf-8")
     (root / "pipeline").mkdir()
     (root / "pipeline" / "run.py").write_text(
         (REAL_ROOT / "pipeline" / "run.py").read_text(encoding="utf-8"), encoding="utf-8")
